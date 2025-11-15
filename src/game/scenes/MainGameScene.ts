@@ -506,6 +506,14 @@ export class MainGameScene extends Phaser.Scene {
     this.isLevelTransition = true;
     this.goalsReachedThisLevel = 0; // Reset goals counter for next level
 
+    // Check if current level is the max level (16)
+    const currentLevel = MainGameScene.levelManager.getCurrentLevel();
+    if (currentLevel >= MainGameScene.levelManager.getMaxLevel()) {
+      // Player completed all levels!
+      this.showGameComplete();
+      return;
+    }
+
     // Show level complete screen
     this.showLevelComplete();
 
@@ -671,6 +679,107 @@ export class MainGameScene extends Phaser.Scene {
           nextText.destroy();
         }
       });
+    });
+  }
+
+  private showGameComplete(): void {
+    const width = this.scale.width;
+    const height = this.scale.height;
+
+    // Darken screen
+    const overlay = this.add.rectangle(0, 0, width, height, 0x000000, 0.9).setOrigin(0).setDepth(3000);
+
+    // Congratulations panel
+    const panelWidth = 600;
+    const panelHeight = 500;
+    const panelX = width / 2;
+    const panelY = height / 2;
+
+    // Panel background with gold theme
+    const panel = this.add.rectangle(panelX, panelY, panelWidth, panelHeight, 0x2c3e50).setDepth(3001);
+    panel.setStrokeStyle(6, 0xf1c40f);
+
+    // Decorative top bar with gold
+    this.add.rectangle(panelX, panelY - panelHeight / 2 + 30, panelWidth, 60, 0xf1c40f).setDepth(3002);
+
+    // Trophy/Star emoji
+    this.add.text(panelX, panelY - panelHeight / 2 + 30, '🏆', {
+      fontSize: '48px'
+    }).setOrigin(0.5).setDepth(3003);
+
+    // Congratulations text
+    this.add.text(panelX, panelY - 140, 'CONGRATULATIONS!', {
+      fontSize: '56px',
+      color: '#f1c40f',
+      fontStyle: 'bold',
+      stroke: '#000000',
+      strokeThickness: 8
+    }).setOrigin(0.5).setDepth(3003);
+
+    // Game complete message
+    this.add.text(panelX, panelY - 60, 'You completed all 16 levels!', {
+      fontSize: '28px',
+      color: '#ffffff',
+      stroke: '#000000',
+      strokeThickness: 4
+    }).setOrigin(0.5).setDepth(3003);
+
+    // Final score
+    this.add.text(panelX, panelY - 10, `Final Score: ${this.score}`, {
+      fontSize: '36px',
+      color: '#2ecc71',
+      fontStyle: 'bold',
+      stroke: '#000000',
+      strokeThickness: 5
+    }).setOrigin(0.5).setDepth(3003);
+
+    // Achievement message
+    this.add.text(panelX, panelY + 50, 'You are a true champion!', {
+      fontSize: '24px',
+      color: '#ecf0f1',
+      stroke: '#000000',
+      strokeThickness: 3,
+      fontStyle: 'italic'
+    }).setOrigin(0.5).setDepth(3003);
+
+    // Stars decoration
+    this.add.text(panelX - 150, panelY + 100, '⭐', { fontSize: '32px' }).setOrigin(0.5).setDepth(3003);
+    this.add.text(panelX, panelY + 100, '⭐', { fontSize: '40px' }).setOrigin(0.5).setDepth(3003);
+    this.add.text(panelX + 150, panelY + 100, '⭐', { fontSize: '32px' }).setOrigin(0.5).setDepth(3003);
+
+    // Return to menu message
+    this.add.text(panelX, panelY + 180, 'Returning to menu in 5 seconds...', {
+      fontSize: '20px',
+      color: '#95a5a6',
+      stroke: '#000000',
+      strokeThickness: 2
+    }).setOrigin(0.5).setDepth(3003);
+
+    // Add tween animation for the congratulations text
+    const congratsText = this.add.text(panelX, panelY - 140, 'CONGRATULATIONS!', {
+      fontSize: '56px',
+      color: '#f1c40f',
+      fontStyle: 'bold',
+      stroke: '#000000',
+      strokeThickness: 8
+    }).setOrigin(0.5).setDepth(3003);
+
+    this.tweens.add({
+      targets: congratsText,
+      scale: { from: 1, to: 1.1 },
+      duration: 1000,
+      yoyo: true,
+      repeat: -1,
+      ease: 'Sine.easeInOut'
+    });
+
+    // Return to menu after 5 seconds
+    this.time.delayedCall(5000, () => {
+      // Reset everything
+      MainGameScene.levelManager.reset();
+      MainGameScene.persistentScore = 0;
+      MainGameScene.persistentLives = 3;
+      this.scene.start('MenuScene');
     });
   }
 

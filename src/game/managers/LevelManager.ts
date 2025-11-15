@@ -12,6 +12,7 @@ export interface LevelConfig {
 
 export class LevelManager {
   private currentLevel: number = 1;
+  private readonly MAX_LEVEL: number = 16;
 
   constructor() {}
 
@@ -25,6 +26,14 @@ export class LevelManager {
 
   public reset(): void {
     this.currentLevel = 1;
+  }
+
+  public isMaxLevelReached(): boolean {
+    return this.currentLevel > this.MAX_LEVEL;
+  }
+
+  public getMaxLevel(): number {
+    return this.MAX_LEVEL;
   }
 
   public getLevelConfig(): LevelConfig {
