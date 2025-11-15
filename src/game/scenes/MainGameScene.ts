@@ -15,8 +15,8 @@ interface Lane {
 }
 
 export class MainGameScene extends Phaser.Scene {
+  private static levelManager: LevelManager = new LevelManager(); // Shared across all scene instances
   private inputManager!: InputManager;
-  private levelManager!: LevelManager;
   private player!: Player;
   private lanes: Lane[] = [];
   private score: number = 0;
@@ -24,10 +24,19 @@ export class MainGameScene extends Phaser.Scene {
   private scoreText!: Phaser.GameObjects.Text;
   private livesText!: Phaser.GameObjects.Text;
   private gamepadText!: Phaser.GameObjects.Text;
+  private levelText!: Phaser.GameObjects.Text;
+  private difficultyText!: Phaser.GameObjects.Text;
   private isGameOver: boolean = false;
   private isLevelTransition: boolean = false;
   private goalsReachedThisLevel: number = 0;
   private goalsNeededForNextLevel: number = 3;
+  private goalTree!: Phaser.GameObjects.Graphics;
+  private goalY: number = 0;
+  private goalX: number = 0;
+  private treeGraphics: Phaser.GameObjects.GameObject[] = [];
+  private redTreesGraphics: Phaser.GameObjects.GameObject[] = [];
+  private countdownActive: boolean = false;
+  private countdownText?: Phaser.GameObjects.Text;
 
   constructor() {
     super({ key: 'MainGameScene' });
@@ -37,14 +46,11 @@ export class MainGameScene extends Phaser.Scene {
     const width = this.scale.width;
     const height = this.scale.height;
 
-    // Create level manager
-    this.levelManager = new LevelManager();
+    // Get level config from the static level manager
+    const levelConfig = MainGameScene.levelManager.getLevelConfig();
 
-    // Get level config
-    const levelConfig = this.levelManager.getLevelConfig();
-
-    // Create background with level-specific color
-    this.add.rectangle(0, 0, width, height, levelConfig.backgroundColor).setOrigin(0);
+    // Create background with level-specific color - set depth very low so it doesn't cover roads
+    this.add.rectangle(0, 0, width, height, levelConfig.backgroundColor).setOrigin(0).setDepth(-300);
 
     // Create input manager
     this.inputManager = new InputManager(this);
@@ -52,9 +58,13 @@ export class MainGameScene extends Phaser.Scene {
     // Create lanes based on level
     this.createLanes();
 
-    // Create player at bottom center
+    // Create player at bottom center (just before the first lane)
     const startX = width / 2;
-    const startY = height - 32;
+    const laneHeight = 64;
+    const grassTopHeight = Math.max(laneHeight * 2, laneHeight * 3 - (levelConfig.laneCount - 4) * 16);
+    const roadAreaHeight = levelConfig.laneCount * laneHeight;
+    const roadEndY = grassTopHeight + roadAreaHeight;
+    const startY = roadEndY + 32; // Just below the road
     this.player = new Player(this, startX, startY);
 
     // Create UI
@@ -70,26 +80,39 @@ export class MainGameScene extends Phaser.Scene {
   private createLanes(): void {
     const height = this.scale.height;
     const width = this.scale.width;
-    const laneHeight = 32;
+    const laneHeight = 64; // Increased from 32 to make roads wider
 
     // Get level configuration
-    const levelConfig = this.levelManager.getLevelConfig();
-    const vehicleTypes = this.levelManager.getVehicleTypesForLevel();
+    const levelConfig = MainGameScene.levelManager.getLevelConfig();
+    const vehicleTypes = MainGameScene.levelManager.getVehicleTypesForLevel();
+
+    // Calculate road area - adjust top grass based on lane count to keep player visible
+    // For 8 lanes, use smaller top area; for fewer lanes, use more space
+    const grassTopHeight = Math.max(laneHeight * 2, laneHeight * 3 - (levelConfig.laneCount - 4) * 16);
+    const roadAreaHeight = levelConfig.laneCount * laneHeight;
+    const roadStartY = grassTopHeight;
+    const roadEndY = roadStartY + roadAreaHeight;
+
+    // First, fill entire background with grass
+    this.add.rectangle(0, 0, width, height, 0x228b22).setOrigin(0).setDepth(-100);
+
+    // Then draw the black road on top of grass in the middle section
+    const roadBackground = this.add.rectangle(0, roadStartY, width, roadAreaHeight, 0x333333).setOrigin(0).setDepth(-50);
 
     // Create lanes based on level difficulty
     for (let i = 0; i < levelConfig.laneCount; i++) {
-      const laneY = height - (i + 2) * laneHeight;
+      const laneY = roadStartY + (i + 0.5) * laneHeight;
       const direction = i % 2 === 0 ? 1 : -1; // Alternate directions
       const speed = levelConfig.minSpeed + Math.random() * (levelConfig.maxSpeed - levelConfig.minSpeed);
       const vehicleType = vehicleTypes[i % vehicleTypes.length];
 
-      // Draw lane background (road)
-      this.add.rectangle(0, laneY - laneHeight / 2, width, laneHeight, 0x444444).setOrigin(0);
+      // Draw individual lane with gray color
+      this.add.rectangle(0, roadStartY + i * laneHeight, width, laneHeight, 0x555555).setOrigin(0).setDepth(-40);
 
       // Add lane markings
       if (i > 0) {
         for (let x = 0; x < width; x += 40) {
-          this.add.rectangle(x, laneY - laneHeight, 20, 2, 0xffff00).setOrigin(0);
+          this.add.rectangle(x, roadStartY + i * laneHeight - 2, 20, 2, 0xffff00).setOrigin(0).setDepth(-30);
         }
       }
 
@@ -104,58 +127,152 @@ export class MainGameScene extends Phaser.Scene {
       });
     }
 
-    // Create safe zone at top
-    const safeZoneY = height - (levelConfig.laneCount + 2) * laneHeight;
-    this.add.rectangle(0, 0, width, safeZoneY + laneHeight, 0x90ee90).setOrigin(0);
-    this.add.text(width / 2, 32, 'GOAL!', {
-      fontSize: '32px',
-      color: '#ffffff',
-      stroke: '#000000',
-      strokeThickness: 4
-    }).setOrigin(0.5);
+    // Draw trees at the top
+    this.goalY = grassTopHeight / 2;
 
-    // Create safe zone at bottom
-    this.add.rectangle(0, height - laneHeight, width, laneHeight, 0x90ee90).setOrigin(0);
+    // Create 5 tree positions evenly spaced across the top
+    const treePositions: number[] = [];
+    const spacing = (width - 200) / 4; // Space for 5 trees with margins
+    for (let i = 0; i < 5; i++) {
+      treePositions.push(100 + i * spacing);
+    }
+
+    // Shuffle positions to randomize tree placement
+    const shuffled = treePositions.sort(() => Math.random() - 0.5);
+
+    // First position gets the green tree (correct goal)
+    this.goalX = shuffled[0];
+    this.drawTree(this.goalX, this.goalY, 0x228B22); // Green tree
+
+    // Other 4 positions get red trees (distractors)
+    for (let i = 1; i < 5; i++) {
+      this.drawTree(shuffled[i], this.goalY, 0xff0000); // Red trees
+    }
+  }
+
+  private clearTree(): void {
+    // Destroy all existing tree graphics (green tree)
+    for (const graphic of this.treeGraphics) {
+      graphic.destroy();
+    }
+    this.treeGraphics = [];
+
+    // Destroy all red trees
+    for (const graphic of this.redTreesGraphics) {
+      graphic.destroy();
+    }
+    this.redTreesGraphics = [];
+
+    if (this.goalTree) {
+      this.goalTree.destroy();
+    }
+  }
+
+  private drawTree(x: number, y: number, foliageColor: number): void {
+    // Draw tree trunk with black outline - depth -5 to be below UI
+    const trunkOutline = this.add.rectangle(x, y + 30, 24, 64, 0x000000).setDepth(-5);
+    const trunk = this.add.rectangle(x, y + 30, 20, 60, 0x8B4513).setDepth(-5);
+
+    // Draw tree foliage with black outlines (3 layers of circles to make it look like a tree)
+    // Layer 1 - largest circle
+    const foliage1Outline = this.add.circle(x, y, 42, 0x000000).setDepth(-5);
+    const foliage1 = this.add.circle(x, y, 40, foliageColor).setDepth(-5);
+
+    // Layer 2 - left circle
+    const foliage2Outline = this.add.circle(x - 15, y + 15, 37, 0x000000).setDepth(-5);
+    const foliage2 = this.add.circle(x - 15, y + 15, 35, foliageColor).setDepth(-5);
+
+    // Layer 3 - right circle
+    const foliage3Outline = this.add.circle(x + 15, y + 15, 37, 0x000000).setDepth(-5);
+    const foliage3 = this.add.circle(x + 15, y + 15, 35, foliageColor).setDepth(-5);
+
+    // Layer 4 - bottom circle (slightly darker shade)
+    const foliage4Outline = this.add.circle(x, y + 25, 32, 0x000000).setDepth(-5);
+    const bottomColor = foliageColor === 0x228B22 ? 0x2E8B57 : 0xcc0000; // Darker green or darker red
+    const foliage4 = this.add.circle(x, y + 25, 30, bottomColor).setDepth(-5);
+
+    // Store tree graphics - only store green tree in main array, red trees in separate array
+    const treeGraphicsArray = [
+      trunkOutline, trunk,
+      foliage1Outline, foliage1,
+      foliage2Outline, foliage2,
+      foliage3Outline, foliage3,
+      foliage4Outline, foliage4
+    ];
+
+    if (foliageColor === 0x228B22) {
+      // Green tree - this is the goal
+      this.treeGraphics = treeGraphicsArray;
+    } else {
+      // Red tree - distractor
+      this.redTreesGraphics.push(...treeGraphicsArray);
+    }
+
+    // Store reference to tree for collision detection
+    this.goalTree = this.add.graphics();
+    this.goalTree.fillStyle(0x228B22, 0);
+    this.goalTree.fillCircle(x, y, 50); // Invisible hitbox for tree
+    this.goalTree.setDepth(-5);
   }
 
   private createUI(): void {
     const width = this.scale.width;
-    const levelConfig = this.levelManager.getLevelConfig();
+    const levelConfig = MainGameScene.levelManager.getLevelConfig();
 
-    this.scoreText = this.add.text(16, 16, 'Score: 0', {
-      fontSize: '20px',
+    // Position UI at the very top
+    const uiDepth = 10000; // Very high depth to always show on top
+
+    // Top row: Score (left), Level (center), Lives (right)
+    this.scoreText = this.add.text(16, 8, 'Score: 0', {
+      fontSize: '18px',
       color: '#ffffff',
       stroke: '#000000',
       strokeThickness: 3
-    });
+    }).setDepth(uiDepth);
 
-    this.livesText = this.add.text(width - 16, 16, 'Lives: 3', {
-      fontSize: '20px',
+    this.livesText = this.add.text(width - 16, 8, 'Lives: 3', {
+      fontSize: '18px',
       color: '#ffffff',
       stroke: '#000000',
       strokeThickness: 3
-    }).setOrigin(1, 0);
+    }).setOrigin(1, 0).setDepth(uiDepth);
 
-    this.add.text(width / 2, 16, `Level ${levelConfig.level}`, {
-      fontSize: '20px',
+    this.levelText = this.add.text(width / 2, 8, `Level ${levelConfig.level}`, {
+      fontSize: '18px',
       color: '#ffffff',
       stroke: '#000000',
       strokeThickness: 3
-    }).setOrigin(0.5, 0);
+    }).setOrigin(0.5, 0).setDepth(uiDepth);
 
-    this.add.text(width / 2, 42, this.levelManager.getDifficultyName(), {
-      fontSize: '16px',
-      color: this.levelManager.getDifficultyColor(),
+    // Second row: Gamepad (left), Difficulty (center)
+    this.difficultyText = this.add.text(width / 2, 32, MainGameScene.levelManager.getDifficultyName(), {
+      fontSize: '14px',
+      color: MainGameScene.levelManager.getDifficultyColor(),
       stroke: '#000000',
       strokeThickness: 2
-    }).setOrigin(0.5, 0);
+    }).setOrigin(0.5, 0).setDepth(uiDepth);
 
-    this.gamepadText = this.add.text(16, 48, '', {
-      fontSize: '14px',
+    this.gamepadText = this.add.text(16, 32, '', {
+      fontSize: '12px',
       color: '#ffff00',
       stroke: '#000000',
       strokeThickness: 2
-    });
+    }).setDepth(uiDepth);
+
+    // Instructions at bottom right
+    this.add.text(width - 16, 32, 'ESC: Menu', {
+      fontSize: '12px',
+      color: '#ffffff',
+      stroke: '#000000',
+      strokeThickness: 2
+    }).setOrigin(1, 0).setDepth(uiDepth);
+  }
+
+  private updateLevelUI(): void {
+    const levelConfig = MainGameScene.levelManager.getLevelConfig();
+    this.levelText.setText(`Level ${levelConfig.level}`);
+    this.difficultyText.setText(MainGameScene.levelManager.getDifficultyName());
+    this.difficultyText.setColor(MainGameScene.levelManager.getDifficultyColor());
   }
 
   private setupCollisions(): void {
@@ -166,13 +283,40 @@ export class MainGameScene extends Phaser.Scene {
     const width = this.scale.width;
     const startX = lane.direction > 0 ? -50 : width + 50;
 
-    // Check if there's already a vehicle too close to the spawn point
-    const minSpacing = 150; // Minimum pixels between vehicles
+    // Progressive max vehicles per lane based on level
+    const levelConfig = MainGameScene.levelManager.getLevelConfig();
+    const maxVehiclesPerLane = Math.min(2 + Math.floor(levelConfig.level / 2), 5); // Start at 2, max 5
+
+    if (lane.vehicles.length >= maxVehiclesPerLane) {
+      return;
+    }
+
+    // Progressive spacing - tighter as levels increase
+    const minSpacing = Math.max(250, 400 - (levelConfig.level * 15)); // Increased base spacing
+
+    // Check if spawn position is too close to ANY existing vehicle
     for (const existingVehicle of lane.vehicles) {
       const distance = Math.abs(existingVehicle.sprite.x - startX);
       if (distance < minSpacing) {
         // Too close to spawn, skip this spawn
         return;
+      }
+    }
+
+    // Additional check: ensure no vehicles will overlap due to speed differences
+    // Check if any existing vehicle in the same direction is close enough to potentially overlap
+    for (const existingVehicle of lane.vehicles) {
+      // For vehicles moving in the same direction
+      if (lane.direction > 0) {
+        // Moving right: check if there's a vehicle ahead (to the right of spawn point)
+        if (existingVehicle.sprite.x > startX && existingVehicle.sprite.x < startX + minSpacing) {
+          return;
+        }
+      } else {
+        // Moving left: check if there's a vehicle ahead (to the left of spawn point)
+        if (existingVehicle.sprite.x < startX && existingVehicle.sprite.x > startX - minSpacing) {
+          return;
+        }
       }
     }
 
@@ -189,9 +333,10 @@ export class MainGameScene extends Phaser.Scene {
   }
 
   private checkCollisions(): void {
-    if (this.isGameOver) return;
+    if (this.isGameOver || this.countdownActive) return;
 
     const playerPos = this.player.getPosition();
+    // Player hitbox - reduced for more accurate collision (16x16)
     const playerBounds = new Phaser.Geom.Rectangle(
       playerPos.x - 8,
       playerPos.y - 8,
@@ -210,8 +355,10 @@ export class MainGameScene extends Phaser.Scene {
       }
     }
 
-    // Check if player reached goal
-    if (playerPos.y < 100) {
+    // Check if player reached the tree (goal)
+    const distanceToTree = Phaser.Math.Distance.Between(playerPos.x, playerPos.y, this.goalX, this.goalY);
+
+    if (distanceToTree < 50) { // Within 50 pixels of the tree
       this.handleGoalReached();
     }
   }
@@ -225,13 +372,18 @@ export class MainGameScene extends Phaser.Scene {
       this.gameOver();
     } else {
       this.time.delayedCall(1000, () => {
-        this.player.reset(this.scale.width / 2, this.scale.height - 32);
+        const laneHeight = 64;
+        const levelConfig = MainGameScene.levelManager.getLevelConfig();
+        const grassTopHeight = Math.max(laneHeight * 2, laneHeight * 3 - (levelConfig.laneCount - 4) * 16);
+        const roadAreaHeight = levelConfig.laneCount * laneHeight;
+        const roadEndY = grassTopHeight + roadAreaHeight;
+        this.player.reset(this.scale.width / 2, roadEndY + 32);
       });
     }
   }
 
   private handleGoalReached(): void {
-    const levelConfig = this.levelManager.getLevelConfig();
+    const levelConfig = MainGameScene.levelManager.getLevelConfig();
     const points = 100 * levelConfig.scoreMultiplier;
     this.score += points;
     this.scoreText.setText(`Score: ${this.score}`);
@@ -241,57 +393,187 @@ export class MainGameScene extends Phaser.Scene {
     if (this.goalsReachedThisLevel >= this.goalsNeededForNextLevel) {
       this.advanceToNextLevel();
     } else {
-      this.player.reset(this.scale.width / 2, this.scale.height - 32);
+      const laneHeight = 64;
+      const grassTopHeight = Math.max(laneHeight * 2, laneHeight * 3 - (levelConfig.laneCount - 4) * 16);
+      const roadAreaHeight = levelConfig.laneCount * laneHeight;
+      const roadEndY = grassTopHeight + roadAreaHeight;
+      this.player.reset(this.scale.width / 2, roadEndY + 32);
     }
   }
 
   private advanceToNextLevel(): void {
     this.isLevelTransition = true;
-    this.levelManager.nextLevel();
+    this.goalsReachedThisLevel = 0; // Reset goals counter for next level
 
     // Show level complete screen
     this.showLevelComplete();
 
-    // Transition to next level after delay
+    // Advance to next level and transition after delay
     this.time.delayedCall(3000, () => {
-      this.scene.restart();
+      MainGameScene.levelManager.nextLevel();
+      this.rebuildLevel();
     });
+  }
+
+  private rebuildLevel(): void {
+    const width = this.scale.width;
+    const height = this.scale.height;
+
+    // Clear old lanes (but vehicles will persist and naturally go off-screen)
+    // We need to rebuild lane configuration for new level speeds
+    const oldVehicles: Vehicle[] = [];
+    for (const lane of this.lanes) {
+      oldVehicles.push(...lane.vehicles);
+    }
+    this.lanes = [];
+
+    // Get new level config
+    const levelConfig = MainGameScene.levelManager.getLevelConfig();
+    const laneHeight = 64;
+    const grassHeight = Math.max(laneHeight * 2, laneHeight * 3 - (levelConfig.laneCount - 4) * 16);
+    const roadAreaHeight = levelConfig.laneCount * laneHeight;
+    const roadStartY = grassHeight;
+    const roadEndY = roadStartY + roadAreaHeight;
+
+    // Redraw background and roads for new level - set depth very low so it doesn't cover roads
+    this.add.rectangle(0, 0, width, height, levelConfig.backgroundColor).setOrigin(0).setDepth(-300);
+
+    // Fill entire area with grass first
+    this.add.rectangle(0, 0, width, height, 0x228b22).setOrigin(0).setDepth(-100);
+
+    // Draw black road on top in the middle
+    this.add.rectangle(0, roadStartY, width, roadAreaHeight, 0x333333).setOrigin(0).setDepth(-50);
+
+    // Recreate lanes with new configuration
+    const vehicleTypes = MainGameScene.levelManager.getVehicleTypesForLevel();
+    for (let i = 0; i < levelConfig.laneCount; i++) {
+      const laneY = roadStartY + (i + 0.5) * laneHeight;
+      const direction = i % 2 === 0 ? 1 : -1;
+      const speed = levelConfig.minSpeed + Math.random() * (levelConfig.maxSpeed - levelConfig.minSpeed);
+      const vehicleType = vehicleTypes[i % vehicleTypes.length];
+
+      // Draw individual lane with gray color
+      this.add.rectangle(0, roadStartY + i * laneHeight, width, laneHeight, 0x555555).setOrigin(0).setDepth(-40);
+
+      // Add lane markings
+      if (i > 0) {
+        for (let x = 0; x < width; x += 40) {
+          this.add.rectangle(x, roadStartY + i * laneHeight - 2, 20, 2, 0xffff00).setOrigin(0).setDepth(-30);
+        }
+      }
+
+      this.lanes.push({
+        y: laneY,
+        vehicles: [],
+        vehicleType,
+        speed,
+        direction,
+        spawnTimer: 0,
+        spawnInterval: levelConfig.minSpawnInterval + Math.random() * (levelConfig.maxSpawnInterval - levelConfig.minSpawnInterval)
+      });
+    }
+
+    // Reassign old vehicles to new lanes based on their Y position
+    for (const vehicle of oldVehicles) {
+      // Check if vehicle sprite and body still exist
+      if (!vehicle.sprite || !vehicle.sprite.body) {
+        continue; // Skip destroyed vehicles
+      }
+
+      let closestLane = this.lanes[0];
+      let minDistance = Math.abs(vehicle.sprite.y - closestLane.y);
+
+      for (const lane of this.lanes) {
+        const distance = Math.abs(vehicle.sprite.y - lane.y);
+        if (distance < minDistance) {
+          minDistance = distance;
+          closestLane = lane;
+        }
+      }
+
+      closestLane.vehicles.push(vehicle);
+      // Update vehicle speed to match new lane
+      vehicle.setSpeed(closestLane.speed, closestLane.direction);
+    }
+
+    // Update tree positions for new level
+    this.clearTree(); // Clear old trees first
+    this.goalY = grassHeight / 2;
+
+    // Create 5 tree positions evenly spaced across the top
+    const treePositions: number[] = [];
+    const spacing = (width - 200) / 4; // Space for 5 trees with margins
+    for (let i = 0; i < 5; i++) {
+      treePositions.push(100 + i * spacing);
+    }
+
+    // Shuffle positions to randomize tree placement
+    const shuffled = treePositions.sort(() => Math.random() - 0.5);
+
+    // First position gets the green tree (correct goal)
+    this.goalX = shuffled[0];
+    this.drawTree(this.goalX, this.goalY, 0x228B22); // Green tree
+
+    // Other 4 positions get red trees (distractors)
+    for (let i = 1; i < 5; i++) {
+      this.drawTree(shuffled[i], this.goalY, 0xff0000); // Red trees
+    }
+
+    // Update UI to show new level number and difficulty
+    this.updateLevelUI();
+
+    // End level transition - re-enable controls
+    this.isLevelTransition = false;
+
+    // Reset player position to just below the road
+    this.player.reset(width / 2, roadEndY + 32);
+
+    // Show new level intro
+    this.showLevelIntro();
   }
 
   private showLevelIntro(): void {
     const width = this.scale.width;
     const height = this.scale.height;
-    const levelConfig = this.levelManager.getLevelConfig();
+    const levelConfig = MainGameScene.levelManager.getLevelConfig();
 
-    const overlay = this.add.rectangle(0, 0, width, height, 0x000000, 0.8).setOrigin(0);
+    // Only do countdown on level 1
+    const isLevel1 = levelConfig.level === 1;
+
+    if (isLevel1) {
+      // Start countdown immediately to prevent player movement on level 1
+      this.countdownActive = true;
+    }
+
+    const overlay = this.add.rectangle(0, 0, width, height, 0x000000, 0.7).setOrigin(0).setDepth(1000);
 
     const titleText = this.add.text(width / 2, height / 2 - 80, levelConfig.name, {
       fontSize: '36px',
       color: '#ffffff',
       stroke: '#000000',
       strokeThickness: 4
-    }).setOrigin(0.5);
+    }).setOrigin(0.5).setDepth(1001);
 
-    const difficultyText = this.add.text(width / 2, height / 2 - 30, this.levelManager.getDifficultyName(), {
+    const difficultyText = this.add.text(width / 2, height / 2 - 30, MainGameScene.levelManager.getDifficultyName(), {
       fontSize: '28px',
-      color: this.levelManager.getDifficultyColor(),
+      color: MainGameScene.levelManager.getDifficultyColor(),
       stroke: '#000000',
       strokeThickness: 3
-    }).setOrigin(0.5);
+    }).setOrigin(0.5).setDepth(1001);
 
     const infoText = this.add.text(width / 2, height / 2 + 20, `Reach the goal ${this.goalsNeededForNextLevel} times to advance!`, {
       fontSize: '20px',
       color: '#ffff00',
       stroke: '#000000',
       strokeThickness: 2
-    }).setOrigin(0.5);
+    }).setOrigin(0.5).setDepth(1001);
 
     const readyText = this.add.text(width / 2, height / 2 + 60, 'Get Ready...', {
       fontSize: '24px',
       color: '#ffffff',
       stroke: '#000000',
       strokeThickness: 3
-    }).setOrigin(0.5);
+    }).setOrigin(0.5).setDepth(1001);
 
     // Fade out after 2 seconds
     this.time.delayedCall(2000, () => {
@@ -305,81 +587,281 @@ export class MainGameScene extends Phaser.Scene {
           difficultyText.destroy();
           infoText.destroy();
           readyText.destroy();
+
+          // Only start countdown on level 1
+          if (isLevel1) {
+            // Wait 5 seconds for vehicles to reach middle of screen, then start countdown
+            this.time.delayedCall(5000, () => {
+              this.startCountdown();
+            });
+          }
         }
       });
+    });
+  }
+
+  private startCountdown(): void {
+    const width = this.scale.width;
+    const height = this.scale.height;
+
+    let count = 10;
+
+    this.countdownText = this.add.text(width / 2, height / 2, count.toString(), {
+      fontSize: '72px',
+      color: '#ffff00',
+      stroke: '#000000',
+      strokeThickness: 8
+    }).setOrigin(0.5).setDepth(1002);
+
+    const countdownTimer = this.time.addEvent({
+      delay: 1000,
+      repeat: 9,
+      callback: () => {
+        count--;
+        if (count > 0) {
+          this.countdownText?.setText(count.toString());
+          // Change color as countdown gets lower
+          if (count <= 3) {
+            this.countdownText?.setColor('#ff0000'); // Red for last 3 seconds
+          } else if (count <= 5) {
+            this.countdownText?.setColor('#ff9900'); // Orange for 4-5 seconds
+          }
+        } else {
+          this.countdownText?.setText('GO!');
+          this.countdownText?.setColor('#00ff00');
+
+          // Remove countdown after "GO!"
+          this.time.delayedCall(500, () => {
+            this.countdownText?.destroy();
+            this.countdownActive = false;
+          });
+        }
+      }
     });
   }
 
   private showLevelComplete(): void {
     const width = this.scale.width;
     const height = this.scale.height;
-    const levelConfig = this.levelManager.getLevelConfig();
+    const currentLevel = MainGameScene.levelManager.getLevelConfig().level;
 
-    this.add.rectangle(0, 0, width, height, 0x000000, 0.8).setOrigin(0);
+    const overlay = this.add.rectangle(0, 0, width, height, 0x000000, 0.8).setOrigin(0).setDepth(1000);
 
-    this.add.text(width / 2, height / 2 - 60, 'LEVEL COMPLETE!', {
+    const completeText = this.add.text(width / 2, height / 2 - 60, 'LEVEL COMPLETE!', {
       fontSize: '48px',
       color: '#00ff00',
       stroke: '#000000',
       strokeThickness: 6
-    }).setOrigin(0.5);
+    }).setOrigin(0.5).setDepth(1001);
 
-    this.add.text(width / 2, height / 2, `Level ${levelConfig.level} Cleared!`, {
+    const clearedText = this.add.text(width / 2, height / 2, `Level ${currentLevel} Cleared!`, {
       fontSize: '28px',
       color: '#ffffff',
       stroke: '#000000',
       strokeThickness: 4
-    }).setOrigin(0.5);
+    }).setOrigin(0.5).setDepth(1001);
 
-    this.add.text(width / 2, height / 2 + 50, `Next: Level ${levelConfig.level + 1}`, {
+    const nextText = this.add.text(width / 2, height / 2 + 50, `Next: Level ${currentLevel + 1}`, {
       fontSize: '24px',
       color: '#ffff00',
       stroke: '#000000',
       strokeThickness: 3
-    }).setOrigin(0.5);
+    }).setOrigin(0.5).setDepth(1001);
+
+    // Fade out after 2.5 seconds (before the 3 second delay in advanceToNextLevel)
+    this.time.delayedCall(2500, () => {
+      this.tweens.add({
+        targets: [overlay, completeText, clearedText, nextText],
+        alpha: 0,
+        duration: 500,
+        onComplete: () => {
+          overlay.destroy();
+          completeText.destroy();
+          clearedText.destroy();
+          nextText.destroy();
+        }
+      });
+    });
   }
 
-  private gameOver(): void {
+  private async gameOver(): Promise<void> {
     this.isGameOver = true;
 
     const width = this.scale.width;
     const height = this.scale.height;
-    const levelConfig = this.levelManager.getLevelConfig();
+    const levelConfig = MainGameScene.levelManager.getLevelConfig();
 
     // Darken screen
-    this.add.rectangle(0, 0, width, height, 0x000000, 0.7).setOrigin(0);
+    this.add.rectangle(0, 0, width, height, 0x000000, 0.8).setOrigin(0).setDepth(2000);
+
+    // Game over panel background
+    const panelWidth = 500;
+    const panelHeight = 400;
+    const panelX = width / 2;
+    const panelY = height / 2;
+
+    // Panel background with gradient effect
+    const panel = this.add.rectangle(panelX, panelY, panelWidth, panelHeight, 0x2c3e50).setDepth(2001);
+    panel.setStrokeStyle(4, 0x3498db);
+
+    // Decorative top bar
+    this.add.rectangle(panelX, panelY - panelHeight / 2 + 20, panelWidth, 40, 0x3498db).setDepth(2002);
 
     // Game over text
-    this.add.text(width / 2, height / 2 - 80, 'GAME OVER', {
+    this.add.text(panelX, panelY - 160, 'GAME OVER', {
       fontSize: '48px',
-      color: '#ff0000',
+      color: '#e74c3c',
+      fontStyle: 'bold',
       stroke: '#000000',
       strokeThickness: 6
-    }).setOrigin(0.5);
+    }).setOrigin(0.5).setDepth(2003);
 
-    this.add.text(width / 2, height / 2 - 20, `Reached Level: ${levelConfig.level}`, {
-      fontSize: '24px',
-      color: '#ffffff',
+    // Stats
+    this.add.text(panelX, panelY - 90, `Level Reached: ${levelConfig.level}`, {
+      fontSize: '22px',
+      color: '#ecf0f1',
       stroke: '#000000',
       strokeThickness: 3
-    }).setOrigin(0.5);
+    }).setOrigin(0.5).setDepth(2003);
 
-    this.add.text(width / 2, height / 2 + 20, `Final Score: ${this.score}`, {
+    this.add.text(panelX, panelY - 50, `Final Score: ${this.score}`, {
       fontSize: '32px',
-      color: '#ffffff',
+      color: '#f39c12',
+      fontStyle: 'bold',
       stroke: '#000000',
       strokeThickness: 4
-    }).setOrigin(0.5);
+    }).setOrigin(0.5).setDepth(2003);
 
-    this.add.text(width / 2, height / 2 + 70, 'Press SPACE or A to restart', {
+    // Username prompt
+    this.add.text(panelX, panelY + 10, 'Enter Your Name:', {
       fontSize: '20px',
-      color: '#ffff00',
+      color: '#ffffff',
       stroke: '#000000',
       strokeThickness: 3
-    }).setOrigin(0.5);
+    }).setOrigin(0.5).setDepth(2003);
+
+    // Show custom input dialog
+    await this.showUsernameInput(panelX, panelY);
+
+    // Instructions at bottom
+    this.add.text(panelX, panelY + 160, 'Press SPACE or A to restart | ESC for Menu', {
+      fontSize: '16px',
+      color: '#95a5a6',
+      stroke: '#000000',
+      strokeThickness: 2
+    }).setOrigin(0.5).setDepth(2003);
+  }
+
+  private async showUsernameInput(panelX: number, panelY: number): Promise<void> {
+    return new Promise((resolve) => {
+      // Create input box background
+      const inputBg = this.add.rectangle(panelX, panelY + 60, 300, 50, 0x34495e).setDepth(2003);
+      inputBg.setStrokeStyle(2, 0x3498db);
+
+      // Input text placeholder
+      const inputText = this.add.text(panelX, panelY + 60, 'Click to enter name...', {
+        fontSize: '18px',
+        color: '#7f8c8d',
+        fontStyle: 'italic'
+      }).setOrigin(0.5).setDepth(2004);
+
+      // Submit button
+      const buttonBg = this.add.rectangle(panelX, panelY + 120, 200, 45, 0x27ae60).setDepth(2003);
+      buttonBg.setStrokeStyle(2, 0xffffff);
+
+      const buttonText = this.add.text(panelX, panelY + 120, 'Submit Score', {
+        fontSize: '20px',
+        color: '#ffffff',
+        fontStyle: 'bold'
+      }).setOrigin(0.5).setDepth(2004);
+
+      let username = '';
+
+      // Use browser prompt for now (can be replaced with HTML input overlay)
+      const promptAndSubmit = async () => {
+        const enteredName = prompt('Enter your username to save your score:');
+        if (enteredName && enteredName.trim()) {
+          username = enteredName.trim();
+          inputText.setText(username);
+          inputText.setColor('#ffffff');
+          inputText.setFontStyle('normal');
+
+          // Submit score
+          await this.submitScore(username, this.score, MainGameScene.levelManager.getLevelConfig().level);
+
+          // Show success message
+          inputText.setText('Score Saved! ✓');
+          inputText.setColor('#2ecc71');
+          buttonBg.setFillStyle(0x95a5a6);
+          buttonText.setText('Submitted');
+
+          // Disable button
+          buttonBg.removeInteractive();
+        } else {
+          inputText.setText('Click to enter name...');
+          inputText.setColor('#7f8c8d');
+        }
+        resolve();
+      };
+
+      // Make input interactive
+      inputBg.setInteractive({ useHandCursor: true });
+      inputBg.on('pointerdown', promptAndSubmit);
+
+      // Make button interactive
+      buttonBg.setInteractive({ useHandCursor: true });
+      buttonBg.on('pointerdown', promptAndSubmit);
+
+      // Button hover effect
+      buttonBg.on('pointerover', () => {
+        if (buttonText.text === 'Submit Score') {
+          buttonBg.setFillStyle(0x2ecc71);
+        }
+      });
+
+      buttonBg.on('pointerout', () => {
+        if (buttonText.text === 'Submit Score') {
+          buttonBg.setFillStyle(0x27ae60);
+        }
+      });
+    });
+  }
+
+  private async submitScore(username: string, score: number, levelReached: number): Promise<void> {
+    try {
+      const response = await fetch('http://localhost:8000/api/scores', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          username: username,
+          score: score,
+          level_reached: levelReached
+        })
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        console.log('Score saved successfully:', data);
+      } else {
+        console.error('Failed to save score:', response.statusText);
+      }
+    } catch (error) {
+      console.error('Error submitting score:', error);
+    }
   }
 
   update(_time: number, delta: number): void {
+    // Check for ESC key to return to menu
+    const escKey = this.input.keyboard?.addKey(Phaser.Input.Keyboard.KeyCodes.ESC);
+    if (Phaser.Input.Keyboard.JustDown(escKey!)) {
+      // Reset level manager and return to menu
+      MainGameScene.levelManager.reset();
+      this.scene.start('MenuScene');
+      return;
+    }
+
     // Get input state
     const inputState = this.inputManager.getInputState();
 
@@ -392,7 +874,7 @@ export class MainGameScene extends Phaser.Scene {
 
     // Handle restart
     if (this.isGameOver && inputState.jump) {
-      this.levelManager.reset();
+      MainGameScene.levelManager.reset();
       this.scene.restart();
       this.isGameOver = false;
       this.score = 0;
@@ -401,13 +883,13 @@ export class MainGameScene extends Phaser.Scene {
       return;
     }
 
-    if (this.isGameOver || this.isLevelTransition) return;
+    if (this.isGameOver || this.isLevelTransition || this.countdownActive) return;
 
     // Update player
     this.player.update(inputState);
 
     // Update lanes and vehicles
-    const levelConfig = this.levelManager.getLevelConfig();
+    const levelConfig = MainGameScene.levelManager.getLevelConfig();
     for (const lane of this.lanes) {
       lane.spawnTimer += delta;
 

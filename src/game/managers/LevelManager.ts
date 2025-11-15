@@ -41,59 +41,59 @@ export class LevelManager {
       backgroundColor: 0x87ceeb
     };
 
-    // Adjust difficulty based on level
+    // Adjust difficulty based on level - Progressive increase in vehicles and speed
     if (this.currentLevel <= 3) {
-      // Levels 1-3: Easy - Much longer intervals for easier gameplay
+      // Levels 1-3: Easy - Few vehicles, slower speed, VERY noticeable progression
       return {
         ...baseConfig,
         level: this.currentLevel,
-        laneCount: 4 + this.currentLevel,
-        minSpeed: 40 + (this.currentLevel * 5),
-        maxSpeed: 70 + (this.currentLevel * 10),
-        minSpawnInterval: 3500 - (this.currentLevel * 200),
-        maxSpawnInterval: 6000 - (this.currentLevel * 300),
+        laneCount: Math.min(3 + this.currentLevel, 5), // 4-5 lanes
+        minSpeed: 60 + (this.currentLevel * 25), // 85 -> 110 -> 135
+        maxSpeed: 100 + (this.currentLevel * 30), // 130 -> 160 -> 190
+        minSpawnInterval: 5000 - (this.currentLevel * 400), // 5000 -> 4600 -> 4200
+        maxSpawnInterval: 8000 - (this.currentLevel * 600), // 8000 -> 7400 -> 6800
         scoreMultiplier: this.currentLevel,
         name: `Level ${this.currentLevel}: Easy Street`,
         backgroundColor: 0x87ceeb
       };
     } else if (this.currentLevel <= 6) {
-      // Levels 4-6: Medium
+      // Levels 4-6: Medium - More vehicles, much faster, very noticeable jump
       return {
         ...baseConfig,
         level: this.currentLevel,
-        laneCount: 6 + (this.currentLevel - 3),
-        minSpeed: 60 + (this.currentLevel * 15),
-        maxSpeed: 100 + (this.currentLevel * 15),
-        minSpawnInterval: 2000 - (this.currentLevel * 50),
-        maxSpawnInterval: 3500 - (this.currentLevel * 50),
+        laneCount: Math.min(4 + (this.currentLevel - 3), 7), // 5-7 lanes
+        minSpeed: 120 + (this.currentLevel * 30), // 150 -> 180 -> 210
+        maxSpeed: 180 + (this.currentLevel * 40), // 220 -> 260 -> 300
+        minSpawnInterval: 4000 - (this.currentLevel * 200), // Gets tighter
+        maxSpawnInterval: 6500 - (this.currentLevel * 300),
         scoreMultiplier: this.currentLevel,
         name: `Level ${this.currentLevel}: Busy Highway`,
         backgroundColor: 0x7ba8d4
       };
     } else if (this.currentLevel <= 9) {
-      // Levels 7-9: Hard
+      // Levels 7-9: Hard - Many vehicles, extremely fast
       return {
         ...baseConfig,
         level: this.currentLevel,
-        laneCount: 8,
-        minSpeed: 80 + (this.currentLevel * 20),
-        maxSpeed: 140 + (this.currentLevel * 20),
-        minSpawnInterval: 1500 - (this.currentLevel * 30),
-        maxSpawnInterval: 2800 - (this.currentLevel * 30),
+        laneCount: 8, // Always 8 lanes for hard levels
+        minSpeed: 180 + (this.currentLevel * 35), // 215 -> 250 -> 285
+        maxSpeed: 250 + (this.currentLevel * 45), // 295 -> 340 -> 385
+        minSpawnInterval: 3000 - (this.currentLevel * 100),
+        maxSpawnInterval: 5000 - (this.currentLevel * 150),
         scoreMultiplier: this.currentLevel,
         name: `Level ${this.currentLevel}: Rush Hour`,
         backgroundColor: 0x6b95c4
       };
     } else {
-      // Level 10+: Expert
+      // Level 10+: Expert - Blazing fast, extreme challenge, 8 lanes
       return {
         ...baseConfig,
         level: this.currentLevel,
         laneCount: 8,
-        minSpeed: 100 + (this.currentLevel * 25),
-        maxSpeed: 180 + (this.currentLevel * 25),
-        minSpawnInterval: Math.max(800, 1200 - (this.currentLevel * 20)),
-        maxSpawnInterval: Math.max(1500, 2000 - (this.currentLevel * 20)),
+        minSpeed: 250 + (this.currentLevel * 40), // Starts at 290+
+        maxSpeed: 350 + (this.currentLevel * 50), // Starts at 400+
+        minSpawnInterval: Math.max(2000, 2800 - (this.currentLevel * 80)),
+        maxSpawnInterval: Math.max(3500, 4500 - (this.currentLevel * 120)),
         scoreMultiplier: this.currentLevel * 2,
         name: `Level ${this.currentLevel}: INSANE MODE`,
         backgroundColor: 0x5a7fb0

@@ -42,6 +42,15 @@ export class Vehicle {
     }
   }
 
+  public setSpeed(speed: number, direction: number): void {
+    this.direction = direction;
+    const body = this.sprite.body as Phaser.Physics.Arcade.Body;
+    body.setVelocityX(speed * direction);
+
+    // Update sprite flip if direction changed
+    this.sprite.setFlipX(direction < 0);
+  }
+
   public destroy(): void {
     this.sprite.destroy();
   }

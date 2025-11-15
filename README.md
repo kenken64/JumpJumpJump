@@ -76,7 +76,31 @@ A Frogger-style platformer game built with Phaser 3, React, and TypeScript.
 - Score multiplier: 20x+
 - INSANE MODE!
 
-## Installation & Running
+## Quick Start
+
+### Mac/Linux
+
+```bash
+# Start both frontend and backend
+./start.sh
+
+# Stop all servers
+./stop.sh
+```
+
+### Windows PowerShell
+
+```powershell
+# Start both frontend and backend
+.\start.ps1
+
+# Stop all servers
+.\stop.ps1
+```
+
+## Manual Installation & Running
+
+### Frontend Setup
 
 ```bash
 # Install dependencies
@@ -88,6 +112,41 @@ npm run dev
 # Build for production
 npm run build
 ```
+
+The game will be available at `http://localhost:5173`
+
+### Backend Setup
+
+```bash
+# Navigate to backend directory
+cd backend
+
+# Create virtual environment
+python -m venv venv
+
+# Activate virtual environment
+# Mac/Linux:
+source venv/bin/activate
+# Windows:
+venv\Scripts\activate
+
+# Install dependencies
+pip install -r requirements.txt
+
+# Run the server
+python main.py
+```
+
+The API will be available at `http://localhost:8000`
+
+## API Endpoints
+
+- `POST /api/scores` - Submit a new score
+- `GET /api/scores/leaderboard?limit=10` - Get top scores
+- `GET /api/scores/user/{username}?limit=5` - Get user's scores
+- `GET /` - Health check
+
+View the leaderboard at: `http://localhost:8000/api/scores/leaderboard`
 
 ## Project Structure
 
