@@ -69,8 +69,10 @@ export class Player {
         this.moveInDirection(0, this.gridSize);
       } else if (inputState.left) {
         this.moveInDirection(-this.gridSize, 0);
+        this.sprite.setFlipX(true); // Face left
       } else if (inputState.right) {
         this.moveInDirection(this.gridSize, 0);
+        this.sprite.setFlipX(false); // Face right (default)
       }
     }
 
@@ -143,6 +145,8 @@ export class Player {
   public reset(x: number, y: number): void {
     this.sprite.setPosition(x, y);
     this.sprite.play('idle');
+    this.sprite.setAlpha(1.0);
+    this.sprite.clearTint();
     this.isMoving = false;
     this.targetPosition = undefined;
   }

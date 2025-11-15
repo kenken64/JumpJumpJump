@@ -1,4 +1,5 @@
 import Phaser from 'phaser';
+import { API_CONFIG } from '../apiConfig';
 
 interface LeaderboardEntry {
   id: number;
@@ -90,22 +91,22 @@ export class MenuScene extends Phaser.Scene {
 
     // Leaderboard title
     this.add.text(leaderboardX + 110, leaderboardY + 20, 'LEADERBOARD', {
-      fontSize: '20px',
+      fontSize: '28px',
       color: '#f39c12',
       fontStyle: 'bold',
       stroke: '#000000',
-      strokeThickness: 3
+      strokeThickness: 4
     }).setOrigin(0.5);
 
     // Header
     this.add.text(leaderboardX + 20, leaderboardY + 50, 'Rank  Player', {
-      fontSize: '14px',
+      fontSize: '18px',
       color: '#ecf0f1',
       fontStyle: 'bold'
     });
 
     this.add.text(leaderboardX + 150, leaderboardY + 50, 'Score', {
-      fontSize: '14px',
+      fontSize: '18px',
       color: '#ecf0f1',
       fontStyle: 'bold'
     });
@@ -114,14 +115,14 @@ export class MenuScene extends Phaser.Scene {
     for (let i = 0; i < 10; i++) {
       const yPos = leaderboardY + 80 + (i * 28);
       const nameText = this.add.text(leaderboardX + 20, yPos, 'Loading...', {
-        fontSize: '12px',
+        fontSize: '16px',
         color: '#bdc3c7'
       });
       this.leaderboardTexts.push(nameText);
 
       // Create score text placeholder
       const scoreText = this.add.text(leaderboardX + 150, yPos, '', {
-        fontSize: '12px',
+        fontSize: '16px',
         color: '#bdc3c7',
         fontStyle: 'bold'
       });
@@ -131,7 +132,7 @@ export class MenuScene extends Phaser.Scene {
 
   private async fetchLeaderboard(): Promise<void> {
     try {
-      const response = await fetch('http://localhost:8000/api/scores/leaderboard?limit=10');
+      const response = await fetch(`${API_CONFIG.BASE_URL}${API_CONFIG.ENDPOINTS.LEADERBOARD}?limit=10`);
 
       if (response.ok) {
         const data: LeaderboardEntry[] = await response.json();

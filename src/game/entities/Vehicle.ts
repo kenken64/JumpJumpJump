@@ -32,14 +32,8 @@ export class Vehicle {
   }
 
   public update(): void {
-    const gameWidth = this.scene.scale.width;
-
-    // Wrap around screen
-    if (this.direction > 0 && this.sprite.x > gameWidth + 50) {
-      this.sprite.x = -50;
-    } else if (this.direction < 0 && this.sprite.x < -50) {
-      this.sprite.x = gameWidth + 50;
-    }
+    // Vehicles no longer wrap - they'll be removed by MainGameScene when off-screen
+    // This allows for proper vehicle management and spawning
   }
 
   public setSpeed(speed: number, direction: number): void {

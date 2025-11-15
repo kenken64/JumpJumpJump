@@ -3,6 +3,7 @@ import { InputManager } from '../managers/InputManager';
 import { LevelManager } from '../managers/LevelManager';
 import { Player } from '../entities/Player';
 import { Vehicle } from '../entities/Vehicle';
+import { API_CONFIG } from '../apiConfig';
 
 interface Lane {
   y: number;
@@ -16,6 +17,8 @@ interface Lane {
 
 export class MainGameScene extends Phaser.Scene {
   private static levelManager: LevelManager = new LevelManager(); // Shared across all scene instances
+  private static persistentScore: number = 0; // Persists across scene restarts
+  private static persistentLives: number = 3; // Persists across scene restarts
   private inputManager!: InputManager;
   private player!: Player;
   private lanes: Lane[] = [];
@@ -37,6 +40,9 @@ export class MainGameScene extends Phaser.Scene {
   private redTreesGraphics: Phaser.GameObjects.GameObject[] = [];
   private countdownActive: boolean = false;
   private countdownText?: Phaser.GameObjects.Text;
+  private cheatModeActive: boolean = false;
+  private cheatModeText?: Phaser.GameObjects.Text;
+  private isPlayerInvulnerable: boolean = false;
 
   constructor() {
     super({ key: 'MainGameScene' });
@@ -45,6 +51,18 @@ export class MainGameScene extends Phaser.Scene {
   create(): void {
     const width = this.scale.width;
     const height = this.scale.height;
+
+    // Reset game state
+    this.countdownActive = false;
+    this.isLevelTransition = false;
+    this.isGameOver = false;
+    this.goalsReachedThisLevel = 0;
+    this.cheatModeActive = false;
+    this.isPlayerInvulnerable = false;
+
+    // Restore score and lives from static persistent values
+    this.score = MainGameScene.persistentScore;
+    this.lives = MainGameScene.persistentLives;
 
     // Get level config from the static level manager
     const levelConfig = MainGameScene.levelManager.getLevelConfig();
@@ -73,6 +91,9 @@ export class MainGameScene extends Phaser.Scene {
     // Setup collision detection
     this.setupCollisions();
 
+    // Spawn initial vehicles to populate the road
+    this.spawnInitialVehicles();
+
     // Show level intro
     this.showLevelIntro();
   }
@@ -81,6 +102,14 @@ export class MainGameScene extends Phaser.Scene {
     const height = this.scale.height;
     const width = this.scale.width;
     const laneHeight = 64; // Increased from 32 to make roads wider
+
+    // Clear existing lanes and vehicles
+    for (const lane of this.lanes) {
+      for (const vehicle of lane.vehicles) {
+        vehicle.destroy();
+      }
+    }
+    this.lanes = [];
 
     // Get level configuration
     const levelConfig = MainGameScene.levelManager.getLevelConfig();
@@ -217,6 +246,7 @@ export class MainGameScene extends Phaser.Scene {
 
   private createUI(): void {
     const width = this.scale.width;
+    const height = this.scale.height;
     const levelConfig = MainGameScene.levelManager.getLevelConfig();
 
     // Position UI at the very top
@@ -259,6 +289,15 @@ export class MainGameScene extends Phaser.Scene {
       strokeThickness: 2
     }).setDepth(uiDepth);
 
+    // Cheat mode indicator (hidden by default)
+    this.cheatModeText = this.add.text(width / 2, height - 40, '🛡️ CHEAT MODE: INVINCIBLE 🛡️', {
+      fontSize: '24px',
+      color: '#00ff00',
+      stroke: '#000000',
+      strokeThickness: 4,
+      fontStyle: 'bold'
+    }).setOrigin(0.5).setDepth(uiDepth).setVisible(false);
+
     // Instructions at bottom right
     this.add.text(width - 16, 32, 'ESC: Menu', {
       fontSize: '12px',
@@ -279,13 +318,43 @@ export class MainGameScene extends Phaser.Scene {
     // Will check collisions in update loop
   }
 
+  private spawnInitialVehicles(): void {
+    // Spawn 2-3 vehicles per lane at random positions across the screen
+    // This makes the road look populated from the start
+    const width = this.scale.width;
+
+    for (const lane of this.lanes) {
+      const vehicleCount = 2 + Math.floor(Math.random() * 2); // 2-3 vehicles per lane
+
+      for (let i = 0; i < vehicleCount; i++) {
+        // Random position across the screen width
+        const randomX = Math.random() * width;
+
+        const vehicle = new Vehicle(
+          this,
+          randomX,
+          lane.y,
+          lane.vehicleType,
+          lane.speed,
+          lane.direction
+        );
+
+        lane.vehicles.push(vehicle);
+      }
+    }
+  }
+
   private spawnVehicle(lane: Lane): void {
     const width = this.scale.width;
     const startX = lane.direction > 0 ? -50 : width + 50;
 
     // Progressive max vehicles per lane based on level
     const levelConfig = MainGameScene.levelManager.getLevelConfig();
-    const maxVehiclesPerLane = Math.min(2 + Math.floor(levelConfig.level / 2), 5); // Start at 2, max 5
+    // Level 1-9: Start at 2, max 5
+    // Level 10+: Increase further, up to 8 vehicles per lane
+    const maxVehiclesPerLane = levelConfig.level >= 10 
+      ? Math.min(5 + Math.floor((levelConfig.level - 9) / 2), 8) 
+      : Math.min(2 + Math.floor(levelConfig.level / 2), 5);
 
     if (lane.vehicles.length >= maxVehiclesPerLane) {
       return;
@@ -344,13 +413,21 @@ export class MainGameScene extends Phaser.Scene {
       16
     );
 
-    for (const lane of this.lanes) {
-      for (const vehicle of lane.vehicles) {
-        const vehicleBounds = vehicle.sprite.getBounds();
+    // Skip vehicle collision check if cheat mode is active or player is invulnerable
+    if (!this.cheatModeActive && !this.isPlayerInvulnerable) {
+      for (const lane of this.lanes) {
+        for (const vehicle of lane.vehicles) {
+          // Safety check: ensure vehicle and sprite exist
+          if (!vehicle || !vehicle.sprite || !vehicle.sprite.active) {
+            continue;
+          }
 
-        if (Phaser.Geom.Intersects.RectangleToRectangle(playerBounds, vehicleBounds)) {
-          this.handlePlayerHit();
-          return;
+          const vehicleBounds = vehicle.sprite.getBounds();
+
+          if (Phaser.Geom.Intersects.RectangleToRectangle(playerBounds, vehicleBounds)) {
+            this.handlePlayerHit();
+            return;
+          }
         }
       }
     }
@@ -364,7 +441,13 @@ export class MainGameScene extends Phaser.Scene {
   }
 
   private handlePlayerHit(): void {
+    // Prevent multiple hits during invulnerability period
+    if (this.isPlayerInvulnerable) return;
+    
+    this.isPlayerInvulnerable = true; // Set invulnerability immediately
+    
     this.lives--;
+    MainGameScene.persistentLives = this.lives; // Save to persistent
     this.livesText.setText(`Lives: ${this.lives}`);
     this.player.die();
 
@@ -378,6 +461,17 @@ export class MainGameScene extends Phaser.Scene {
         const roadAreaHeight = levelConfig.laneCount * laneHeight;
         const roadEndY = grassTopHeight + roadAreaHeight;
         this.player.reset(this.scale.width / 2, roadEndY + 32);
+        
+        // Restore cheat mode appearance if active
+        if (this.cheatModeActive) {
+          this.player.sprite.setAlpha(0.5);
+          this.player.sprite.setTint(0x00ff00);
+        }
+        
+        // Give brief invulnerability after respawn (1 second)
+        this.time.delayedCall(1000, () => {
+          this.isPlayerInvulnerable = false;
+        });
       });
     }
   }
@@ -386,6 +480,7 @@ export class MainGameScene extends Phaser.Scene {
     const levelConfig = MainGameScene.levelManager.getLevelConfig();
     const points = 100 * levelConfig.scoreMultiplier;
     this.score += points;
+    MainGameScene.persistentScore = this.score; // Save to persistent
     this.scoreText.setText(`Score: ${this.score}`);
     this.goalsReachedThisLevel++;
 
@@ -398,6 +493,12 @@ export class MainGameScene extends Phaser.Scene {
       const roadAreaHeight = levelConfig.laneCount * laneHeight;
       const roadEndY = grassTopHeight + roadAreaHeight;
       this.player.reset(this.scale.width / 2, roadEndY + 32);
+      
+      // Restore cheat mode appearance if active
+      if (this.cheatModeActive) {
+        this.player.sprite.setAlpha(0.5);
+        this.player.sprite.setTint(0x00ff00);
+      }
     }
   }
 
@@ -416,120 +517,8 @@ export class MainGameScene extends Phaser.Scene {
   }
 
   private rebuildLevel(): void {
-    const width = this.scale.width;
-    const height = this.scale.height;
-
-    // Clear old lanes (but vehicles will persist and naturally go off-screen)
-    // We need to rebuild lane configuration for new level speeds
-    const oldVehicles: Vehicle[] = [];
-    for (const lane of this.lanes) {
-      oldVehicles.push(...lane.vehicles);
-    }
-    this.lanes = [];
-
-    // Get new level config
-    const levelConfig = MainGameScene.levelManager.getLevelConfig();
-    const laneHeight = 64;
-    const grassHeight = Math.max(laneHeight * 2, laneHeight * 3 - (levelConfig.laneCount - 4) * 16);
-    const roadAreaHeight = levelConfig.laneCount * laneHeight;
-    const roadStartY = grassHeight;
-    const roadEndY = roadStartY + roadAreaHeight;
-
-    // Redraw background and roads for new level - set depth very low so it doesn't cover roads
-    this.add.rectangle(0, 0, width, height, levelConfig.backgroundColor).setOrigin(0).setDepth(-300);
-
-    // Fill entire area with grass first
-    this.add.rectangle(0, 0, width, height, 0x228b22).setOrigin(0).setDepth(-100);
-
-    // Draw black road on top in the middle
-    this.add.rectangle(0, roadStartY, width, roadAreaHeight, 0x333333).setOrigin(0).setDepth(-50);
-
-    // Recreate lanes with new configuration
-    const vehicleTypes = MainGameScene.levelManager.getVehicleTypesForLevel();
-    for (let i = 0; i < levelConfig.laneCount; i++) {
-      const laneY = roadStartY + (i + 0.5) * laneHeight;
-      const direction = i % 2 === 0 ? 1 : -1;
-      const speed = levelConfig.minSpeed + Math.random() * (levelConfig.maxSpeed - levelConfig.minSpeed);
-      const vehicleType = vehicleTypes[i % vehicleTypes.length];
-
-      // Draw individual lane with gray color
-      this.add.rectangle(0, roadStartY + i * laneHeight, width, laneHeight, 0x555555).setOrigin(0).setDepth(-40);
-
-      // Add lane markings
-      if (i > 0) {
-        for (let x = 0; x < width; x += 40) {
-          this.add.rectangle(x, roadStartY + i * laneHeight - 2, 20, 2, 0xffff00).setOrigin(0).setDepth(-30);
-        }
-      }
-
-      this.lanes.push({
-        y: laneY,
-        vehicles: [],
-        vehicleType,
-        speed,
-        direction,
-        spawnTimer: 0,
-        spawnInterval: levelConfig.minSpawnInterval + Math.random() * (levelConfig.maxSpawnInterval - levelConfig.minSpawnInterval)
-      });
-    }
-
-    // Reassign old vehicles to new lanes based on their Y position
-    for (const vehicle of oldVehicles) {
-      // Check if vehicle sprite and body still exist
-      if (!vehicle.sprite || !vehicle.sprite.body) {
-        continue; // Skip destroyed vehicles
-      }
-
-      let closestLane = this.lanes[0];
-      let minDistance = Math.abs(vehicle.sprite.y - closestLane.y);
-
-      for (const lane of this.lanes) {
-        const distance = Math.abs(vehicle.sprite.y - lane.y);
-        if (distance < minDistance) {
-          minDistance = distance;
-          closestLane = lane;
-        }
-      }
-
-      closestLane.vehicles.push(vehicle);
-      // Update vehicle speed to match new lane
-      vehicle.setSpeed(closestLane.speed, closestLane.direction);
-    }
-
-    // Update tree positions for new level
-    this.clearTree(); // Clear old trees first
-    this.goalY = grassHeight / 2;
-
-    // Create 5 tree positions evenly spaced across the top
-    const treePositions: number[] = [];
-    const spacing = (width - 200) / 4; // Space for 5 trees with margins
-    for (let i = 0; i < 5; i++) {
-      treePositions.push(100 + i * spacing);
-    }
-
-    // Shuffle positions to randomize tree placement
-    const shuffled = treePositions.sort(() => Math.random() - 0.5);
-
-    // First position gets the green tree (correct goal)
-    this.goalX = shuffled[0];
-    this.drawTree(this.goalX, this.goalY, 0x228B22); // Green tree
-
-    // Other 4 positions get red trees (distractors)
-    for (let i = 1; i < 5; i++) {
-      this.drawTree(shuffled[i], this.goalY, 0xff0000); // Red trees
-    }
-
-    // Update UI to show new level number and difficulty
-    this.updateLevelUI();
-
-    // End level transition - re-enable controls
-    this.isLevelTransition = false;
-
-    // Reset player position to just below the road
-    this.player.reset(width / 2, roadEndY + 32);
-
-    // Show new level intro
-    this.showLevelIntro();
+    // Restart the entire scene to properly clear and rebuild everything with new level config
+    this.scene.restart();
   }
 
   private showLevelIntro(): void {
@@ -540,8 +529,8 @@ export class MainGameScene extends Phaser.Scene {
     // Only do countdown on level 1
     const isLevel1 = levelConfig.level === 1;
 
+    // Prevent player movement immediately on level 1 (before countdown starts)
     if (isLevel1) {
-      // Start countdown immediately to prevent player movement on level 1
       this.countdownActive = true;
     }
 
@@ -604,6 +593,7 @@ export class MainGameScene extends Phaser.Scene {
     const width = this.scale.width;
     const height = this.scale.height;
 
+    // countdownActive should already be true (set in showLevelIntro)
     let count = 10;
 
     this.countdownText = this.add.text(width / 2, height / 2, count.toString(), {
@@ -829,7 +819,7 @@ export class MainGameScene extends Phaser.Scene {
 
   private async submitScore(username: string, score: number, levelReached: number): Promise<void> {
     try {
-      const response = await fetch('http://localhost:8000/api/scores', {
+      const response = await fetch(`${API_CONFIG.BASE_URL}${API_CONFIG.ENDPOINTS.SCORES}`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -856,10 +846,29 @@ export class MainGameScene extends Phaser.Scene {
     // Check for ESC key to return to menu
     const escKey = this.input.keyboard?.addKey(Phaser.Input.Keyboard.KeyCodes.ESC);
     if (Phaser.Input.Keyboard.JustDown(escKey!)) {
-      // Reset level manager and return to menu
+      // Reset level manager and persistent values
       MainGameScene.levelManager.reset();
+      MainGameScene.persistentScore = 0;
+      MainGameScene.persistentLives = 3;
       this.scene.start('MenuScene');
       return;
+    }
+
+    // Check for Ctrl+C to toggle cheat mode
+    const ctrlKey = this.input.keyboard?.addKey(Phaser.Input.Keyboard.KeyCodes.CTRL);
+    const cKey = this.input.keyboard?.addKey(Phaser.Input.Keyboard.KeyCodes.C);
+    if (ctrlKey?.isDown && Phaser.Input.Keyboard.JustDown(cKey!)) {
+      this.cheatModeActive = !this.cheatModeActive;
+      this.cheatModeText?.setVisible(this.cheatModeActive);
+      
+      // Add visual feedback to player when cheat mode is active
+      if (this.cheatModeActive) {
+        this.player.sprite.setAlpha(0.5); // Make player semi-transparent
+        this.player.sprite.setTint(0x00ff00); // Green tint
+      } else {
+        this.player.sprite.setAlpha(1.0); // Restore full opacity
+        this.player.sprite.clearTint(); // Remove tint
+      }
     }
 
     // Get input state
@@ -874,21 +883,23 @@ export class MainGameScene extends Phaser.Scene {
 
     // Handle restart
     if (this.isGameOver && inputState.jump) {
+      // Reset everything BEFORE restarting the scene
       MainGameScene.levelManager.reset();
+      MainGameScene.persistentScore = 0;
+      MainGameScene.persistentLives = 3;
+      // Restart the scene (this will call create() which will read the reset values)
       this.scene.restart();
-      this.isGameOver = false;
-      this.score = 0;
-      this.lives = 3;
-      this.goalsReachedThisLevel = 0;
       return;
     }
 
-    if (this.isGameOver || this.isLevelTransition || this.countdownActive) return;
+    if (this.isGameOver || this.isLevelTransition) return;
 
-    // Update player
-    this.player.update(inputState);
+    // Update player (but only if countdown is not active)
+    if (!this.countdownActive) {
+      this.player.update(inputState);
+    }
 
-    // Update lanes and vehicles
+    // Update lanes and vehicles (always, even during countdown for visual effect)
     const levelConfig = MainGameScene.levelManager.getLevelConfig();
     for (const lane of this.lanes) {
       lane.spawnTimer += delta;
@@ -903,6 +914,13 @@ export class MainGameScene extends Phaser.Scene {
       // Update and cleanup vehicles
       for (let i = lane.vehicles.length - 1; i >= 0; i--) {
         const vehicle = lane.vehicles[i];
+
+        // Safety check: ensure vehicle and sprite exist
+        if (!vehicle || !vehicle.sprite || !vehicle.sprite.active) {
+          lane.vehicles.splice(i, 1);
+          continue;
+        }
+
         vehicle.update();
 
         // Remove off-screen vehicles
@@ -914,7 +932,9 @@ export class MainGameScene extends Phaser.Scene {
       }
     }
 
-    // Check collisions
-    this.checkCollisions();
+    // Check collisions (but not during countdown)
+    if (!this.countdownActive) {
+      this.checkCollisions();
+    }
   }
 }

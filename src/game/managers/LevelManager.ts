@@ -47,7 +47,7 @@ export class LevelManager {
       return {
         ...baseConfig,
         level: this.currentLevel,
-        laneCount: Math.min(3 + this.currentLevel, 5), // 4-5 lanes
+        laneCount: Math.min(3 + this.currentLevel, 6), // 4, 5, 6 lanes
         minSpeed: 60 + (this.currentLevel * 25), // 85 -> 110 -> 135
         maxSpeed: 100 + (this.currentLevel * 30), // 130 -> 160 -> 190
         minSpawnInterval: 5000 - (this.currentLevel * 400), // 5000 -> 4600 -> 4200
@@ -61,7 +61,7 @@ export class LevelManager {
       return {
         ...baseConfig,
         level: this.currentLevel,
-        laneCount: Math.min(4 + (this.currentLevel - 3), 7), // 5-7 lanes
+        laneCount: Math.min(6 + (this.currentLevel - 3), 8), // 7, 8, 8 lanes
         minSpeed: 120 + (this.currentLevel * 30), // 150 -> 180 -> 210
         maxSpeed: 180 + (this.currentLevel * 40), // 220 -> 260 -> 300
         minSpawnInterval: 4000 - (this.currentLevel * 200), // Gets tighter
@@ -85,15 +85,15 @@ export class LevelManager {
         backgroundColor: 0x6b95c4
       };
     } else {
-      // Level 10+: Expert - Blazing fast, extreme challenge, 8 lanes
+      // Level 10+: Expert - Blazing fast, extreme challenge, 8 lanes, MORE VEHICLES
       return {
         ...baseConfig,
         level: this.currentLevel,
         laneCount: 8,
         minSpeed: 250 + (this.currentLevel * 40), // Starts at 290+
         maxSpeed: 350 + (this.currentLevel * 50), // Starts at 400+
-        minSpawnInterval: Math.max(2000, 2800 - (this.currentLevel * 80)),
-        maxSpawnInterval: Math.max(3500, 4500 - (this.currentLevel * 120)),
+        minSpawnInterval: Math.max(1200, 2800 - (this.currentLevel * 80)), // Reduced min to spawn more vehicles
+        maxSpawnInterval: Math.max(2500, 4500 - (this.currentLevel * 120)), // Reduced max to spawn more vehicles
         scoreMultiplier: this.currentLevel * 2,
         name: `Level ${this.currentLevel}: INSANE MODE`,
         backgroundColor: 0x5a7fb0
