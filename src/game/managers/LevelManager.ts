@@ -43,15 +43,15 @@ export class LevelManager {
 
     // Adjust difficulty based on level
     if (this.currentLevel <= 3) {
-      // Levels 1-3: Easy
+      // Levels 1-3: Easy - Much longer intervals for easier gameplay
       return {
         ...baseConfig,
         level: this.currentLevel,
         laneCount: 4 + this.currentLevel,
-        minSpeed: 40 + (this.currentLevel * 10),
-        maxSpeed: 80 + (this.currentLevel * 10),
-        minSpawnInterval: 2500 - (this.currentLevel * 100),
-        maxSpawnInterval: 4500 - (this.currentLevel * 100),
+        minSpeed: 40 + (this.currentLevel * 5),
+        maxSpeed: 70 + (this.currentLevel * 10),
+        minSpawnInterval: 3500 - (this.currentLevel * 200),
+        maxSpawnInterval: 6000 - (this.currentLevel * 300),
         scoreMultiplier: this.currentLevel,
         name: `Level ${this.currentLevel}: Easy Street`,
         backgroundColor: 0x87ceeb

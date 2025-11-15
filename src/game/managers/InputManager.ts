@@ -63,14 +63,14 @@ export class InputManager {
       pause: false,
     };
 
-    // Keyboard input
+    // Keyboard input - use JustDown for discrete grid-based movement
     if (this.cursors && this.wasd) {
-      state.left = this.cursors.left.isDown || this.wasd.A.isDown;
-      state.right = this.cursors.right.isDown || this.wasd.D.isDown;
-      state.up = this.cursors.up.isDown || this.wasd.W.isDown;
-      state.down = this.cursors.down.isDown || this.wasd.S.isDown;
-      state.jump = this.spaceKey?.isDown || false;
-      state.pause = this.escKey?.isDown || false;
+      state.left = Phaser.Input.Keyboard.JustDown(this.cursors.left) || Phaser.Input.Keyboard.JustDown(this.wasd.A);
+      state.right = Phaser.Input.Keyboard.JustDown(this.cursors.right) || Phaser.Input.Keyboard.JustDown(this.wasd.D);
+      state.up = Phaser.Input.Keyboard.JustDown(this.cursors.up) || Phaser.Input.Keyboard.JustDown(this.wasd.W);
+      state.down = Phaser.Input.Keyboard.JustDown(this.cursors.down) || Phaser.Input.Keyboard.JustDown(this.wasd.S);
+      state.jump = Phaser.Input.Keyboard.JustDown(this.spaceKey!) || false;
+      state.pause = Phaser.Input.Keyboard.JustDown(this.escKey!) || false;
     }
 
     // Gamepad input (overrides keyboard if active)

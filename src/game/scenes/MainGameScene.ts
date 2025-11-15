@@ -166,6 +166,16 @@ export class MainGameScene extends Phaser.Scene {
     const width = this.scale.width;
     const startX = lane.direction > 0 ? -50 : width + 50;
 
+    // Check if there's already a vehicle too close to the spawn point
+    const minSpacing = 150; // Minimum pixels between vehicles
+    for (const existingVehicle of lane.vehicles) {
+      const distance = Math.abs(existingVehicle.sprite.x - startX);
+      if (distance < minSpacing) {
+        // Too close to spawn, skip this spawn
+        return;
+      }
+    }
+
     const vehicle = new Vehicle(
       this,
       startX,

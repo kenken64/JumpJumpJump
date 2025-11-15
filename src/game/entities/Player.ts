@@ -55,20 +55,23 @@ export class Player {
   }
 
   public update(inputState: InputState): void {
+    // Always update movement if moving
     if (this.isMoving) {
       this.updateMovement();
-      return;
     }
 
-    // Grid-based movement (like Frogger)
-    if (inputState.up) {
-      this.moveInDirection(0, -this.gridSize);
-    } else if (inputState.down) {
-      this.moveInDirection(0, this.gridSize);
-    } else if (inputState.left) {
-      this.moveInDirection(-this.gridSize, 0);
-    } else if (inputState.right) {
-      this.moveInDirection(this.gridSize, 0);
+    // Only accept new input if not currently moving
+    if (!this.isMoving) {
+      // Grid-based movement (like Frogger)
+      if (inputState.up) {
+        this.moveInDirection(0, -this.gridSize);
+      } else if (inputState.down) {
+        this.moveInDirection(0, this.gridSize);
+      } else if (inputState.left) {
+        this.moveInDirection(-this.gridSize, 0);
+      } else if (inputState.right) {
+        this.moveInDirection(this.gridSize, 0);
+      }
     }
 
     // Update animation based on movement
@@ -110,12 +113,15 @@ export class Player {
       this.targetPosition.y
     );
 
-    if (distance < 2) {
+    const speed = 8; // Pixels per frame - increased for smoother movement
+
+    if (distance < speed) {
+      // Close enough - snap to target position
       this.sprite.setPosition(this.targetPosition.x, this.targetPosition.y);
       this.isMoving = false;
       this.targetPosition = undefined;
     } else {
-      const speed = 5; // Pixels per frame
+      // Move towards target
       const angle = Phaser.Math.Angle.Between(
         this.sprite.x,
         this.sprite.y,
