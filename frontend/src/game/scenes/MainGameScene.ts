@@ -682,7 +682,7 @@ export class MainGameScene extends Phaser.Scene {
     });
   }
 
-  private showGameComplete(): void {
+  private async showGameComplete(): Promise<void> {
     const width = this.scale.width;
     const height = this.scale.height;
 
@@ -691,7 +691,7 @@ export class MainGameScene extends Phaser.Scene {
 
     // Congratulations panel
     const panelWidth = 600;
-    const panelHeight = 500;
+    const panelHeight = 600;
     const panelX = width / 2;
     const panelY = height / 2;
 
@@ -708,7 +708,7 @@ export class MainGameScene extends Phaser.Scene {
     }).setOrigin(0.5).setDepth(3003);
 
     // Congratulations text
-    this.add.text(panelX, panelY - 140, 'CONGRATULATIONS!', {
+    this.add.text(panelX, panelY - 200, 'CONGRATULATIONS!', {
       fontSize: '56px',
       color: '#f1c40f',
       fontStyle: 'bold',
@@ -717,7 +717,7 @@ export class MainGameScene extends Phaser.Scene {
     }).setOrigin(0.5).setDepth(3003);
 
     // Game complete message
-    this.add.text(panelX, panelY - 60, 'You completed all 16 levels!', {
+    this.add.text(panelX, panelY - 120, 'You completed all 16 levels!', {
       fontSize: '28px',
       color: '#ffffff',
       stroke: '#000000',
@@ -725,7 +725,7 @@ export class MainGameScene extends Phaser.Scene {
     }).setOrigin(0.5).setDepth(3003);
 
     // Final score
-    this.add.text(panelX, panelY - 10, `Final Score: ${this.score}`, {
+    this.add.text(panelX, panelY - 70, `Final Score: ${this.score}`, {
       fontSize: '36px',
       color: '#2ecc71',
       fontStyle: 'bold',
@@ -734,7 +734,7 @@ export class MainGameScene extends Phaser.Scene {
     }).setOrigin(0.5).setDepth(3003);
 
     // Achievement message
-    this.add.text(panelX, panelY + 50, 'You are a true champion!', {
+    this.add.text(panelX, panelY - 20, 'You are a true champion!', {
       fontSize: '24px',
       color: '#ecf0f1',
       stroke: '#000000',
@@ -743,20 +743,23 @@ export class MainGameScene extends Phaser.Scene {
     }).setOrigin(0.5).setDepth(3003);
 
     // Stars decoration
-    this.add.text(panelX - 150, panelY + 100, '⭐', { fontSize: '32px' }).setOrigin(0.5).setDepth(3003);
-    this.add.text(panelX, panelY + 100, '⭐', { fontSize: '40px' }).setOrigin(0.5).setDepth(3003);
-    this.add.text(panelX + 150, panelY + 100, '⭐', { fontSize: '32px' }).setOrigin(0.5).setDepth(3003);
+    this.add.text(panelX - 150, panelY + 30, '⭐', { fontSize: '32px' }).setOrigin(0.5).setDepth(3003);
+    this.add.text(panelX, panelY + 30, '⭐', { fontSize: '40px' }).setOrigin(0.5).setDepth(3003);
+    this.add.text(panelX + 150, panelY + 30, '⭐', { fontSize: '32px' }).setOrigin(0.5).setDepth(3003);
 
-    // Return to menu message
-    this.add.text(panelX, panelY + 180, 'Returning to menu in 5 seconds...', {
+    // Username prompt
+    this.add.text(panelX, panelY + 80, 'Enter Your Name:', {
       fontSize: '20px',
-      color: '#95a5a6',
+      color: '#ffffff',
       stroke: '#000000',
-      strokeThickness: 2
+      strokeThickness: 3
     }).setOrigin(0.5).setDepth(3003);
 
+    // Show username input and submit score
+    await this.showUsernameInputForCompletion(panelX, panelY);
+
     // Add tween animation for the congratulations text
-    const congratsText = this.add.text(panelX, panelY - 140, 'CONGRATULATIONS!', {
+    const congratsText = this.add.text(panelX, panelY - 200, 'CONGRATULATIONS!', {
       fontSize: '56px',
       color: '#f1c40f',
       fontStyle: 'bold',
@@ -771,15 +774,6 @@ export class MainGameScene extends Phaser.Scene {
       yoyo: true,
       repeat: -1,
       ease: 'Sine.easeInOut'
-    });
-
-    // Return to menu after 5 seconds
-    this.time.delayedCall(5000, () => {
-      // Reset everything
-      MainGameScene.levelManager.reset();
-      MainGameScene.persistentScore = 0;
-      MainGameScene.persistentLives = 3;
-      this.scene.start('MenuScene');
     });
   }
 
@@ -921,6 +915,120 @@ export class MainGameScene extends Phaser.Scene {
       buttonBg.on('pointerout', () => {
         if (buttonText.text === 'Submit Score') {
           buttonBg.setFillStyle(0x27ae60);
+        }
+      });
+    });
+  }
+
+  private async showUsernameInputForCompletion(panelX: number, panelY: number): Promise<void> {
+    return new Promise((resolve) => {
+      // Create input box background
+      const inputBg = this.add.rectangle(panelX, panelY + 130, 300, 50, 0x34495e).setDepth(3003);
+      inputBg.setStrokeStyle(2, 0xf1c40f);
+
+      // Input text placeholder
+      const inputText = this.add.text(panelX, panelY + 130, 'Click to enter name...', {
+        fontSize: '18px',
+        color: '#7f8c8d',
+        fontStyle: 'italic'
+      }).setOrigin(0.5).setDepth(3004);
+
+      // Submit button
+      const buttonBg = this.add.rectangle(panelX, panelY + 190, 200, 45, 0xf1c40f).setDepth(3003);
+      buttonBg.setStrokeStyle(2, 0xffffff);
+
+      const buttonText = this.add.text(panelX, panelY + 190, 'Submit Score', {
+        fontSize: '20px',
+        color: '#2c3e50',
+        fontStyle: 'bold'
+      }).setOrigin(0.5).setDepth(3004);
+
+      // Return to menu message
+      const menuText = this.add.text(panelX, panelY + 250, 'Press SPACE to return to menu', {
+        fontSize: '18px',
+        color: '#95a5a6',
+        stroke: '#000000',
+        strokeThickness: 2
+      }).setOrigin(0.5).setDepth(3003);
+
+      let username = '';
+      let scoreSubmitted = false;
+
+      // Use browser prompt for now (can be replaced with HTML input overlay)
+      const promptAndSubmit = async () => {
+        if (scoreSubmitted) return;
+
+        const enteredName = prompt('Enter your username to save your score:');
+        if (enteredName && enteredName.trim()) {
+          username = enteredName.trim();
+          inputText.setText(username);
+          inputText.setColor('#ffffff');
+          inputText.setFontStyle('normal');
+
+          // Submit score - level 16 since game is complete
+          await this.submitScore(username, this.score, 16);
+
+          // Show success message
+          inputText.setText('Score Saved! ✓');
+          inputText.setColor('#2ecc71');
+          buttonBg.setFillStyle(0x95a5a6);
+          buttonText.setText('Submitted');
+          buttonText.setColor('#ffffff');
+
+          scoreSubmitted = true;
+
+          // Disable button
+          buttonBg.removeInteractive();
+          inputBg.removeInteractive();
+        } else {
+          inputText.setText('Click to enter name...');
+          inputText.setColor('#7f8c8d');
+        }
+      };
+
+      // Make input interactive
+      inputBg.setInteractive({ useHandCursor: true });
+      inputBg.on('pointerdown', promptAndSubmit);
+
+      // Make button interactive
+      buttonBg.setInteractive({ useHandCursor: true });
+      buttonBg.on('pointerdown', promptAndSubmit);
+
+      // Button hover effect
+      buttonBg.on('pointerover', () => {
+        if (!scoreSubmitted) {
+          buttonBg.setFillStyle(0xf39c12);
+        }
+      });
+
+      buttonBg.on('pointerout', () => {
+        if (!scoreSubmitted) {
+          buttonBg.setFillStyle(0xf1c40f);
+        }
+      });
+
+      // Listen for SPACE key to return to menu
+      const spaceKey = this.input.keyboard?.addKey(Phaser.Input.Keyboard.KeyCodes.SPACE);
+      if (spaceKey) {
+        spaceKey.on('down', () => {
+          // Reset everything
+          MainGameScene.levelManager.reset();
+          MainGameScene.persistentScore = 0;
+          MainGameScene.persistentLives = 3;
+          this.scene.start('MenuScene');
+          resolve();
+        });
+      }
+
+      // Also listen for gamepad A button
+      this.input.gamepad?.on('down', (_pad: Phaser.Input.Gamepad.Gamepad, button: Phaser.Input.Gamepad.Button) => {
+        if (button.index === 0) { // A button
+          // Reset everything
+          MainGameScene.levelManager.reset();
+          MainGameScene.persistentScore = 0;
+          MainGameScene.persistentLives = 3;
+          this.scene.start('MenuScene');
+          resolve();
         }
       });
     });
