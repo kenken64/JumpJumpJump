@@ -1,7 +1,11 @@
 # Jump Jump Jump - Stop Script (Windows PowerShell)
 
-Write-Host "🛑 Stopping Jump Jump Jump Game..." -ForegroundColor Cyan
+Write-Host "Stopping Jump Jump Jump Game..." -ForegroundColor Cyan
 Write-Host ""
+
+# Get the project root directory (parent of scripts folder)
+$projectRoot = Split-Path -Parent $PSScriptRoot
+Set-Location $projectRoot
 
 # Stop backend
 if (Test-Path ".backend.pid") {
@@ -9,16 +13,16 @@ if (Test-Path ".backend.pid") {
     $backendJob = Get-Job -Id $backendJobId -ErrorAction SilentlyContinue
 
     if ($backendJob) {
-        Write-Host "🛑 Stopping backend server (Job ID: $backendJobId)..." -ForegroundColor Yellow
+        Write-Host "Stopping backend server (Job ID: $backendJobId)..." -ForegroundColor Yellow
         Stop-Job -Id $backendJobId
         Remove-Job -Id $backendJobId
-        Write-Host "✅ Backend stopped" -ForegroundColor Green
+        Write-Host "Backend stopped" -ForegroundColor Green
     } else {
-        Write-Host "⚠️  Backend server not running" -ForegroundColor Yellow
+        Write-Host "Backend server not running" -ForegroundColor Yellow
     }
     Remove-Item ".backend.pid"
 } else {
-    Write-Host "⚠️  No backend PID file found" -ForegroundColor Yellow
+    Write-Host "No backend PID file found" -ForegroundColor Yellow
 }
 
 Write-Host ""
@@ -29,23 +33,23 @@ if (Test-Path ".frontend.pid") {
     $frontendJob = Get-Job -Id $frontendJobId -ErrorAction SilentlyContinue
 
     if ($frontendJob) {
-        Write-Host "🛑 Stopping frontend server (Job ID: $frontendJobId)..." -ForegroundColor Yellow
+        Write-Host "Stopping frontend server (Job ID: $frontendJobId)..." -ForegroundColor Yellow
         Stop-Job -Id $frontendJobId
         Remove-Job -Id $frontendJobId
-        Write-Host "✅ Frontend stopped" -ForegroundColor Green
+        Write-Host "Frontend stopped" -ForegroundColor Green
     } else {
-        Write-Host "⚠️  Frontend server not running" -ForegroundColor Yellow
+        Write-Host "Frontend server not running" -ForegroundColor Yellow
     }
     Remove-Item ".frontend.pid"
 } else {
-    Write-Host "⚠️  No frontend PID file found" -ForegroundColor Yellow
+    Write-Host "No frontend PID file found" -ForegroundColor Yellow
 }
 
 # Clean up any remaining jobs
 $remainingJobs = Get-Job | Where-Object { $_.State -eq "Running" }
 if ($remainingJobs) {
     Write-Host ""
-    Write-Host "🧹 Cleaning up remaining jobs..." -ForegroundColor Yellow
+    Write-Host "Cleaning up remaining jobs..." -ForegroundColor Yellow
     Get-Job | Stop-Job
     Get-Job | Remove-Job
 }
