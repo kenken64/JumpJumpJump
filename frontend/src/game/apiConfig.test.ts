@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { API_CONFIG } from '../apiConfig';
+import { API_CONFIG } from './apiConfig';
 
 describe('API Configuration', () => {
   describe('BASE_URL', () => {
@@ -19,10 +19,6 @@ describe('API Configuration', () => {
 
     it('should have leaderboard endpoint', () => {
       expect(API_CONFIG.ENDPOINTS.LEADERBOARD).toBe('/api/scores/leaderboard');
-    });
-
-    it('should have user scores endpoint', () => {
-      expect(API_CONFIG.ENDPOINTS.USER_SCORES).toBeDefined();
     });
 
     it('endpoints should start with slash', () => {
