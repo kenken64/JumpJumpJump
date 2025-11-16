@@ -28,6 +28,10 @@ export class LevelManager {
     this.currentLevel = 1;
   }
 
+  public setLevel(level: number): void {
+    this.currentLevel = Math.min(level, this.MAX_LEVEL);
+  }
+
   public isMaxLevelReached(): boolean {
     return this.currentLevel > this.MAX_LEVEL;
   }

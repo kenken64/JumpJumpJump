@@ -1088,6 +1088,40 @@ export class MainGameScene extends Phaser.Scene {
       }
     }
 
+    // Check for Ctrl+Z to jump to level 16 (final level)
+    const zKey = this.input.keyboard?.addKey(Phaser.Input.Keyboard.KeyCodes.Z);
+    if (ctrlKey?.isDown && Phaser.Input.Keyboard.JustDown(zKey!)) {
+      // Jump to level 16 with appropriate score and lives
+      MainGameScene.levelManager.setLevel(16);
+      MainGameScene.persistentScore = this.score; // Keep current score
+      MainGameScene.persistentLives = 3; // Reset lives for the challenge
+      
+      // Show a notification
+      const width = this.scale.width;
+      const height = this.scale.height;
+      const notification = this.add.text(width / 2, height / 2, 'Jumping to Level 16!', {
+        fontSize: '48px',
+        color: '#f1c40f',
+        fontStyle: 'bold',
+        stroke: '#000000',
+        strokeThickness: 6
+      }).setOrigin(0.5).setDepth(5000);
+
+      // Fade out notification and restart scene
+      this.tweens.add({
+        targets: notification,
+        alpha: 0,
+        duration: 1000,
+        ease: 'Power2',
+        onComplete: () => {
+          notification.destroy();
+          this.scene.restart();
+        }
+      });
+      
+      return; // Stop processing this frame
+    }
+
     // Get input state
     const inputState = this.inputManager.getInputState();
 
