@@ -17,6 +17,11 @@ export class MenuScene extends Phaser.Scene {
     super({ key: 'MenuScene' });
   }
 
+  init(): void {
+    // Re-fetch leaderboard data every time the scene is started/resumed
+    // This ensures fresh data when returning from game
+  }
+
   create(): void {
     const width = this.scale.width;
     const height = this.scale.height;
@@ -78,6 +83,30 @@ export class MenuScene extends Phaser.Scene {
 
     // Fetch leaderboard data
     this.fetchLeaderboard();
+
+    // Set up event listeners to refresh leaderboard when returning to menu
+    this.events.on('wake', this.onSceneWake, this);
+    this.events.on('resume', this.onSceneResume, this);
+  }
+
+  private onSceneWake(): void {
+    // Called when scene wakes up from sleep
+    this.fetchLeaderboard();
+  }
+
+  private onSceneResume(): void {
+    // Called when scene resumes from pause
+    this.fetchLeaderboard();
+  }
+
+  shutdown(): void {
+    // Clean up event listeners when scene shuts down
+    this.events.off('wake', this.onSceneWake, this);
+    this.events.off('resume', this.onSceneResume, this);
+    
+    // Clear leaderboard arrays
+    this.leaderboardTexts = [];
+    this.leaderboardScoreTexts = [];
   }
 
   private createLeaderboard(width: number, height: number): void {
@@ -132,12 +161,15 @@ export class MenuScene extends Phaser.Scene {
 
   private async fetchLeaderboard(): Promise<void> {
     try {
+      console.log('Fetching leaderboard from:', `${API_CONFIG.BASE_URL}${API_CONFIG.ENDPOINTS.LEADERBOARD}?limit=10`);
       const response = await fetch(`${API_CONFIG.BASE_URL}${API_CONFIG.ENDPOINTS.LEADERBOARD}?limit=10`);
 
       if (response.ok) {
         const data: LeaderboardEntry[] = await response.json();
+        console.log('Leaderboard data received:', data.length, 'entries');
         this.displayLeaderboard(data);
       } else {
+        console.warn('Leaderboard response not OK:', response.status);
         // If no records, just show empty leaderboard
         this.displayLeaderboard([]);
       }
