@@ -13,6 +13,7 @@ A Frogger-style platformer game built with Phaser 3, React, and TypeScript. Navi
 - [Documentation](#-documentation)
 - [Quick Start](#quick-start)
 - [Manual Installation & Running](#manual-installation--running)
+- [Testing](#-testing)
 - [Controls](#controls)
 - [How to Play](#how-to-play)
 - [Difficulty Progression](#difficulty-progression)
@@ -183,6 +184,52 @@ python main.py
 ```
 
 The API will be available at `http://localhost:8000`
+
+## 🧪 Testing
+
+Comprehensive test suites are available for both frontend and backend with 280+ test cases.
+
+### Quick Test Commands
+
+**Frontend Tests:**
+```bash
+cd frontend
+npm test                    # Run tests (watch mode)
+npm run test:ui            # Run with interactive UI
+npm run test:coverage      # Run with coverage report
+```
+
+**Backend Tests:**
+```bash
+cd backend
+pytest                     # Run all tests
+pytest -v                  # Run with verbose output
+pytest --cov=. --cov-report=html  # Run with coverage
+```
+
+**Run All Tests:**
+```powershell
+# Windows
+.\scripts\run-tests.ps1
+
+# Unix/Linux/Mac
+./scripts/run-tests.sh
+```
+
+### Test Coverage
+
+- **Frontend**: 230+ tests covering LevelManager, API config, custom levels
+  - LevelManager: 100% coverage (200+ tests)
+  - API Config: 100% coverage
+  - Custom Level Types: 100% coverage
+
+- **Backend**: 50+ tests covering all API endpoints
+  - Score submission: 10+ tests with validation
+  - Leaderboard: 10+ tests with sorting
+  - User scores: 6+ tests
+  - Database operations: Full coverage
+
+**For detailed testing guide, see [TESTING.md](./TESTING.md)**
 
 ## API Endpoints
 
