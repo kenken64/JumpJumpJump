@@ -1,6 +1,28 @@
 # Jump Jump Jump! 🚗🏃
 
-A Frogger-style platformer game built with Phaser 3, React, and TypeScript.
+A Frogger-style platformer game built with Phaser 3, React, and TypeScript. Navigate through increasingly challenging traffic levels, create your own custom levels, and compete on the leaderboard!
+
+[![License: CC0](https://img.shields.io/badge/License-CC0-blue.svg)](https://creativecommons.org/publicdomain/zero/1.0/)
+[![Phaser 3](https://img.shields.io/badge/Phaser-3.90.0-blue.svg)](https://phaser.io/)
+[![React](https://img.shields.io/badge/React-19.2.0-blue.svg)](https://react.dev/)
+[![TypeScript](https://img.shields.io/badge/TypeScript-5.9.3-blue.svg)](https://www.typescriptlang.org/)
+
+## 📋 Table of Contents
+
+- [Features](#features)
+- [Documentation](#-documentation)
+- [Quick Start](#quick-start)
+- [Manual Installation & Running](#manual-installation--running)
+- [Controls](#controls)
+- [How to Play](#how-to-play)
+- [Difficulty Progression](#difficulty-progression)
+- [Level Editor](#level-editor)
+- [API Endpoints](#api-endpoints)
+- [Project Structure](#project-structure)
+- [Technologies Used](#technologies-used)
+- [Development Status](#development-status)
+- [Asset Credits](#asset-credits)
+- [License](#license)
 
 ## Features
 
@@ -76,33 +98,56 @@ A Frogger-style platformer game built with Phaser 3, React, and TypeScript.
 - Score multiplier: 20x+
 - INSANE MODE!
 
+## 📚 Documentation
+
+Comprehensive documentation is available to help you understand and build this project:
+
+- **[Project Requirements & Planning (PRPs)](./PRPs/README.md)** - Complete project documentation broken into phases
+- **[Step-by-Step Tutorial](./TUTORIAL_COMPLETE.md)** - Build the game from scratch, code by code
+- **[Level Editor Guide](./frontend/LEVEL_EDITOR.md)** - Complete level editor documentation
+- **[Game Flow](./GAME_FLOW.md)** - Detailed game mechanics and flow
+
+### Quick Links to PRP Phases
+- [Phase 0: Foundation](./PRPs/Phase_0_Foundation.md) - Project setup & basic gameplay
+- [Phase 1: Core Gameplay](./PRPs/Phase_1_Core_Gameplay.md) - Campaign mode & progression
+- [Phase 2: Level Editor](./PRPs/Phase_2_Level_Editor.md) - Custom level creation
+- [Phase 3: Polish & Enhancement](./PRPs/Phase_3_Polish_Enhancement.md) - Sound, effects, and UI
+
 ## Quick Start
 
 ### Mac/Linux
 
 ```bash
 # Start both frontend and backend
-./start.sh
+./scripts/start.sh
 
 # Stop all servers
-./stop.sh
+./scripts/stop.sh
 ```
 
 ### Windows PowerShell
 
 ```powershell
 # Start both frontend and backend
-.\start.ps1
+.\scripts\start.ps1
 
 # Stop all servers
-.\stop.ps1
+.\scripts\stop.ps1
 ```
 
 ## Manual Installation & Running
 
+### Prerequisites
+- **Node.js** 18+ and npm
+- **Python** 3.8+
+- Git
+
 ### Frontend Setup
 
 ```bash
+# Navigate to frontend directory
+cd frontend
+
 # Install dependencies
 npm install
 
@@ -151,36 +196,74 @@ View the leaderboard at: `http://localhost:8000/api/scores/leaderboard`
 ## Project Structure
 
 ```
-src/
-├── game/
-│   ├── scenes/
-│   │   ├── PreloadScene.ts    # Asset loading
-│   │   └── MainGameScene.ts   # Main game logic
-│   ├── entities/
-│   │   ├── Player.ts          # Player character
-│   │   └── Vehicle.ts         # Traffic vehicles
-│   ├── managers/
-│   │   ├── InputManager.ts    # Keyboard + Gamepad handling
-│   │   └── LevelManager.ts    # Level progression & difficulty
-│   └── config.ts              # Phaser configuration
-├── components/
-│   └── GameContainer.tsx      # React wrapper for Phaser
-├── App.tsx                    # Main React app
-└── App.css                    # Styling
-
-public/
-└── assets/
-    ├── spritesheet_complete.png  # Game sprites
-    └── spritesheet_complete.xml  # Sprite atlas definition
+JumpJumpJump/
+├── frontend/                       # React + Phaser frontend
+│   ├── src/
+│   │   ├── game/
+│   │   │   ├── scenes/
+│   │   │   │   ├── PreloadScene.ts         # Asset loading
+│   │   │   │   ├── MenuScene.ts            # Main menu
+│   │   │   │   ├── MainGameScene.ts        # Campaign mode
+│   │   │   │   ├── LevelEditorScene.ts     # Level editor
+│   │   │   │   ├── CustomLevelSelectScene.ts
+│   │   │   │   └── CustomGameScene.ts      # Custom level play
+│   │   │   ├── entities/
+│   │   │   │   ├── Player.ts               # Player character
+│   │   │   │   └── Vehicle.ts              # Traffic vehicles
+│   │   │   ├── managers/
+│   │   │   │   ├── InputManager.ts         # Keyboard + Gamepad
+│   │   │   │   └── LevelManager.ts         # Level progression
+│   │   │   ├── types/
+│   │   │   │   └── CustomLevel.ts          # Level type definitions
+│   │   │   ├── config.ts                   # Phaser configuration
+│   │   │   └── apiConfig.ts                # Backend API config
+│   │   ├── components/
+│   │   │   └── GameContainer.tsx           # React wrapper
+│   │   ├── App.tsx                         # Main React app
+│   │   └── main.tsx                        # Entry point
+│   ├── public/
+│   │   └── assets/                         # Game sprites
+│   ├── package.json
+│   └── vite.config.ts
+│
+├── backend/                        # FastAPI backend
+│   ├── main.py                     # API server
+│   ├── requirements.txt            # Python dependencies
+│   └── README.md                   # Backend documentation
+│
+├── scripts/                        # Automation scripts
+│   ├── start.ps1                   # Windows start script
+│   ├── start.sh                    # Unix start script
+│   ├── stop.ps1                    # Windows stop script
+│   └── stop.sh                     # Unix stop script
+│
+├── PRPs/                           # Project Requirements & Planning
+│   ├── README.md                   # PRP master index
+│   ├── JumpJumpJump_PRP.md        # Complete project requirements
+│   ├── Phase_0_Foundation.md       # Phase 0 documentation
+│   ├── Phase_1_Core_Gameplay.md    # Phase 1 documentation
+│   ├── Phase_2_Level_Editor.md     # Phase 2 documentation
+│   └── Phase_3_Polish_Enhancement.md
+│
+├── TUTORIAL_COMPLETE.md            # Step-by-step tutorial
+├── GAME_FLOW.md                    # Game mechanics guide
+└── README.md                       # This file
 ```
 
 ## Technologies Used
 
-- **Phaser 3**: Game engine
-- **React 18**: UI framework
-- **TypeScript**: Type safety
-- **Vite**: Build tool and dev server
-- **Zustand**: State management (for future features)
+### Frontend
+- **Phaser 3.90.0**: Game engine with arcade physics
+- **React 19.2.0**: UI framework
+- **TypeScript 5.9.3**: Type safety
+- **Vite 5.4.21**: Build tool and dev server with HMR
+- **Zustand 5.0.8**: State management
+
+### Backend
+- **FastAPI 0.104.0+**: Modern Python web framework
+- **Uvicorn 0.24.0+**: ASGI server
+- **SQLite 3**: Serverless database for scores
+- **Pydantic 2.0.0+**: Data validation
 
 ## Game Mechanics
 
@@ -229,7 +312,7 @@ Create your own custom levels with the built-in level editor!
 5. Click "Test Level" to play immediately
 6. Click "Save Level" to store permanently
 
-**See LEVEL_EDITOR.md for complete guide**
+**See [frontend/LEVEL_EDITOR.md](./frontend/LEVEL_EDITOR.md) for complete guide**
 
 ## Asset Credits
 
@@ -237,15 +320,38 @@ Sprites from **Kenney.nl** (Pixel Car Pack)
 - License: Creative Commons Zero (CC0)
 - Free for personal, educational, and commercial use
 
-## Future Enhancements
+## Development Status
 
-- Sound effects and music
+### ✅ Completed (Phases 0-2)
+- ✅ Project setup with React, Phaser, TypeScript, FastAPI
+- ✅ Player movement with keyboard and gamepad support
+- ✅ Vehicle system with 15+ vehicle types
+- ✅ Campaign mode with 10+ progressive levels
+- ✅ Difficulty tiers (Easy, Medium, Hard, Expert)
+- ✅ Scoring system with multipliers
+- ✅ Level editor with visual interface
+- ✅ Custom level save/load/play
+- ✅ Backend API with leaderboard
+- ✅ Automation scripts for starting/stopping servers
+
+### 🚧 In Progress (Phase 3)
+- 🔄 Sound effects and background music
+- 🔄 Particle effects for collisions
+- 🔄 Tutorial system for new players
+- 🔄 Settings menu (sound, controls)
+- 🔄 Pause functionality
+- 🔄 UI/UX polish
+
+### 📋 Planned (Phases 4-5)
 - Power-ups and bonuses
-- Multiple difficulty levels
-- Leaderboard/high scores
 - Additional character selection
 - More lane types (rivers, logs, etc.)
 - Mobile touch controls
+- Multiplayer mode
+- Achievement system
+- Level sharing via cloud
+
+**For detailed roadmap, see [PRPs/README.md](./PRPs/README.md)**
 
 ## Development
 
