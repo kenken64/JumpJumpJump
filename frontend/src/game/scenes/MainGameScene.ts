@@ -869,32 +869,133 @@ export class MainGameScene extends Phaser.Scene {
       }).setOrigin(0.5).setDepth(2004);
 
       let username = '';
+      let inputDialog: Phaser.GameObjects.Container | null = null;
 
-      // Use browser prompt for now (can be replaced with HTML input overlay)
-      const promptAndSubmit = async () => {
-        const enteredName = prompt('Enter your username to save your score:');
-        if (enteredName && enteredName.trim()) {
-          username = enteredName.trim();
-          inputText.setText(username);
-          inputText.setColor('#ffffff');
-          inputText.setFontStyle('normal');
+      // Create in-game input dialog
+      const showInputDialog = () => {
+        if (inputDialog) return; // Already showing
 
-          // Submit score
-          await this.submitScore(username, this.score, MainGameScene.levelManager.getLevelConfig().level);
+        const dialogWidth = this.scale.width;
+        const dialogHeight = this.scale.height;
 
-          // Show success message
-          inputText.setText('Score Saved! ✓');
-          inputText.setColor('#2ecc71');
-          buttonBg.setFillStyle(0x95a5a6);
-          buttonText.setText('Submitted');
+        // Create dialog container
+        inputDialog = this.add.container(dialogWidth / 2, dialogHeight / 2).setDepth(3000);
 
-          // Disable button
-          buttonBg.removeInteractive();
-        } else {
+        // Dialog background
+        const dialogBg = this.add.rectangle(0, 0, 400, 200, 0x2c3e50, 0.95);
+        dialogBg.setStrokeStyle(3, 0xf39c12);
+
+        // Title
+        const dialogTitle = this.add.text(0, -60, 'Enter your username to save your score:', {
+          fontSize: '18px',
+          color: '#ffffff',
+          fontStyle: 'bold',
+          align: 'center',
+          wordWrap: { width: 350 }
+        }).setOrigin(0.5);
+
+        // Input box background
+        const dialogInputBg = this.add.rectangle(0, -10, 300, 40, 0x34495e);
+        dialogInputBg.setStrokeStyle(2, 0xecf0f1);
+
+        // Input text display
+        const dialogInputText = this.add.text(0, -10, '', {
+          fontSize: '20px',
+          color: '#ffffff'
+        }).setOrigin(0.5);
+
+        // OK button
+        const okBg = this.add.rectangle(-60, 50, 100, 40, 0x27ae60);
+        okBg.setStrokeStyle(2, 0xffffff);
+        const okText = this.add.text(-60, 50, 'OK', {
+          fontSize: '18px',
+          color: '#ffffff',
+          fontStyle: 'bold'
+        }).setOrigin(0.5);
+
+        // Cancel button
+        const cancelBg = this.add.rectangle(60, 50, 100, 40, 0xe74c3c);
+        cancelBg.setStrokeStyle(2, 0xffffff);
+        const cancelText = this.add.text(60, 50, 'Cancel', {
+          fontSize: '18px',
+          color: '#ffffff',
+          fontStyle: 'bold'
+        }).setOrigin(0.5);
+
+        inputDialog.add([dialogBg, dialogTitle, dialogInputBg, dialogInputText, okBg, okText, cancelBg, cancelText]);
+
+        let currentInput = '';
+
+        // OK button logic
+        okBg.setInteractive({ useHandCursor: true });
+        okBg.on('pointerdown', async () => {
+          if (currentInput.trim()) {
+            username = currentInput.trim();
+            inputText.setText(username);
+            inputText.setColor('#ffffff');
+            inputText.setFontStyle('normal');
+
+            // Submit score
+            await this.submitScore(username, this.score, MainGameScene.levelManager.getLevelConfig().level);
+
+            // Show success message
+            inputText.setText('Score Saved! ✓');
+            inputText.setColor('#2ecc71');
+            buttonBg.setFillStyle(0x95a5a6);
+            buttonText.setText('Submitted');
+
+            // Disable button
+            buttonBg.removeInteractive();
+
+            // Close dialog
+            inputDialog?.destroy();
+            inputDialog = null;
+            resolve();
+          }
+        });
+
+        okBg.on('pointerover', () => okBg.setFillStyle(0x2ecc71));
+        okBg.on('pointerout', () => okBg.setFillStyle(0x27ae60));
+
+        // Cancel button logic
+        cancelBg.setInteractive({ useHandCursor: true });
+        cancelBg.on('pointerdown', () => {
+          inputDialog?.destroy();
+          inputDialog = null;
           inputText.setText('Click to enter name...');
           inputText.setColor('#7f8c8d');
-        }
-        resolve();
+          resolve();
+        });
+
+        cancelBg.on('pointerover', () => cancelBg.setFillStyle(0xc0392b));
+        cancelBg.on('pointerout', () => cancelBg.setFillStyle(0xe74c3c));
+
+        // Keyboard input
+        this.input.keyboard?.on('keydown', (event: KeyboardEvent) => {
+          if (!inputDialog) return;
+
+          if (event.key === 'Escape') {
+            inputDialog?.destroy();
+            inputDialog = null;
+            inputText.setText('Click to enter name...');
+            inputText.setColor('#7f8c8d');
+            resolve();
+          } else if (event.key === 'Enter') {
+            okBg.emit('pointerdown');
+          } else if (event.key === 'Backspace') {
+            currentInput = currentInput.slice(0, -1);
+            dialogInputText.setText(currentInput || '|');
+          } else if (event.key.length === 1 && currentInput.length < 20) {
+            currentInput += event.key;
+            dialogInputText.setText(currentInput);
+          }
+        });
+
+        dialogInputText.setText('|');
+      };
+
+      const promptAndSubmit = () => {
+        showInputDialog();
       };
 
       // Make input interactive
@@ -953,37 +1054,131 @@ export class MainGameScene extends Phaser.Scene {
 
       let username = '';
       let scoreSubmitted = false;
+      let inputDialog: Phaser.GameObjects.Container | null = null;
 
-      // Use browser prompt for now (can be replaced with HTML input overlay)
-      const promptAndSubmit = async () => {
-        if (scoreSubmitted) return;
+      // Create in-game input dialog
+      const showInputDialog = () => {
+        if (scoreSubmitted || inputDialog) return;
 
-        const enteredName = prompt('Enter your username to save your score:');
-        if (enteredName && enteredName.trim()) {
-          username = enteredName.trim();
-          inputText.setText(username);
-          inputText.setColor('#ffffff');
-          inputText.setFontStyle('normal');
+        const dialogWidth = this.scale.width;
+        const dialogHeight = this.scale.height;
 
-          // Submit score - level 16 since game is complete
-          await this.submitScore(username, this.score, 16);
+        // Create dialog container
+        inputDialog = this.add.container(dialogWidth / 2, dialogHeight / 2).setDepth(3100);
 
-          // Show success message
-          inputText.setText('Score Saved! ✓');
-          inputText.setColor('#2ecc71');
-          buttonBg.setFillStyle(0x95a5a6);
-          buttonText.setText('Submitted');
-          buttonText.setColor('#ffffff');
+        // Dialog background
+        const dialogBg = this.add.rectangle(0, 0, 400, 200, 0x2c3e50, 0.95);
+        dialogBg.setStrokeStyle(3, 0xf39c12);
 
-          scoreSubmitted = true;
+        // Title
+        const dialogTitle = this.add.text(0, -60, 'Enter your username to save your score:', {
+          fontSize: '18px',
+          color: '#ffffff',
+          fontStyle: 'bold',
+          align: 'center',
+          wordWrap: { width: 350 }
+        }).setOrigin(0.5);
 
-          // Disable button
-          buttonBg.removeInteractive();
-          inputBg.removeInteractive();
-        } else {
+        // Input box background
+        const dialogInputBg = this.add.rectangle(0, -10, 300, 40, 0x34495e);
+        dialogInputBg.setStrokeStyle(2, 0xecf0f1);
+
+        // Input text display
+        const dialogInputText = this.add.text(0, -10, '', {
+          fontSize: '20px',
+          color: '#ffffff'
+        }).setOrigin(0.5);
+
+        // OK button
+        const okBg = this.add.rectangle(-60, 50, 100, 40, 0x27ae60);
+        okBg.setStrokeStyle(2, 0xffffff);
+        const okText = this.add.text(-60, 50, 'OK', {
+          fontSize: '18px',
+          color: '#ffffff',
+          fontStyle: 'bold'
+        }).setOrigin(0.5);
+
+        // Cancel button
+        const cancelBg = this.add.rectangle(60, 50, 100, 40, 0xe74c3c);
+        cancelBg.setStrokeStyle(2, 0xffffff);
+        const cancelText = this.add.text(60, 50, 'Cancel', {
+          fontSize: '18px',
+          color: '#ffffff',
+          fontStyle: 'bold'
+        }).setOrigin(0.5);
+
+        inputDialog.add([dialogBg, dialogTitle, dialogInputBg, dialogInputText, okBg, okText, cancelBg, cancelText]);
+
+        let currentInput = '';
+
+        // OK button logic
+        okBg.setInteractive({ useHandCursor: true });
+        okBg.on('pointerdown', async () => {
+          if (currentInput.trim()) {
+            username = currentInput.trim();
+            inputText.setText(username);
+            inputText.setColor('#ffffff');
+            inputText.setFontStyle('normal');
+
+            // Submit score - level 16 since game is complete
+            await this.submitScore(username, this.score, 16);
+
+            // Show success message
+            inputText.setText('Score Saved! ✓');
+            inputText.setColor('#2ecc71');
+            buttonBg.setFillStyle(0x95a5a6);
+            buttonText.setText('Submitted');
+            buttonText.setColor('#ffffff');
+
+            scoreSubmitted = true;
+
+            // Disable button
+            buttonBg.removeInteractive();
+            inputBg.removeInteractive();
+
+            // Close dialog
+            inputDialog?.destroy();
+            inputDialog = null;
+          }
+        });
+
+        okBg.on('pointerover', () => okBg.setFillStyle(0x2ecc71));
+        okBg.on('pointerout', () => okBg.setFillStyle(0x27ae60));
+
+        // Cancel button logic
+        cancelBg.setInteractive({ useHandCursor: true });
+        cancelBg.on('pointerdown', () => {
+          inputDialog?.destroy();
+          inputDialog = null;
           inputText.setText('Click to enter name...');
           inputText.setColor('#7f8c8d');
-        }
+        });
+
+        cancelBg.on('pointerover', () => cancelBg.setFillStyle(0xc0392b));
+        cancelBg.on('pointerout', () => cancelBg.setFillStyle(0xe74c3c));
+
+        // Keyboard input
+        this.input.keyboard?.on('keydown', (event: KeyboardEvent) => {
+          if (!inputDialog) return;
+
+          if (event.key === 'Escape') {
+            cancelBg.emit('pointerdown');
+          } else if (event.key === 'Enter') {
+            okBg.emit('pointerdown');
+          } else if (event.key === 'Backspace') {
+            currentInput = currentInput.slice(0, -1);
+            dialogInputText.setText(currentInput || '|');
+          } else if (event.key.length === 1 && currentInput.length < 20) {
+            currentInput += event.key;
+            dialogInputText.setText(currentInput);
+          }
+        });
+
+        dialogInputText.setText('|');
+      };
+
+      const promptAndSubmit = () => {
+        showInputDialog();
       };
 
       // Make input interactive
