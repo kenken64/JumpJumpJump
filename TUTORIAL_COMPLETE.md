@@ -1126,6 +1126,473 @@ export class InputManager {
 
 ---
 
+## Phase 3: Polish & Enhancement
+
+**Goal:** Add audio, visual effects, settings, and UI polish  
+**Duration:** 3-4 hours
+
+### Recent Implementations (November 2025)
+
+#### Step 30: Settings Menu with localStorage
+
+**File:** `frontend/src/game/scenes/SettingsScene.ts`
+
+```typescript
+import Phaser from 'phaser';
+import { MenuScene } from './MenuScene';
+
+interface AudioSettings {
+  musicVolume: number;
+  sfxVolume: number;
+  musicEnabled: boolean;
+  sfxEnabled: boolean;
+  initialized: boolean;
+}
+
+export class SettingsScene extends Phaser.Scene {
+  private static musicVolume: number = 0.5;
+  private static sfxVolume: number = 0.4;
+  private static musicEnabled: boolean = true;
+  private static sfxEnabled: boolean = true;
+  private static initialized: boolean = false;
+
+  constructor() {
+    super({ key: 'SettingsScene' });
+  }
+
+  // Static methods for cross-scene access
+  public static initializeSettings(): void {
+    if (!this.initialized) {
+      this.loadSettings();
+      this.initialized = true;
+    }
+  }
+
+  public static loadSettings(): void {
+    const saved = localStorage.getItem('jumpJumpJumpSettings');
+    if (saved) {
+      const settings: AudioSettings = JSON.parse(saved);
+      this.musicVolume = settings.musicVolume ?? 0.5;
+      this.sfxVolume = settings.sfxVolume ?? 0.4;
+      this.musicEnabled = settings.musicEnabled ?? true;
+      this.sfxEnabled = settings.sfxEnabled ?? true;
+    }
+  }
+
+  public static saveSettings(): void {
+    const settings: AudioSettings = {
+      musicVolume: this.musicVolume,
+      sfxVolume: this.sfxVolume,
+      musicEnabled: this.musicEnabled,
+      sfxEnabled: this.sfxEnabled,
+      initialized: true
+    };
+    localStorage.setItem('jumpJumpJumpSettings', JSON.stringify(settings));
+  }
+
+  // Getters and setters
+  public static getMusicVolume(): number { return this.musicVolume; }
+  public static getSfxVolume(): number { return this.sfxVolume; }
+  public static isMusicEnabled(): boolean { return this.musicEnabled; }
+  public static isSfxEnabled(): boolean { return this.sfxEnabled; }
+  
+  public static setMusicVolume(volume: number): void {
+    this.musicVolume = volume;
+    this.saveSettings();
+    this.applyMusicSettings();
+  }
+  
+  public static setMusicEnabled(enabled: boolean): void {
+    this.musicEnabled = enabled;
+    this.saveSettings();
+    this.applyMusicSettings();
+  }
+
+  private static applyMusicSettings(): void {
+    const bgMusic = MenuScene.getBgMusic();
+    if (bgMusic) {
+      bgMusic.setVolume(this.musicVolume);
+      if (this.musicEnabled && !bgMusic.isPlaying) {
+        bgMusic.play();
+      } else if (!this.musicEnabled && bgMusic.isPlaying) {
+        bgMusic.pause();
+      }
+    }
+  }
+
+  create(): void {
+    const width = this.scale.width;
+    const height = this.scale.height;
+
+    // Background
+    this.add.rectangle(0, 0, width, height, 0x2c3e50).setOrigin(0);
+
+    // Title
+    this.add.text(width / 2, 80, 'SETTINGS', {
+      fontSize: '48px',
+      color: '#ffffff',
+      fontStyle: 'bold'
+    }).setOrigin(0.5);
+
+    // Music controls
+    this.createVolumeSlider(width / 2, 200, 'Music Volume', 
+      SettingsScene.musicVolume, (vol) => SettingsScene.setMusicVolume(vol));
+    
+    this.createToggle(width / 2, 280, 'Music Enabled',
+      SettingsScene.musicEnabled, (enabled) => SettingsScene.setMusicEnabled(enabled));
+
+    // SFX controls
+    this.createVolumeSlider(width / 2, 360, 'SFX Volume',
+      SettingsScene.sfxVolume, (vol) => {
+        SettingsScene.sfxVolume = vol;
+        SettingsScene.saveSettings();
+      });
+    
+    this.createToggle(width / 2, 440, 'SFX Enabled',
+      SettingsScene.sfxEnabled, (enabled) => {
+        SettingsScene.sfxEnabled = enabled;
+        SettingsScene.saveSettings();
+      });
+
+    // Back button
+    const backBtn = this.createButton(width / 2, height - 80, 'Back');
+    backBtn.on('pointerdown', () => this.scene.start('MenuScene'));
+  }
+
+  private createVolumeSlider(x: number, y: number, label: string, 
+    initialValue: number, onChange: (value: number) => void): void {
+    // Implementation with draggable slider
+    // See full code in SettingsScene.ts
+  }
+
+  private createToggle(x: number, y: number, label: string,
+    initialState: boolean, onChange: (state: boolean) => void): void {
+    // Implementation with toggle switch
+    // See full code in SettingsScene.ts
+  }
+
+  private createButton(x: number, y: number, text: string): Phaser.GameObjects.Container {
+    // Standard button creation
+  }
+}
+```
+
+**Key Features:**
+- ✅ Static properties for cross-scene access
+- ✅ localStorage persistence
+- ✅ Draggable volume sliders (0-100%)
+- ✅ Enable/disable toggles for music and SFX
+- ✅ Real-time audio adjustments
+- ✅ Settings loaded on PreloadScene
+
+---
+
+#### Step 31: Fire Blast Particle Effects
+
+**File:** `frontend/src/game/entities/Player.ts`
+
+Add fire particle effects to player feet:
+
+```typescript
+export class Player {
+  private fireParticles?: Phaser.GameObjects.Particles.ParticleEmitter;
+
+  private createFireEffect(): void {
+    // Create particle texture
+    if (!this.scene.textures.exists('fireParticle')) {
+      const graphics = this.scene.make.graphics({ x: 0, y: 0, add: false });
+      graphics.fillStyle(0xff6600);
+      graphics.fillCircle(4, 4, 4);
+      graphics.generateTexture('fireParticle', 8, 8);
+      graphics.destroy();
+    }
+
+    // Create emitter
+    this.fireParticles = this.scene.add.particles(0, 0, 'fireParticle', {
+      speed: { min: 50, max: 100 },
+      angle: { min: 180, max: 360 },
+      scale: { start: 1, end: 0 },
+      alpha: { start: 1, end: 0 },
+      lifespan: 300,
+      frequency: 30,
+      tint: [0xff3300, 0xff6600, 0xff9900, 0xffcc00],
+      blendMode: 'ADD',
+      follow: this.sprite,
+      followOffset: { x: 0, y: 12 },
+      emitting: false
+    });
+
+    this.fireParticles.setDepth(this.sprite.depth - 1);
+  }
+
+  public update(inputState: InputState): void {
+    // Enable fire particles when moving
+    if (this.isMoving) {
+      if (this.fireParticles && !this.fireParticles.emitting) {
+        this.fireParticles.start();
+      }
+    } else {
+      if (this.fireParticles && this.fireParticles.emitting) {
+        this.fireParticles.stop();
+      }
+    }
+  }
+}
+```
+
+**Key Features:**
+- ✅ Rocket-boost style fire effect
+- ✅ Orange-red-yellow gradient
+- ✅ Activates on movement, stops when idle
+- ✅ Positioned at player feet
+- ✅ ADD blend mode for glow
+
+---
+
+#### Step 32: Hyperspace Star Field Menu
+
+**File:** `frontend/src/game/scenes/MenuScene.ts`
+
+Add animated star field background:
+
+```typescript
+export class MenuScene extends Phaser.Scene {
+  private stars: { x: number; y: number; z: number; graphics: Phaser.GameObjects.Graphics }[] = [];
+
+  private createHyperspaceEffect(width: number, height: number): void {
+    const numStars = 200;
+    const centerX = width / 2;
+    const centerY = height / 2;
+
+    for (let i = 0; i < numStars; i++) {
+      const angle = Math.random() * Math.PI * 2;
+      const distance = Math.random() * Math.max(width, height);
+      const z = Math.random() * 1000 + 1;
+      
+      const star = {
+        x: centerX + Math.cos(angle) * distance,
+        y: centerY + Math.sin(angle) * distance,
+        z: z,
+        graphics: this.add.graphics().setDepth(10)
+      };
+      
+      this.stars.push(star);
+    }
+  }
+
+  update(): void {
+    const width = this.scale.width;
+    const height = this.scale.height;
+    const centerX = width / 2;
+    const centerY = height / 2;
+    const speed = 8;
+
+    for (const star of this.stars) {
+      star.z -= speed;
+
+      if (star.z <= 0) {
+        const angle = Math.random() * Math.PI * 2;
+        const distance = Math.random() * Math.max(width, height);
+        star.x = centerX + Math.cos(angle) * distance;
+        star.y = centerY + Math.sin(angle) * distance;
+        star.z = 1000;
+      }
+
+      // Perspective projection
+      const k = 128 / star.z;
+      const px = (star.x - centerX) * k + centerX;
+      const py = (star.y - centerY) * k + centerY;
+      const size = (1 - star.z / 1000) * 3;
+      const alpha = Math.min(1, (1000 - star.z) / 500);
+
+      if (px >= 0 && px <= width && py >= 0 && py <= height) {
+        star.graphics.clear();
+        star.graphics.fillStyle(0xffffff, alpha);
+        star.graphics.fillCircle(px, py, size);
+
+        // Draw motion trail
+        const prevK = 128 / (star.z + speed);
+        const prevPx = (star.x - centerX) * prevK + centerX;
+        const prevPy = (star.y - centerY) * prevK + centerY;
+        
+        star.graphics.lineStyle(size, 0xffffff, alpha * 0.5);
+        star.graphics.lineBetween(prevPx, prevPy, px, py);
+      }
+    }
+  }
+}
+```
+
+**Key Features:**
+- ✅ 200 animated stars
+- ✅ 3D perspective projection
+- ✅ Motion trails for speed effect
+- ✅ Infinite looping
+- ✅ Depth layering (behind UI)
+
+---
+
+#### Step 33: Custom Level Pagination
+
+**File:** `frontend/src/game/scenes/CustomLevelSelectScene.ts`
+
+Add pagination (8 levels per page):
+
+```typescript
+export class CustomLevelSelectScene extends Phaser.Scene {
+  private currentPage: number = 0;
+  private levelsPerPage: number = 8;
+
+  private displayLevels(): void {
+    const totalPages = Math.ceil(this.levels.length / this.levelsPerPage);
+    const startIndex = this.currentPage * this.levelsPerPage;
+    const endIndex = Math.min(startIndex + this.levelsPerPage, this.levels.length);
+    const levelsToDisplay = this.levels.slice(startIndex, endIndex);
+
+    // Display levels...
+
+    // Page indicator
+    this.add.text(width / 2, height - 120, 
+      `Page ${this.currentPage + 1} of ${totalPages}`, 
+      { fontSize: '20px', color: '#ecf0f1' }
+    ).setOrigin(0.5);
+
+    // Navigation buttons
+    if (this.currentPage > 0) {
+      const prevBtn = this.createButton(width / 2 - 150, height - 120, '< Previous');
+      prevBtn.on('pointerdown', () => {
+        this.currentPage--;
+        this.scene.restart();
+      });
+    }
+
+    if (this.currentPage < totalPages - 1) {
+      const nextBtn = this.createButton(width / 2 + 150, height - 120, 'Next >');
+      nextBtn.on('pointerdown', () => {
+        this.currentPage++;
+        this.scene.restart();
+      });
+    }
+  }
+}
+```
+
+**Key Features:**
+- ✅ 8 levels per page
+- ✅ Previous/Next navigation
+- ✅ Page indicator
+- ✅ Automatic page calculation
+- ✅ Clean level card layout
+
+---
+
+#### Step 34: Level Name Editing
+
+**File:** `frontend/src/game/scenes/CustomLevelSelectScene.ts` and `backend/main.py`
+
+**Frontend:**
+```typescript
+private editLevelName(level: CustomLevel): void {
+  // Create modal dialog with input field
+  const input = document.createElement('input');
+  input.value = level.name;
+  // Position and style input...
+  
+  // Save button handler
+  saveBtn.on('pointerdown', async () => {
+    const newName = input.value.trim();
+    if (newName && newName !== level.name) {
+      await this.updateLevelName(level.id, newName);
+      this.scene.restart();
+    }
+  });
+}
+
+private async updateLevelName(levelId: string, newName: string): Promise<boolean> {
+  const response = await fetch(
+    `${API_CONFIG.BASE_URL}${API_CONFIG.ENDPOINTS.LEVELS}/${levelId}/name`,
+    {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: newName })
+    }
+  );
+  return response.ok;
+}
+```
+
+**Backend (`backend/main.py`):**
+```python
+class UpdateLevelName(BaseModel):
+    name: str
+
+@app.patch("/api/levels/{level_id}/name")
+async def update_level_name(level_id: str, update: UpdateLevelName):
+    if not update.name.strip():
+        raise HTTPException(status_code=400, detail="Name cannot be empty")
+    
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute(
+        "UPDATE custom_levels SET name = ?, updated_at = ? WHERE id = ?",
+        (update.name, datetime.now().isoformat(), level_id)
+    )
+    conn.commit()
+    
+    if cursor.rowcount == 0:
+        raise HTTPException(status_code=404, detail="Level not found")
+    
+    return {"message": "Level name updated", "name": update.name}
+```
+
+**Key Features:**
+- ✅ Modal dialog for editing
+- ✅ HTML input with styling
+- ✅ Backend PATCH endpoint
+- ✅ Database update with timestamp
+- ✅ UI refresh after save
+
+---
+
+### Testing Phase 3 Features
+
+```bash
+# Start servers
+.\scripts\start.ps1  # Windows
+./scripts/start.sh   # Mac/Linux
+
+# Test checklist:
+- [ ] Settings menu accessible from main menu
+- [ ] Volume sliders adjust audio in real-time
+- [ ] Settings persist after browser reload
+- [ ] Fire particles appear when player moves
+- [ ] Hyperspace stars animate on menu
+- [ ] Custom levels paginate (8 per page)
+- [ ] Level names can be edited
+- [ ] ESC returns to menu from editor
+```
+
+---
+
+## ✅ Phase 3 Progress Complete!
+
+You've successfully implemented:
+- ✅ Settings menu with localStorage
+- ✅ Background music and sound effects
+- ✅ Fire blast particle effects
+- ✅ Hyperspace star field animation
+- ✅ Custom level pagination
+- ✅ Level name editing with backend sync
+- ✅ UI/UX polish (score persistence, visual parity, etc.)
+
+**Remaining Phase 3 Tasks:**
+- [ ] Tutorial system
+- [ ] Pause functionality
+- [ ] Help/instructions screen
+- [ ] Additional particle effects (collision, goal)
+
+---
+
 *Tutorial continues with Steps 9-30 covering Player entity, Vehicle system, Level Manager, Scoring, and more...*
 
 *Due to length constraints, this tutorial would continue in additional parts. Would you like me to continue with the next sections?*

@@ -29,7 +29,7 @@ A Frogger-style platformer game built with Phaser 3, React, and TypeScript. Navi
 
 ### Game Modes
 - **Campaign Mode**: Progressive difficulty with 10+ levels
-- **Custom Levels**: Play community-created levels
+- **Custom Levels**: Play community-created levels with pagination (8 per page)
 - **Level Editor**: Create your own custom levels!
 
 ### Gameplay Features
@@ -37,25 +37,38 @@ A Frogger-style platformer game built with Phaser 3, React, and TypeScript. Navi
 - **Multiple Difficulty Tiers**: Easy (1-3), Medium (4-6), Hard (7-9), Expert (10+)
 - **Dual Input Support**: Play with keyboard or game controller
 - **Smooth Animations**: Character walking, idle, and fall states
+- **Fire Blast Effects**: Dynamic particle effects from player feet when moving
 - **Dynamic Traffic System**: More lanes and faster vehicles as you progress
 - **Score Multipliers**: Higher scores on harder levels
 - **Level Transitions**: Visual feedback when advancing to next level
+- **Persistent Settings**: Audio preferences saved to browser storage
+- **Hyperspace Menu**: Animated star field effect on main menu
 - **Responsive**: Automatically scales to fit your screen
+
+### Audio & Visual Effects
+- **Background Music**: Looping soundtrack with volume control
+- **Sound Effects**: Walking sounds and car engine audio
+- **Settings Menu**: Adjust music/SFX volume and enable/disable audio
+- **Fire Particles**: Rocket-boost style effects when player moves
+- **Hyperspace Background**: 200 animated stars creating space travel effect
 
 ### Level Editor Features
 - **Visual Editor**: Drag-and-drop level creation
 - **Lane Configuration**: Set speed, direction, and vehicle type
 - **Real-time Preview**: See your level as you build
-- **Save/Load System**: Store levels in browser
+- **Save/Load System**: Store levels in browser with backend sync
+- **Level Name Editing**: Rename levels with modal dialog interface
+- **Pagination**: Browse levels 8 at a time with Previous/Next navigation
 - **Test Mode**: Play your levels instantly
 - **Custom Difficulty**: Create levels from easy to impossible
+- **ESC Navigation**: Quick return to menu from editor and level select
 
-## Controls
+### Controls
 
 ### Keyboard
 - **Arrow Keys** or **WASD**: Move character
 - **Space**: Restart game (when game over)
-- **ESC**: Pause (future feature)
+- **ESC**: Return to menu (from editor/custom levels)
 
 ### Game Controller
 - **D-Pad** or **Left Analog Stick**: Move character
@@ -249,10 +262,11 @@ JumpJumpJump/
 │   │   ├── game/
 │   │   │   ├── scenes/
 │   │   │   │   ├── PreloadScene.ts         # Asset loading
-│   │   │   │   ├── MenuScene.ts            # Main menu
+│   │   │   │   ├── MenuScene.ts            # Main menu with hyperspace effect
 │   │   │   │   ├── MainGameScene.ts        # Campaign mode
+│   │   │   │   ├── SettingsScene.ts        # Audio settings with persistence
 │   │   │   │   ├── LevelEditorScene.ts     # Level editor
-│   │   │   │   ├── CustomLevelSelectScene.ts
+│   │   │   │   ├── CustomLevelSelectScene.ts # With pagination
 │   │   │   │   └── CustomGameScene.ts      # Custom level play
 │   │   │   ├── entities/
 │   │   │   │   ├── Player.ts               # Player character
@@ -369,7 +383,7 @@ Sprites from **Kenney.nl** (Pixel Car Pack)
 
 ## Development Status
 
-### ✅ Completed (Phases 0-2)
+### ✅ Completed (Phases 0-3)
 - ✅ Project setup with React, Phaser, TypeScript, FastAPI
 - ✅ Player movement with keyboard and gamepad support
 - ✅ Vehicle system with 15+ vehicle types
@@ -377,17 +391,23 @@ Sprites from **Kenney.nl** (Pixel Car Pack)
 - ✅ Difficulty tiers (Easy, Medium, Hard, Expert)
 - ✅ Scoring system with multipliers
 - ✅ Level editor with visual interface
-- ✅ Custom level save/load/play
-- ✅ Backend API with leaderboard
+- ✅ Custom level save/load/play/edit
+- ✅ Custom level pagination (8 per page)
+- ✅ Backend API with leaderboard and level management
+- ✅ Sound effects and background music
+- ✅ Settings menu with localStorage persistence
+- ✅ Fire blast particle effects
+- ✅ Hyperspace star field animation on menu
+- ✅ Level name editing with backend sync
+- ✅ ESC key navigation
+- ✅ Score and lives persistence between levels
 - ✅ Automation scripts for starting/stopping servers
 
-### 🚧 In Progress (Phase 3)
-- 🔄 Sound effects and background music
-- 🔄 Particle effects for collisions
+### 🚧 In Progress (Phase 3 Polish)
 - 🔄 Tutorial system for new players
-- 🔄 Settings menu (sound, controls)
 - 🔄 Pause functionality
-- 🔄 UI/UX polish
+- 🔄 Help/instructions screen
+- 🔄 Additional particle effects for collisions
 
 ### 📋 Planned (Phases 4-5)
 - Power-ups and bonuses
