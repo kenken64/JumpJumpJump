@@ -14,6 +14,7 @@ export class MenuScene extends Phaser.Scene {
   private leaderboardTexts: Phaser.GameObjects.Text[] = [];
   private leaderboardScoreTexts: Phaser.GameObjects.Text[] = [];
   private static bgMusic?: Phaser.Sound.BaseSound;
+  private stars: { x: number; y: number; z: number; graphics: Phaser.GameObjects.Graphics }[] = [];
 
   constructor() {
     super({ key: 'MenuScene' });
@@ -41,12 +42,15 @@ export class MenuScene extends Phaser.Scene {
     }
 
     // Background
-    this.add.rectangle(0, 0, width, height, 0x2c3e50).setOrigin(0);
+    this.add.rectangle(0, 0, width, height, 0x000000).setOrigin(0).setDepth(0); // Changed to black for hyperspace effect
+
+    // Create hyperspace star field effect
+    this.createHyperspaceEffect(width, height);
 
     // Add game preview image on the left side
     const gameImage = this.add.image(420, height / 2, 'game1');
     gameImage.setDisplaySize(520, 520); // Set specific width and height
-    gameImage.setOrigin(0.5);
+    gameImage.setOrigin(0.5).setDepth(200);
 
     // Title
     this.add.text(width / 2, 100, 'JUMP JUMP JUMP!', {
@@ -55,14 +59,14 @@ export class MenuScene extends Phaser.Scene {
       fontStyle: 'bold',
       stroke: '#000000',
       strokeThickness: 6
-    }).setOrigin(0.5);
+    }).setOrigin(0.5).setDepth(200);
 
     this.add.text(width / 2, 170, 'Select Game Mode', {
       fontSize: '24px',
       color: '#ecf0f1',
       stroke: '#000000',
       strokeThickness: 3
-    }).setOrigin(0.5);
+    }).setOrigin(0.5).setDepth(200);
 
     // Campaign Mode Button
     const campaignButton = this.createButton(width / 2, 250, 'Campaign Mode', 0x27ae60);
@@ -97,14 +101,14 @@ export class MenuScene extends Phaser.Scene {
       color: '#bdc3c7',
       stroke: '#000000',
       strokeThickness: 2
-    }).setOrigin(0.5);
+    }).setOrigin(0.5).setDepth(200);
 
     this.add.text(width / 2, height - 50, 'Avoid traffic and reach the goal! Touch the damn tree!', {
       fontSize: '22px',
       color: '#95a5a6',
       stroke: '#000000',
       strokeThickness: 3
-    }).setOrigin(0.5);
+    }).setOrigin(0.5).setDepth(200);
 
     // Fetch leaderboard data
     this.fetchLeaderboard();
@@ -157,7 +161,7 @@ export class MenuScene extends Phaser.Scene {
     // Leaderboard background
     const leaderboardBg = this.add.rectangle(leaderboardX, leaderboardY, 320, 400, 0x34495e, 0.9);
     leaderboardBg.setStrokeStyle(2, 0xecf0f1);
-    leaderboardBg.setOrigin(0, 0);
+    leaderboardBg.setOrigin(0, 0).setDepth(200);
 
     // Leaderboard title
     this.add.text(leaderboardX + 160, leaderboardY + 20, 'LEADERBOARD', {
@@ -166,20 +170,20 @@ export class MenuScene extends Phaser.Scene {
       fontStyle: 'bold',
       stroke: '#000000',
       strokeThickness: 4
-    }).setOrigin(0.5);
+    }).setOrigin(0.5).setDepth(200);
 
     // Header
     this.add.text(leaderboardX + 20, leaderboardY + 50, 'Rank  Player', {
       fontSize: '18px',
       color: '#ecf0f1',
       fontStyle: 'bold'
-    });
+    }).setDepth(200);
 
     this.add.text(leaderboardX + 240, leaderboardY + 50, 'Score', {
       fontSize: '18px',
       color: '#ecf0f1',
       fontStyle: 'bold'
-    });
+    }).setDepth(200);
 
     // Create placeholder texts for top 10
     for (let i = 0; i < 10; i++) {
@@ -187,7 +191,7 @@ export class MenuScene extends Phaser.Scene {
       const nameText = this.add.text(leaderboardX + 20, yPos, 'Loading...', {
         fontSize: '16px',
         color: '#bdc3c7'
-      });
+      }).setDepth(200);
       this.leaderboardTexts.push(nameText);
 
       // Create score text placeholder
@@ -195,7 +199,7 @@ export class MenuScene extends Phaser.Scene {
         fontSize: '16px',
         color: '#bdc3c7',
         fontStyle: 'bold'
-      });
+      }).setDepth(200);
       this.leaderboardScoreTexts.push(scoreText);
     }
   }
@@ -283,7 +287,7 @@ export class MenuScene extends Phaser.Scene {
   }
 
   private createButton(x: number, y: number, text: string, color: number): Phaser.GameObjects.Container {
-    const container = this.add.container(x, y);
+    const container = this.add.container(x, y).setDepth(200);
 
     const bg = this.add.rectangle(0, 0, 300, 60, color);
     bg.setStrokeStyle(3, 0xffffff);
@@ -318,5 +322,76 @@ export class MenuScene extends Phaser.Scene {
 
   public static getBgMusic(): Phaser.Sound.BaseSound | undefined {
     return MenuScene.bgMusic;
+  }
+
+  private createHyperspaceEffect(width: number, height: number): void {
+    const numStars = 200;
+    const centerX = width / 2;
+    const centerY = height / 2;
+
+    // Create stars at different depths
+    for (let i = 0; i < numStars; i++) {
+      const angle = Math.random() * Math.PI * 2;
+      const distance = Math.random() * Math.max(width, height);
+      const z = Math.random() * 1000 + 1;
+      
+      const star = {
+        x: centerX + Math.cos(angle) * distance,
+        y: centerY + Math.sin(angle) * distance,
+        z: z,
+        graphics: this.add.graphics().setDepth(10) // Stars behind UI but in front of background
+      };
+      
+      this.stars.push(star);
+    }
+  }
+
+  update(): void {
+    const width = this.scale.width;
+    const height = this.scale.height;
+    const centerX = width / 2;
+    const centerY = height / 2;
+    const speed = 8;
+
+    // Update each star
+    for (const star of this.stars) {
+      // Move star towards viewer
+      star.z -= speed;
+
+      // Reset star if it's passed the viewer
+      if (star.z <= 0) {
+        const angle = Math.random() * Math.PI * 2;
+        const distance = Math.random() * Math.max(width, height);
+        star.x = centerX + Math.cos(angle) * distance;
+        star.y = centerY + Math.sin(angle) * distance;
+        star.z = 1000;
+      }
+
+      // Calculate screen position (perspective projection)
+      const k = 128 / star.z;
+      const px = (star.x - centerX) * k + centerX;
+      const py = (star.y - centerY) * k + centerY;
+
+      // Calculate size and opacity based on depth
+      const size = (1 - star.z / 1000) * 3;
+      const alpha = Math.min(1, (1000 - star.z) / 500);
+
+      // Only draw if on screen
+      if (px >= 0 && px <= width && py >= 0 && py <= height) {
+        star.graphics.clear();
+        star.graphics.fillStyle(0xffffff, alpha);
+        star.graphics.fillCircle(px, py, size);
+
+        // Draw trail for speed effect
+        const prevK = 128 / (star.z + speed);
+        const prevPx = (star.x - centerX) * prevK + centerX;
+        const prevPy = (star.y - centerY) * prevK + centerY;
+        
+        star.graphics.lineStyle(size, 0xffffff, alpha * 0.5);
+        star.graphics.lineBetween(prevPx, prevPy, px, py);
+      } else {
+        star.graphics.clear();
+      }
+    }
   }
 }

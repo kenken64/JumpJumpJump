@@ -9,6 +9,7 @@ export class Player {
   private targetPosition?: { x: number; y: number };
   private gridSize: number = 32;
   private walkingSound?: Phaser.Sound.BaseSound;
+  private fireParticles?: Phaser.GameObjects.Particles.ParticleEmitter;
 
   constructor(scene: Phaser.Scene, x: number, y: number) {
     this.scene = scene;
@@ -21,6 +22,7 @@ export class Player {
     scene.physics.add.existing(this.sprite);
 
     this.createAnimations();
+    this.createFireEffect();
   }
 
   private createAnimations(): void {
@@ -65,6 +67,34 @@ export class Player {
     }
   }
 
+  private createFireEffect(): void {
+    // Create a simple particle texture if it doesn't exist
+    if (!this.scene.textures.exists('fireParticle')) {
+      const graphics = this.scene.make.graphics({ x: 0, y: 0, add: false });
+      graphics.fillStyle(0xff6600);
+      graphics.fillCircle(4, 4, 4);
+      graphics.generateTexture('fireParticle', 8, 8);
+      graphics.destroy();
+    }
+
+    // Create particle emitter for fire blast effect
+    this.fireParticles = this.scene.add.particles(0, 0, 'fireParticle', {
+      speed: { min: 50, max: 100 },
+      angle: { min: 180, max: 360 },
+      scale: { start: 1, end: 0 },
+      alpha: { start: 1, end: 0 },
+      lifespan: 300,
+      frequency: 30,
+      tint: [0xff3300, 0xff6600, 0xff9900, 0xffcc00],
+      blendMode: 'ADD',
+      follow: this.sprite,
+      followOffset: { x: 0, y: 12 }, // Position at feet
+      emitting: false
+    });
+
+    this.fireParticles.setDepth(this.sprite.depth - 1);
+  }
+
   public update(inputState: InputState): void {
     // Always update movement if moving
     if (this.isMoving) {
@@ -90,8 +120,16 @@ export class Player {
     // Update animation based on movement
     if (this.isMoving) {
       this.sprite.play('walk', true);
+      // Enable fire particles when moving
+      if (this.fireParticles && !this.fireParticles.emitting) {
+        this.fireParticles.start();
+      }
     } else {
       this.sprite.play('idle', true);
+      // Disable fire particles when idle
+      if (this.fireParticles && this.fireParticles.emitting) {
+        this.fireParticles.stop();
+      }
     }
   }
 
@@ -186,6 +224,9 @@ export class Player {
   public destroy(): void {
     if (this.walkingSound) {
       this.walkingSound.destroy();
+    }
+    if (this.fireParticles) {
+      this.fireParticles.destroy();
     }
     this.sprite.destroy();
   }
