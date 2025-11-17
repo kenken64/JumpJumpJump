@@ -1,5 +1,5 @@
 import '@testing-library/jest-dom';
-import { expect, afterEach, vi } from 'vitest';
+import { afterEach, vi } from 'vitest';
 import { cleanup } from '@testing-library/react';
 
 // Cleanup after each test
@@ -8,7 +8,7 @@ afterEach(() => {
 });
 
 // Mock Phaser
-global.Phaser = {
+(globalThis as any).Phaser = {
   Scene: class Scene {},
   Game: class Game {},
   AUTO: 'AUTO',

@@ -120,13 +120,12 @@ export class MainGameScene extends Phaser.Scene {
     const grassTopHeight = Math.max(laneHeight * 2, laneHeight * 3 - (levelConfig.laneCount - 4) * 16);
     const roadAreaHeight = levelConfig.laneCount * laneHeight;
     const roadStartY = grassTopHeight;
-    const roadEndY = roadStartY + roadAreaHeight;
 
     // First, fill entire background with grass
     this.add.rectangle(0, 0, width, height, 0x228b22).setOrigin(0).setDepth(-100);
 
     // Then draw the black road on top of grass in the middle section
-    const roadBackground = this.add.rectangle(0, roadStartY, width, roadAreaHeight, 0x333333).setOrigin(0).setDepth(-50);
+    this.add.rectangle(0, roadStartY, width, roadAreaHeight, 0x333333).setOrigin(0).setDepth(-50);
 
     // Create lanes based on level difficulty
     for (let i = 0; i < levelConfig.laneCount; i++) {
@@ -179,6 +178,7 @@ export class MainGameScene extends Phaser.Scene {
     }
   }
 
+  // @ts-expect-error - Keeping for potential future use
   private clearTree(): void {
     // Destroy all existing tree graphics (green tree)
     for (const graphic of this.treeGraphics) {
@@ -307,6 +307,7 @@ export class MainGameScene extends Phaser.Scene {
     }).setOrigin(1, 0).setDepth(uiDepth);
   }
 
+  // @ts-expect-error - Keeping for potential future use
   private updateLevelUI(): void {
     const levelConfig = MainGameScene.levelManager.getLevelConfig();
     this.levelText.setText(`Level ${levelConfig.level}`);
@@ -611,7 +612,8 @@ export class MainGameScene extends Phaser.Scene {
       strokeThickness: 8
     }).setOrigin(0.5).setDepth(1002);
 
-    const countdownTimer = this.time.addEvent({
+    // Start countdown timer
+    this.time.addEvent({
       delay: 1000,
       repeat: 9,
       callback: () => {
@@ -687,7 +689,7 @@ export class MainGameScene extends Phaser.Scene {
     const height = this.scale.height;
 
     // Darken screen
-    const overlay = this.add.rectangle(0, 0, width, height, 0x000000, 0.9).setOrigin(0).setDepth(3000);
+    this.add.rectangle(0, 0, width, height, 0x000000, 0.9).setOrigin(0).setDepth(3000);
 
     // Congratulations panel
     const panelWidth = 600;
@@ -1045,7 +1047,7 @@ export class MainGameScene extends Phaser.Scene {
       }).setOrigin(0.5).setDepth(3004);
 
       // Return to menu message
-      const menuText = this.add.text(panelX, panelY + 250, 'Press SPACE to return to menu', {
+      this.add.text(panelX, panelY + 250, 'Press SPACE to return to menu', {
         fontSize: '18px',
         color: '#95a5a6',
         stroke: '#000000',

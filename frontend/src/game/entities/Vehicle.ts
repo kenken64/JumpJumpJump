@@ -2,8 +2,6 @@ import Phaser from 'phaser';
 
 export class Vehicle {
   public sprite: Phaser.GameObjects.Sprite;
-  private scene: Phaser.Scene;
-  private direction: number; // 1 for right, -1 for left
 
   constructor(
     scene: Phaser.Scene,
@@ -13,9 +11,6 @@ export class Vehicle {
     speed: number,
     direction: number
   ) {
-    this.scene = scene;
-    this.direction = direction;
-
     // Create vehicle sprite
     this.sprite = scene.add.sprite(x, y, 'sprites', vehicleType);
     this.sprite.setScale(2);
@@ -37,7 +32,6 @@ export class Vehicle {
   }
 
   public setSpeed(speed: number, direction: number): void {
-    this.direction = direction;
     const body = this.sprite.body as Phaser.Physics.Arcade.Body;
     body.setVelocityX(speed * direction);
 

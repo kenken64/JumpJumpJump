@@ -121,7 +121,7 @@ export class MenuScene extends Phaser.Scene {
     this.leaderboardScoreTexts = [];
   }
 
-  private createLeaderboard(width: number, height: number): void {
+  private createLeaderboard(width: number, _height: number): void {
     // Clear any existing text objects
     this.leaderboardTexts = [];
     this.leaderboardScoreTexts = [];
@@ -245,6 +245,7 @@ export class MenuScene extends Phaser.Scene {
     }
   }
 
+  // @ts-expect-error - Keeping for potential future use
   private displayError(message: string): void {
     this.leaderboardTexts.forEach((text, index) => {
       if (index === 0) {
