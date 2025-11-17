@@ -15,7 +15,7 @@ This directory contains GitHub Actions workflows for automated testing, building
   - Uploads coverage to Codecov
   
 - **Frontend Tests**: Runs Vitest with coverage reporting
-  - Node.js 18
+  - Node.js 20
   - Installs npm dependencies
   - Runs all 54 frontend tests
   - Uploads coverage to Codecov
@@ -132,7 +132,7 @@ View workflow runs:
 ## Troubleshooting
 
 ### Tests fail in CI but pass locally
-- Check Python/Node versions match (Python 3.11, Node 18)
+- Check Python/Node versions match (Python 3.11, Node 20)
 - Ensure all dependencies are in requirements.txt/package.json
 - Check for environment-specific issues
 
