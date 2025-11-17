@@ -104,12 +104,28 @@ export class MenuScene extends Phaser.Scene {
     this.events.off('wake', this.onSceneWake, this);
     this.events.off('resume', this.onSceneResume, this);
     
+    // Destroy all leaderboard text objects
+    this.leaderboardTexts.forEach(text => {
+      if (text && text.active) {
+        text.destroy();
+      }
+    });
+    this.leaderboardScoreTexts.forEach(text => {
+      if (text && text.active) {
+        text.destroy();
+      }
+    });
+    
     // Clear leaderboard arrays
     this.leaderboardTexts = [];
     this.leaderboardScoreTexts = [];
   }
 
   private createLeaderboard(width: number, height: number): void {
+    // Clear any existing text objects
+    this.leaderboardTexts = [];
+    this.leaderboardScoreTexts = [];
+
     const leaderboardX = width - 250;
     const leaderboardY = 100;
 
@@ -181,8 +197,21 @@ export class MenuScene extends Phaser.Scene {
   }
 
   private displayLeaderboard(entries: LeaderboardEntry[]): void {
+    // Check if scene is still active and arrays are valid
+    if (!this.scene.isActive() || this.leaderboardTexts.length === 0) {
+      return;
+    }
+
     entries.forEach((entry, index) => {
       if (index < this.leaderboardTexts.length) {
+        const text = this.leaderboardTexts[index];
+        const scoreText = this.leaderboardScoreTexts[index];
+        
+        // Check if text objects still exist and are active
+        if (!text || !text.active || !scoreText || !scoreText.active) {
+          return;
+        }
+
         const rank = index + 1;
         const username = entry.username.length > 10 ? entry.username.substring(0, 10) + '...' : entry.username;
 
@@ -193,20 +222,26 @@ export class MenuScene extends Phaser.Scene {
         else if (rank === 3) color = '#cd7f32'; // Bronze
 
         // Update name text
-        this.leaderboardTexts[index].setText(`${rank}.  ${username}`);
-        this.leaderboardTexts[index].setColor(color);
+        text.setText(`${rank}.  ${username}`);
+        text.setColor(color);
 
-        // Update score text (reuse existing text object)
-        this.leaderboardScoreTexts[index].setText(entry.score.toString());
-        this.leaderboardScoreTexts[index].setColor(color);
+        // Update score text
+        scoreText.setText(entry.score.toString());
+        scoreText.setColor(color);
       }
     });
 
     // Clear remaining slots if less than 10 entries
     for (let i = entries.length; i < this.leaderboardTexts.length; i++) {
-      this.leaderboardTexts[i].setText(`${i + 1}.  ---`);
-      this.leaderboardTexts[i].setColor('#7f8c8d');
-      this.leaderboardScoreTexts[i].setText('');
+      const text = this.leaderboardTexts[i];
+      const scoreText = this.leaderboardScoreTexts[i];
+      
+      // Check if text objects still exist and are active
+      if (text && text.active && scoreText && scoreText.active) {
+        text.setText(`${i + 1}.  ---`);
+        text.setColor('#7f8c8d');
+        scoreText.setText('');
+      }
     }
   }
 
