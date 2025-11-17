@@ -5,6 +5,7 @@ import { MainGameScene } from './scenes/MainGameScene';
 import { LevelEditorScene } from './scenes/LevelEditorScene';
 import { CustomLevelSelectScene } from './scenes/CustomLevelSelectScene';
 import { CustomGameScene } from './scenes/CustomGameScene';
+import { SettingsScene } from './scenes/SettingsScene';
 
 export const gameConfig: Phaser.Types.Core.GameConfig = {
   type: Phaser.AUTO,
@@ -22,6 +23,7 @@ export const gameConfig: Phaser.Types.Core.GameConfig = {
   scene: [
     PreloadScene,
     MenuScene,
+    SettingsScene,
     MainGameScene,
     LevelEditorScene,
     CustomLevelSelectScene,

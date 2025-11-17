@@ -4,6 +4,8 @@ import { LevelManager } from '../managers/LevelManager';
 import { Player } from '../entities/Player';
 import { Vehicle } from '../entities/Vehicle';
 import { API_CONFIG } from '../apiConfig';
+import { MenuScene } from './MenuScene';
+import { SettingsScene } from './SettingsScene';
 
 interface Lane {
   y: number;
@@ -43,6 +45,10 @@ export class MainGameScene extends Phaser.Scene {
   private cheatModeActive: boolean = false;
   private cheatModeText?: Phaser.GameObjects.Text;
   private isPlayerInvulnerable: boolean = false;
+  private roadProps: Phaser.GameObjects.Sprite[] = [];
+  private availableProps = ['barrier.png', 'light.png', 'light_double.png', 'sign_blue.png', 'sign_red.png', 'sign_street.png'];
+  private previousPlayerPosition: { x: number; y: number } = { x: 0, y: 0 };
+  private static bgMusic?: Phaser.Sound.BaseSound;
 
   constructor() {
     super({ key: 'MainGameScene' });
@@ -51,6 +57,17 @@ export class MainGameScene extends Phaser.Scene {
   create(): void {
     const width = this.scale.width;
     const height = this.scale.height;
+
+    // Initialize and manage background music
+    if (!MainGameScene.bgMusic) {
+      MainGameScene.bgMusic = this.sound.add('bgMusic', { loop: true, volume: SettingsScene.getMusicVolume() });
+    }
+    
+    if (SettingsScene.isMusicEnabled() && !MainGameScene.bgMusic.isPlaying) {
+      MainGameScene.bgMusic.play();
+    } else if (!SettingsScene.isMusicEnabled() && MainGameScene.bgMusic.isPlaying) {
+      MainGameScene.bgMusic.pause();
+    }
 
     // Reset game state
     this.countdownActive = false;
@@ -84,6 +101,9 @@ export class MainGameScene extends Phaser.Scene {
     const roadEndY = grassTopHeight + roadAreaHeight;
     const startY = roadEndY + 32; // Just below the road
     this.player = new Player(this, startX, startY);
+    
+    // Initialize previous position
+    this.previousPlayerPosition = { x: startX, y: startY };
 
     // Create UI
     this.createUI();
@@ -98,6 +118,42 @@ export class MainGameScene extends Phaser.Scene {
     this.showLevelIntro();
   }
 
+  private spawnRoadProps(roadStartY: number, laneHeight: number): void {
+    const width = this.scale.width;
+    const propCount = Phaser.Math.Between(8, 15); // Random number of props per level
+
+    for (let i = 0; i < propCount; i++) {
+      // Random position on the road
+      const x = Phaser.Math.Between(50, width - 50);
+      const laneIndex = Phaser.Math.Between(0, this.lanes.length - 1);
+      const y = roadStartY + (laneIndex + 0.5) * laneHeight;
+
+      // Pick random prop type
+      const propType = Phaser.Utils.Array.GetRandom(this.availableProps);
+
+      // Create prop sprite
+      const prop = this.add.sprite(x, y, 'sprites', propType);
+      prop.setScale(1.5);
+      prop.setDepth(10);
+
+      // Enable physics for collision detection
+      this.physics.add.existing(prop);
+      const body = prop.body as Phaser.Physics.Arcade.Body;
+      body.setImmovable(true);
+
+      // Adjust collision box based on prop type
+      if (propType.includes('light')) {
+        body.setSize(prop.width * 0.3, prop.height * 0.8);
+      } else if (propType.includes('sign')) {
+        body.setSize(prop.width * 0.5, prop.height * 0.6);
+      } else {
+        body.setSize(prop.width * 0.8, prop.height * 0.6);
+      }
+
+      this.roadProps.push(prop);
+    }
+  }
+
   private createLanes(): void {
     const height = this.scale.height;
     const width = this.scale.width;
@@ -110,6 +166,12 @@ export class MainGameScene extends Phaser.Scene {
       }
     }
     this.lanes = [];
+
+    // Clear existing road props
+    for (const prop of this.roadProps) {
+      prop.destroy();
+    }
+    this.roadProps = [];
 
     // Get level configuration
     const levelConfig = MainGameScene.levelManager.getLevelConfig();
@@ -154,6 +216,9 @@ export class MainGameScene extends Phaser.Scene {
         spawnInterval: levelConfig.minSpawnInterval + Math.random() * (levelConfig.maxSpawnInterval - levelConfig.minSpawnInterval)
       });
     }
+
+    // Spawn random road props/obstacles
+    this.spawnRoadProps(roadStartY, laneHeight);
 
     // Draw trees at the top
     this.goalY = grassTopHeight / 2;
@@ -253,14 +318,14 @@ export class MainGameScene extends Phaser.Scene {
     const uiDepth = 10000; // Very high depth to always show on top
 
     // Top row: Score (left), Level (center), Lives (right)
-    this.scoreText = this.add.text(16, 8, 'Score: 0', {
+    this.scoreText = this.add.text(16, 8, `Score: ${this.score}`, {
       fontSize: '18px',
       color: '#ffffff',
       stroke: '#000000',
       strokeThickness: 3
     }).setDepth(uiDepth);
 
-    this.livesText = this.add.text(width - 16, 8, 'Lives: 3', {
+    this.livesText = this.add.text(width - 16, 8, `Lives: ${this.lives}`, {
       fontSize: '18px',
       color: '#ffffff',
       stroke: '#000000',
@@ -400,6 +465,11 @@ export class MainGameScene extends Phaser.Scene {
     );
 
     lane.vehicles.push(vehicle);
+    
+    // Play car engine sound effect when vehicle spawns
+    if (SettingsScene.isSfxEnabled()) {
+      this.sound.play('carEngine', { volume: SettingsScene.getSfxVolume() });
+    }
   }
 
   private checkCollisions(): void {
@@ -433,6 +503,19 @@ export class MainGameScene extends Phaser.Scene {
       }
     }
 
+    // Check collision with road props (obstacles that block movement)
+    for (const prop of this.roadProps) {
+      if (!prop.active) continue;
+
+      const propBounds = prop.getBounds();
+      
+      if (Phaser.Geom.Intersects.RectangleToRectangle(playerBounds, propBounds)) {
+        // Block player movement - revert to previous position
+        this.player.sprite.setPosition(this.previousPlayerPosition.x, this.previousPlayerPosition.y);
+        return; // Exit early to prevent further collision checks this frame
+      }
+    }
+
     // Check if player reached the tree (goal)
     const distanceToTree = Phaser.Math.Distance.Between(playerPos.x, playerPos.y, this.goalX, this.goalY);
 
@@ -455,7 +538,14 @@ export class MainGameScene extends Phaser.Scene {
     if (this.lives <= 0) {
       this.gameOver();
     } else {
-      this.time.delayedCall(1000, () => {
+      // Show falling animation first
+      this.time.delayedCall(300, () => {
+        // Then show lying on ground animation
+        this.player.sprite.play('down');
+      });
+      
+      // Wait for lying animation to display before respawn
+      this.time.delayedCall(1500, () => {
         const laneHeight = 64;
         const levelConfig = MainGameScene.levelManager.getLevelConfig();
         const grassTopHeight = Math.max(laneHeight * 2, laneHeight * 3 - (levelConfig.laneCount - 4) * 16);
@@ -1344,6 +1434,11 @@ export class MainGameScene extends Phaser.Scene {
 
     // Update player (but only if countdown is not active)
     if (!this.countdownActive) {
+      // Store previous position before movement
+      const currentPos = this.player.getPosition();
+      this.previousPlayerPosition.x = currentPos.x;
+      this.previousPlayerPosition.y = currentPos.y;
+      
       this.player.update(inputState);
     }
 

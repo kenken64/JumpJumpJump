@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
 import type { InputState } from '../managers/InputManager';
+import { SettingsScene } from '../scenes/SettingsScene';
 
 export class Player {
   public sprite: Phaser.GameObjects.Sprite;
@@ -7,6 +8,7 @@ export class Player {
   private isMoving: boolean = false;
   private targetPosition?: { x: number; y: number };
   private gridSize: number = 32;
+  private walkingSound?: Phaser.Sound.BaseSound;
 
   constructor(scene: Phaser.Scene, x: number, y: number) {
     this.scene = scene;
@@ -49,6 +51,15 @@ export class Player {
       this.scene.anims.create({
         key: 'fall',
         frames: [{ key: 'sprites', frame: 'man_fall.png' }],
+        frameRate: 1
+      });
+    }
+
+    // Lying down animation (after getting hit)
+    if (!this.scene.anims.exists('down')) {
+      this.scene.anims.create({
+        key: 'down',
+        frames: [{ key: 'sprites', frame: 'man_down.png' }],
         frameRate: 1
       });
     }
@@ -100,6 +111,14 @@ export class Player {
     this.targetPosition.y = Phaser.Math.Clamp(this.targetPosition.y, 16, gameHeight - 16);
 
     this.isMoving = true;
+    
+    // Play walking sound effect
+    if (!this.walkingSound) {
+      this.walkingSound = this.scene.sound.add('walking', { volume: SettingsScene.getSfxVolume() });
+    }
+    if (SettingsScene.isSfxEnabled()) {
+      this.walkingSound.play();
+    }
   }
 
   private updateMovement(): void {
@@ -140,6 +159,15 @@ export class Player {
     this.sprite.play('fall');
     this.isMoving = false;
     this.targetPosition = undefined;
+    
+    // Stop walking sound if playing
+    if (this.walkingSound && this.walkingSound.isPlaying) {
+      this.walkingSound.stop();
+    }
+  }
+
+  public showDown(): void {
+    this.sprite.play('down');
   }
 
   public reset(x: number, y: number): void {
@@ -156,6 +184,9 @@ export class Player {
   }
 
   public destroy(): void {
+    if (this.walkingSound) {
+      this.walkingSound.destroy();
+    }
     this.sprite.destroy();
   }
 }

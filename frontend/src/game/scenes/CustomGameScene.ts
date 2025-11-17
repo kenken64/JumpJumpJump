@@ -2,7 +2,8 @@ import Phaser from 'phaser';
 import { InputManager } from '../managers/InputManager';
 import { Player } from '../entities/Player';
 import { Vehicle } from '../entities/Vehicle';
-import type { CustomLevel } from '../types/CustomLevel';
+import type { CustomLevel, CustomLane } from '../types/CustomLevel';
+import { SettingsScene } from './SettingsScene';
 
 interface Lane {
   y: number;
@@ -25,6 +26,14 @@ export class CustomGameScene extends Phaser.Scene {
   private livesText!: Phaser.GameObjects.Text;
   private gamepadText!: Phaser.GameObjects.Text;
   private isGameOver: boolean = false;
+  private goalY: number = 0;
+  private goalX: number = 0;
+  private treeGraphics: Phaser.GameObjects.GameObject[] = [];
+  private redTreesGraphics: Phaser.GameObjects.GameObject[] = [];
+  private roadProps: Phaser.GameObjects.Sprite[] = [];
+  private availableProps = ['barrier.png', 'light.png', 'light_double.png', 'sign_blue.png', 'sign_red.png', 'sign_street.png'];
+  private previousPlayerPosition: { x: number; y: number } = { x: 0, y: 0 };
+  private static bgMusic?: Phaser.Sound.BaseSound;
 
   constructor() {
     super({ key: 'CustomGameScene' });
@@ -38,18 +47,31 @@ export class CustomGameScene extends Phaser.Scene {
     const width = this.scale.width;
     const height = this.scale.height;
 
-    // Create background with custom color
-    this.add.rectangle(0, 0, width, height, this.customLevel.backgroundColor).setOrigin(0);
+    // Initialize and manage background music
+    if (!CustomGameScene.bgMusic) {
+      CustomGameScene.bgMusic = this.sound.add('bgMusic', { loop: true, volume: SettingsScene.getMusicVolume() });
+    }
+    
+    if (SettingsScene.isMusicEnabled() && !CustomGameScene.bgMusic.isPlaying) {
+      CustomGameScene.bgMusic.play();
+    } else if (!SettingsScene.isMusicEnabled() && CustomGameScene.bgMusic.isPlaying) {
+      CustomGameScene.bgMusic.pause();
+    }
 
     // Create input manager
     this.inputManager = new InputManager(this);
 
-    // Create lanes from custom level
+    // Create lanes from custom level (this will handle all backgrounds including grass)
     this.createCustomLanes();
 
-    // Create player at bottom center
+    // Create player at bottom center (just before the first lane)
+    const laneCount = this.customLevel.lanes.length;
+    const laneHeight = 64;
+    const grassTopHeight = Math.max(laneHeight * 2, laneHeight * 3 - (laneCount - 4) * 16);
+    const roadAreaHeight = laneCount * laneHeight;
+    const roadEndY = grassTopHeight + roadAreaHeight;
     const startX = width / 2;
-    const startY = height - 32;
+    const startY = roadEndY + 32;
     this.player = new Player(this, startX, startY);
 
     // Create UI
@@ -59,19 +81,44 @@ export class CustomGameScene extends Phaser.Scene {
   private createCustomLanes(): void {
     const height = this.scale.height;
     const width = this.scale.width;
-    const laneHeight = 32;
+    const laneHeight = 64; // Match MainGameScene
+
+    // Clear existing
+    for (const lane of this.lanes) {
+      for (const vehicle of lane.vehicles) {
+        vehicle.destroy();
+      }
+    }
+    this.lanes = [];
+
+    for (const prop of this.roadProps) {
+      prop.destroy();
+    }
+    this.roadProps = [];
+
+    // Calculate road area like MainGameScene
+    const laneCount = this.customLevel.lanes.length;
+    const grassTopHeight = Math.max(laneHeight * 2, laneHeight * 3 - (laneCount - 4) * 16);
+    const roadAreaHeight = laneCount * laneHeight;
+    const roadStartY = grassTopHeight;
+
+    // First, fill entire background with grass
+    this.add.rectangle(0, 0, width, height, 0x228b22).setOrigin(0).setDepth(-100);
+
+    // Then draw the black road on top of grass in the middle section
+    this.add.rectangle(0, roadStartY, width, roadAreaHeight, 0x333333).setOrigin(0).setDepth(-50);
 
     // Create lanes based on custom level configuration
     this.customLevel.lanes.forEach((customLane, i) => {
-      const laneY = height - (i + 2) * laneHeight;
+      const laneY = roadStartY + (i + 0.5) * laneHeight;
 
-      // Draw lane background (road)
-      this.add.rectangle(0, laneY - laneHeight / 2, width, laneHeight, 0x444444).setOrigin(0);
+      // Draw individual lane with gray color
+      this.add.rectangle(0, roadStartY + i * laneHeight, width, laneHeight, 0x555555).setOrigin(0).setDepth(-40);
 
       // Add lane markings
       if (i > 0) {
         for (let x = 0; x < width; x += 40) {
-          this.add.rectangle(x, laneY - laneHeight, 20, 2, 0xffff00).setOrigin(0);
+          this.add.rectangle(x, roadStartY + i * laneHeight - 2, 20, 2, 0xffff00).setOrigin(0).setDepth(-30);
         }
       }
 
@@ -86,18 +133,93 @@ export class CustomGameScene extends Phaser.Scene {
       });
     });
 
-    // Create safe zone at top
-    const safeZoneY = height - (this.customLevel.lanes.length + 2) * laneHeight;
-    this.add.rectangle(0, 0, width, safeZoneY + laneHeight, 0x90ee90).setOrigin(0);
-    this.add.text(width / 2, 32, 'GOAL!', {
-      fontSize: '32px',
-      color: '#ffffff',
-      stroke: '#000000',
-      strokeThickness: 4
-    }).setOrigin(0.5);
+    // Spawn random road props/obstacles
+    this.spawnRoadProps(roadStartY, laneHeight);
 
-    // Create safe zone at bottom
-    this.add.rectangle(0, height - laneHeight, width, laneHeight, 0x90ee90).setOrigin(0);
+    // Draw trees at the top like MainGameScene
+    this.goalY = grassTopHeight / 2;
+
+    // Create 5 tree positions evenly spaced across the top
+    const treePositions: number[] = [];
+    const spacing = (width - 200) / 4;
+    for (let i = 0; i < 5; i++) {
+      treePositions.push(100 + i * spacing);
+    }
+
+    // Shuffle positions to randomize tree placement
+    const shuffled = treePositions.sort(() => Math.random() - 0.5);
+
+    // First position gets the green tree (correct goal)
+    this.goalX = shuffled[0];
+    this.drawTree(this.goalX, this.goalY, 0x228B22); // Green tree
+
+    // Other 4 positions get red trees (distractors)
+    for (let i = 1; i < 5; i++) {
+      this.drawTree(shuffled[i], this.goalY, 0xff0000); // Red trees
+    }
+  }
+
+  private spawnRoadProps(roadStartY: number, laneHeight: number): void {
+    const width = this.scale.width;
+    const laneCount = this.customLevel.lanes.length;
+    const roadAreaHeight = laneCount * laneHeight;
+    const roadEndY = roadStartY + roadAreaHeight;
+
+    const propCount = Math.floor(Math.random() * 8) + 8; // 8-15 props
+
+    for (let i = 0; i < propCount; i++) {
+      const propType = this.availableProps[Math.floor(Math.random() * this.availableProps.length)];
+      const x = Math.random() * (width - 100) + 50;
+      const y = roadStartY + Math.random() * roadAreaHeight;
+
+      if (y < roadStartY + 30 || y > roadEndY - 30) continue;
+
+      const prop = this.add.sprite(x, y, 'sprites', propType);
+      prop.setDepth(5);
+      prop.setScale(1.5);
+
+      this.physics.add.existing(prop, true);
+      const body = prop.body as Phaser.Physics.Arcade.Body;
+      if (body) {
+        body.setSize(prop.width * 0.8, prop.height * 0.6);
+      }
+
+      this.roadProps.push(prop);
+    }
+  }
+
+  private drawTree(x: number, y: number, foliageColor: number): void {
+    // Draw tree trunk with black outline
+    const trunkOutline = this.add.rectangle(x, y + 30, 24, 64, 0x000000).setDepth(-5);
+    const trunk = this.add.rectangle(x, y + 30, 20, 60, 0x8B4513).setDepth(-5);
+
+    // Draw tree foliage with black outlines
+    const foliage1Outline = this.add.circle(x, y, 42, 0x000000).setDepth(-5);
+    const foliage1 = this.add.circle(x, y, 40, foliageColor).setDepth(-5);
+
+    const foliage2Outline = this.add.circle(x - 15, y + 15, 37, 0x000000).setDepth(-5);
+    const foliage2 = this.add.circle(x - 15, y + 15, 35, foliageColor).setDepth(-5);
+
+    const foliage3Outline = this.add.circle(x + 15, y + 15, 37, 0x000000).setDepth(-5);
+    const foliage3 = this.add.circle(x + 15, y + 15, 35, foliageColor).setDepth(-5);
+
+    const foliage4Outline = this.add.circle(x, y + 25, 32, 0x000000).setDepth(-5);
+    const bottomColor = foliageColor === 0x228B22 ? 0x2E8B57 : 0xcc0000;
+    const foliage4 = this.add.circle(x, y + 25, 30, bottomColor).setDepth(-5);
+
+    const treeGraphicsArray = [
+      trunkOutline, trunk,
+      foliage1Outline, foliage1,
+      foliage2Outline, foliage2,
+      foliage3Outline, foliage3,
+      foliage4Outline, foliage4
+    ];
+
+    if (foliageColor === 0x228B22) {
+      this.treeGraphics = treeGraphicsArray;
+    } else {
+      this.redTreesGraphics.push(...treeGraphicsArray);
+    }
   }
 
   private createUI(): void {
@@ -166,6 +288,11 @@ export class CustomGameScene extends Phaser.Scene {
     );
 
     lane.vehicles.push(vehicle);
+    
+    // Play car engine sound effect when vehicle spawns
+    if (SettingsScene.isSfxEnabled()) {
+      this.sound.play('carEngine', { volume: SettingsScene.getSfxVolume() });
+    }
   }
 
   private checkCollisions(): void {
@@ -204,8 +331,13 @@ export class CustomGameScene extends Phaser.Scene {
     if (this.lives <= 0) {
       this.gameOver();
     } else {
-      this.time.delayedCall(1000, () => {
-        this.player.reset(this.scale.width / 2, this.scale.height - 32);
+      this.time.delayedCall(1500, () => {
+        const laneCount = this.customLevel.lanes.length;
+        const laneHeight = 64;
+        const grassTopHeight = Math.max(laneHeight * 2, laneHeight * 3 - (laneCount - 4) * 16);
+        const roadAreaHeight = laneCount * laneHeight;
+        const roadEndY = grassTopHeight + roadAreaHeight;
+        this.player.reset(this.scale.width / 2, roadEndY + 32);
       });
     }
   }
@@ -213,7 +345,14 @@ export class CustomGameScene extends Phaser.Scene {
   private handleGoalReached(): void {
     this.score += 100;
     this.scoreText.setText(`Score: ${this.score}`);
-    this.player.reset(this.scale.width / 2, this.scale.height - 32);
+    
+    // Reset player to starting position at bottom
+    const laneCount = this.customLevel.lanes.length;
+    const laneHeight = 64;
+    const grassTopHeight = Math.max(laneHeight * 2, laneHeight * 3 - (laneCount - 4) * 16);
+    const roadAreaHeight = laneCount * laneHeight;
+    const roadEndY = grassTopHeight + roadAreaHeight;
+    this.player.reset(this.scale.width / 2, roadEndY + 32);
   }
 
   private gameOver(): void {

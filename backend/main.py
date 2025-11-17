@@ -1,10 +1,11 @@
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
-from typing import List
+from typing import List, Optional
 import sqlite3
 from datetime import datetime
 import uvicorn
+import json
 
 app = FastAPI()
 
@@ -30,6 +31,18 @@ def init_db():
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
     ''')
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS custom_levels (
+            id TEXT PRIMARY KEY,
+            name TEXT NOT NULL,
+            author TEXT NOT NULL,
+            description TEXT,
+            background_color INTEGER NOT NULL,
+            lanes_data TEXT NOT NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    ''')
     conn.commit()
     conn.close()
 
@@ -48,6 +61,34 @@ class ScoreResponse(BaseModel):
     score: int
     level_reached: int
     created_at: str
+
+class CustomLane(BaseModel):
+    vehicleType: str
+    speed: int
+    direction: int
+    spawnInterval: int
+
+class CustomLevel(BaseModel):
+    id: str
+    name: str
+    author: str
+    description: str
+    backgroundColor: int
+    lanes: List[CustomLane]
+    createdAt: Optional[int] = None
+
+class CustomLevelResponse(BaseModel):
+    id: str
+    name: str
+    author: str
+    description: str
+    backgroundColor: int
+    lanes: List[CustomLane]
+    created_at: str
+    updated_at: str
+
+class UpdateLevelName(BaseModel):
+    name: str
 
 # API endpoints
 @app.post("/api/scores", response_model=dict)
@@ -134,6 +175,167 @@ async def get_user_scores(username: str, limit: int = 5):
         }
         for row in rows
     ]
+
+@app.post("/api/levels", response_model=dict)
+async def save_custom_level(level_data: CustomLevel):
+    """Save or update a custom level"""
+    if not level_data.name or len(level_data.name.strip()) == 0:
+        raise HTTPException(status_code=400, detail="Level name cannot be empty")
+    
+    if not level_data.author or len(level_data.author.strip()) == 0:
+        raise HTTPException(status_code=400, detail="Author name cannot be empty")
+    
+    if len(level_data.lanes) == 0:
+        raise HTTPException(status_code=400, detail="Level must have at least one lane")
+
+    conn = sqlite3.connect('game_scores.db')
+    cursor = conn.cursor()
+
+    # Serialize lanes to JSON
+    lanes_json = json.dumps([lane.model_dump() for lane in level_data.lanes])
+    
+    # Check if level exists
+    cursor.execute("SELECT id FROM custom_levels WHERE id = ?", (level_data.id,))
+    existing = cursor.fetchone()
+
+    if existing:
+        # Update existing level
+        cursor.execute(
+            """UPDATE custom_levels 
+               SET name = ?, author = ?, description = ?, background_color = ?, 
+                   lanes_data = ?, updated_at = CURRENT_TIMESTAMP
+               WHERE id = ?""",
+            (level_data.name, level_data.author, level_data.description, 
+             level_data.backgroundColor, lanes_json, level_data.id)
+        )
+        message = "Level updated successfully"
+    else:
+        # Insert new level
+        cursor.execute(
+            """INSERT INTO custom_levels (id, name, author, description, background_color, lanes_data)
+               VALUES (?, ?, ?, ?, ?, ?)""",
+            (level_data.id, level_data.name, level_data.author, level_data.description, 
+             level_data.backgroundColor, lanes_json)
+        )
+        message = "Level saved successfully"
+
+    conn.commit()
+    conn.close()
+
+    return {
+        "success": True,
+        "message": message,
+        "id": level_data.id
+    }
+
+@app.get("/api/levels", response_model=List[CustomLevelResponse])
+async def get_all_levels():
+    """Get all custom levels"""
+    conn = sqlite3.connect('game_scores.db')
+    cursor = conn.cursor()
+
+    cursor.execute(
+        """SELECT id, name, author, description, background_color, lanes_data, 
+                  created_at, updated_at
+           FROM custom_levels
+           ORDER BY updated_at DESC"""
+    )
+
+    rows = cursor.fetchall()
+    conn.close()
+
+    return [
+        {
+            "id": row[0],
+            "name": row[1],
+            "author": row[2],
+            "description": row[3],
+            "backgroundColor": row[4],
+            "lanes": json.loads(row[5]),
+            "created_at": row[6],
+            "updated_at": row[7]
+        }
+        for row in rows
+    ]
+
+@app.get("/api/levels/{level_id}", response_model=CustomLevelResponse)
+async def get_level(level_id: str):
+    """Get a specific custom level by ID"""
+    conn = sqlite3.connect('game_scores.db')
+    cursor = conn.cursor()
+
+    cursor.execute(
+        """SELECT id, name, author, description, background_color, lanes_data, 
+                  created_at, updated_at
+           FROM custom_levels
+           WHERE id = ?""",
+        (level_id,)
+    )
+
+    row = cursor.fetchone()
+    conn.close()
+
+    if not row:
+        raise HTTPException(status_code=404, detail="Level not found")
+
+    return {
+        "id": row[0],
+        "name": row[1],
+        "author": row[2],
+        "description": row[3],
+        "backgroundColor": row[4],
+        "lanes": json.loads(row[5]),
+        "created_at": row[6],
+        "updated_at": row[7]
+    }
+
+@app.delete("/api/levels/{level_id}", response_model=dict)
+async def delete_level(level_id: str):
+    """Delete a custom level"""
+    conn = sqlite3.connect('game_scores.db')
+    cursor = conn.cursor()
+
+    cursor.execute("DELETE FROM custom_levels WHERE id = ?", (level_id,))
+    deleted_count = cursor.rowcount
+    
+    conn.commit()
+    conn.close()
+
+    if deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Level not found")
+
+    return {
+        "success": True,
+        "message": "Level deleted successfully"
+    }
+
+@app.patch("/api/levels/{level_id}/name", response_model=dict)
+async def update_level_name(level_id: str, update_data: UpdateLevelName):
+    """Update only the name of a custom level"""
+    if not update_data.name or len(update_data.name.strip()) == 0:
+        raise HTTPException(status_code=400, detail="Level name cannot be empty")
+    
+    conn = sqlite3.connect('game_scores.db')
+    cursor = conn.cursor()
+
+    cursor.execute(
+        """UPDATE custom_levels 
+           SET name = ?, updated_at = CURRENT_TIMESTAMP
+           WHERE id = ?""",
+        (update_data.name.strip(), level_id)
+    )
+    updated_count = cursor.rowcount
+    
+    conn.commit()
+    conn.close()
+
+    if updated_count == 0:
+        raise HTTPException(status_code=404, detail="Level not found")
+
+    return {
+        "success": True,
+        "message": "Level name updated successfully"
+    }
 
 @app.get("/")
 async def root():

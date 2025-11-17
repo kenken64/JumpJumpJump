@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
 import { API_CONFIG } from '../apiConfig';
+import { SettingsScene } from './SettingsScene';
 
 interface LeaderboardEntry {
   id: number;
@@ -12,6 +13,7 @@ interface LeaderboardEntry {
 export class MenuScene extends Phaser.Scene {
   private leaderboardTexts: Phaser.GameObjects.Text[] = [];
   private leaderboardScoreTexts: Phaser.GameObjects.Text[] = [];
+  private static bgMusic?: Phaser.Sound.BaseSound;
 
   constructor() {
     super({ key: 'MenuScene' });
@@ -26,8 +28,25 @@ export class MenuScene extends Phaser.Scene {
     const width = this.scale.width;
     const height = this.scale.height;
 
+    // Initialize background music
+    if (!MenuScene.bgMusic) {
+      MenuScene.bgMusic = this.sound.add('bgMusic', { loop: true, volume: SettingsScene.getMusicVolume() });
+    }
+    
+    // Play or pause based on enabled state
+    if (SettingsScene.isMusicEnabled() && !MenuScene.bgMusic.isPlaying) {
+      MenuScene.bgMusic.play();
+    } else if (!SettingsScene.isMusicEnabled() && MenuScene.bgMusic.isPlaying) {
+      MenuScene.bgMusic.pause();
+    }
+
     // Background
     this.add.rectangle(0, 0, width, height, 0x2c3e50).setOrigin(0);
+
+    // Add game preview image on the left side
+    const gameImage = this.add.image(420, height / 2, 'game1');
+    gameImage.setDisplaySize(520, 520); // Set specific width and height
+    gameImage.setOrigin(0.5);
 
     // Title
     this.add.text(width / 2, 100, 'JUMP JUMP JUMP!', {
@@ -63,6 +82,12 @@ export class MenuScene extends Phaser.Scene {
       this.scene.start('LevelEditorScene');
     });
 
+    // Settings Button
+    const settingsButton = this.createButton(width / 2, 490, 'Settings', 0x95a5a6);
+    settingsButton.on('pointerdown', () => {
+      this.scene.start('SettingsScene');
+    });
+
     // Leaderboard Section
     this.createLeaderboard(width, height);
 
@@ -74,11 +99,11 @@ export class MenuScene extends Phaser.Scene {
       strokeThickness: 2
     }).setOrigin(0.5);
 
-    this.add.text(width / 2, height - 50, 'Avoid traffic and reach the goal!', {
-      fontSize: '16px',
+    this.add.text(width / 2, height - 50, 'Avoid traffic and reach the goal! Touch the damn tree!', {
+      fontSize: '22px',
       color: '#95a5a6',
       stroke: '#000000',
-      strokeThickness: 2
+      strokeThickness: 3
     }).setOrigin(0.5);
 
     // Fetch leaderboard data
@@ -126,16 +151,16 @@ export class MenuScene extends Phaser.Scene {
     this.leaderboardTexts = [];
     this.leaderboardScoreTexts = [];
 
-    const leaderboardX = width - 250;
+    const leaderboardX = width - 350;
     const leaderboardY = 100;
 
     // Leaderboard background
-    const leaderboardBg = this.add.rectangle(leaderboardX, leaderboardY, 220, 400, 0x34495e, 0.9);
+    const leaderboardBg = this.add.rectangle(leaderboardX, leaderboardY, 320, 400, 0x34495e, 0.9);
     leaderboardBg.setStrokeStyle(2, 0xecf0f1);
     leaderboardBg.setOrigin(0, 0);
 
     // Leaderboard title
-    this.add.text(leaderboardX + 110, leaderboardY + 20, 'LEADERBOARD', {
+    this.add.text(leaderboardX + 160, leaderboardY + 20, 'LEADERBOARD', {
       fontSize: '28px',
       color: '#f39c12',
       fontStyle: 'bold',
@@ -150,7 +175,7 @@ export class MenuScene extends Phaser.Scene {
       fontStyle: 'bold'
     });
 
-    this.add.text(leaderboardX + 150, leaderboardY + 50, 'Score', {
+    this.add.text(leaderboardX + 240, leaderboardY + 50, 'Score', {
       fontSize: '18px',
       color: '#ecf0f1',
       fontStyle: 'bold'
@@ -166,7 +191,7 @@ export class MenuScene extends Phaser.Scene {
       this.leaderboardTexts.push(nameText);
 
       // Create score text placeholder
-      const scoreText = this.add.text(leaderboardX + 150, yPos, '', {
+      const scoreText = this.add.text(leaderboardX + 240, yPos, '', {
         fontSize: '16px',
         color: '#bdc3c7',
         fontStyle: 'bold'
@@ -213,7 +238,7 @@ export class MenuScene extends Phaser.Scene {
         }
 
         const rank = index + 1;
-        const username = entry.username.length > 10 ? entry.username.substring(0, 10) + '...' : entry.username;
+        const username = entry.username.length > 18 ? entry.username.substring(0, 18) + '...' : entry.username;
 
         // Medal colors for top 3
         let color = '#bdc3c7';
@@ -289,5 +314,9 @@ export class MenuScene extends Phaser.Scene {
     });
 
     return container;
+  }
+
+  public static getBgMusic(): Phaser.Sound.BaseSound | undefined {
+    return MenuScene.bgMusic;
   }
 }

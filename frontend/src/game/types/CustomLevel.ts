@@ -16,45 +16,92 @@ export interface CustomLevel {
 }
 
 export class LevelStorage {
-  private static STORAGE_KEY = 'jumpjumpjump_custom_levels';
+  private static API_URL = 'http://localhost:8000/api/levels';
 
-  static saveLevels(levels: CustomLevel[]): void {
-    try {
-      localStorage.setItem(this.STORAGE_KEY, JSON.stringify(levels));
-    } catch (error) {
-      console.error('Failed to save levels:', error);
-    }
+  static async saveLevels(levels: CustomLevel[]): Promise<void> {
+    // Deprecated - use saveLevel instead
+    console.warn('saveLevels is deprecated, use saveLevel for individual saves');
   }
 
-  static loadLevels(): CustomLevel[] {
+  static async loadLevels(): Promise<CustomLevel[]> {
     try {
-      const data = localStorage.getItem(this.STORAGE_KEY);
-      return data ? JSON.parse(data) : [];
+      const response = await fetch(this.API_URL);
+      if (!response.ok) {
+        throw new Error('Failed to fetch levels');
+      }
+      const data = await response.json();
+      return data.map((level: any) => ({
+        id: level.id,
+        name: level.name,
+        author: level.author,
+        description: level.description,
+        backgroundColor: level.backgroundColor,
+        lanes: level.lanes,
+        createdAt: new Date(level.created_at).getTime()
+      }));
     } catch (error) {
       console.error('Failed to load levels:', error);
       return [];
     }
   }
 
-  static saveLevel(level: CustomLevel): void {
-    const levels = this.loadLevels();
-    const existingIndex = levels.findIndex(l => l.id === level.id);
+  static async saveLevel(level: CustomLevel): Promise<boolean> {
+    try {
+      const response = await fetch(this.API_URL, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(level),
+      });
 
-    if (existingIndex >= 0) {
-      levels[existingIndex] = level;
-    } else {
-      levels.push(level);
+      if (!response.ok) {
+        throw new Error('Failed to save level');
+      }
+
+      return true;
+    } catch (error) {
+      console.error('Failed to save level:', error);
+      return false;
     }
-
-    this.saveLevels(levels);
   }
 
-  static deleteLevel(id: string): void {
-    const levels = this.loadLevels().filter(l => l.id !== id);
-    this.saveLevels(levels);
+  static async deleteLevel(id: string): Promise<boolean> {
+    try {
+      const response = await fetch(`${this.API_URL}/${id}`, {
+        method: 'DELETE',
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to delete level');
+      }
+
+      return true;
+    } catch (error) {
+      console.error('Failed to delete level:', error);
+      return false;
+    }
   }
 
-  static getLevel(id: string): CustomLevel | undefined {
-    return this.loadLevels().find(l => l.id === id);
+  static async getLevel(id: string): Promise<CustomLevel | undefined> {
+    try {
+      const response = await fetch(`${this.API_URL}/${id}`);
+      if (!response.ok) {
+        return undefined;
+      }
+      const data = await response.json();
+      return {
+        id: data.id,
+        name: data.name,
+        author: data.author,
+        description: data.description,
+        backgroundColor: data.backgroundColor,
+        lanes: data.lanes,
+        createdAt: new Date(data.created_at).getTime()
+      };
+    } catch (error) {
+      console.error('Failed to get level:', error);
+      return undefined;
+    }
   }
 }

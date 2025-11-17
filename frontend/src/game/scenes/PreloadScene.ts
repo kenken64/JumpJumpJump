@@ -1,4 +1,5 @@
 import Phaser from 'phaser';
+import { SettingsScene } from './SettingsScene';
 
 export class PreloadScene extends Phaser.Scene {
   constructor() {
@@ -6,6 +7,8 @@ export class PreloadScene extends Phaser.Scene {
   }
 
   preload(): void {
+    // Load settings from localStorage at the very start
+    SettingsScene.initializeSettings();
     // Create loading bar
     const width = this.cameras.main.width;
     const height = this.cameras.main.height;
@@ -48,6 +51,16 @@ export class PreloadScene extends Phaser.Scene {
       'assets/spritesheet_complete.png',
       'assets/spritesheet_complete.xml'
     );
+
+    // Load game preview image
+    this.load.image('game1', 'assets/game_1.png');
+
+    // Load background music
+    this.load.audio('bgMusic', 'assets/music/jumpjumpjump_music.mp3');
+    
+    // Load sound effects
+    this.load.audio('carEngine', 'assets/sounds/car-engine-noise-321224.mp3');
+    this.load.audio('walking', 'assets/sounds/walking-366933.mp3');
   }
 
   create(): void {
