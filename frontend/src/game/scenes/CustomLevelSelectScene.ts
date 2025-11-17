@@ -5,6 +5,9 @@ import { API_CONFIG } from '../apiConfig';
 
 export class CustomLevelSelectScene extends Phaser.Scene {
   private levels: CustomLevel[] = [];
+  private currentPage: number = 0;
+  private levelsPerPage: number = 8;
+  private levelCards: Phaser.GameObjects.Container[] = [];
 
   constructor() {
     super({ key: 'CustomLevelSelectScene' });
@@ -48,8 +51,13 @@ export class CustomLevelSelectScene extends Phaser.Scene {
 
   private displayLevels(): void {
     const width = this.scale.width;
+    const height = this.scale.height;
     const startY = 120;
-    const spacing = 90;
+    const spacing = 70;
+
+    // Clear existing level cards
+    this.levelCards.forEach(card => card.destroy());
+    this.levelCards = [];
 
     if (this.levels.length === 0) {
       this.add.text(width / 2, 300, 'No custom levels yet!', {
@@ -65,37 +73,83 @@ export class CustomLevelSelectScene extends Phaser.Scene {
       return;
     }
 
-    this.levels.forEach((level, index) => {
+    // Calculate pagination
+    const totalPages = Math.ceil(this.levels.length / this.levelsPerPage);
+    const startIndex = this.currentPage * this.levelsPerPage;
+    const endIndex = Math.min(startIndex + this.levelsPerPage, this.levels.length);
+    const levelsToDisplay = this.levels.slice(startIndex, endIndex);
+
+    // Display current page levels
+    levelsToDisplay.forEach((level, index) => {
       const yPos = startY + (index * spacing);
 
+      // Create container for the entire level card
+      const cardContainer = this.add.container(width / 2, yPos);
+
       // Level card background
-      const cardBg = this.add.rectangle(width / 2, yPos, 600, 70, 0x2c3e50);
+      const cardBg = this.add.rectangle(0, 0, 600, 65, 0x2c3e50);
       cardBg.setStrokeStyle(2, 0x3498db);
+      cardContainer.add(cardBg);
 
       // Level info
-      const levelNameText = this.add.text(width / 2 - 280, yPos - 20, level.name, {
+      const levelNameText = this.add.text(-280, -18, level.name, {
         fontSize: '20px',
         color: '#ffffff',
         fontStyle: 'bold'
       });
+      cardContainer.add(levelNameText);
 
-      this.add.text(width / 2 - 280, yPos + 5, `Author: ${level.author} | Lanes: ${level.lanes.length}`, {
+      const levelInfo = this.add.text(-280, 5, `Author: ${level.author} | Lanes: ${level.lanes.length}`, {
         fontSize: '14px',
         color: '#ecf0f1'
       });
+      cardContainer.add(levelInfo);
 
       // Edit button
-      const editBtn = this.createButton(width / 2 + 50, yPos, 'Edit', 0xf39c12, 80, 40);
+      const editBtn = this.createButton(50, 0, 'Edit', 0xf39c12, 80, 40);
       editBtn.on('pointerdown', () => this.editLevelName(level, levelNameText));
+      cardContainer.add(editBtn);
 
       // Play button
-      const playBtn = this.createButton(width / 2 + 140, yPos, 'Play', 0x27ae60, 80, 40);
+      const playBtn = this.createButton(140, 0, 'Play', 0x27ae60, 80, 40);
       playBtn.on('pointerdown', () => this.playLevel(level));
+      cardContainer.add(playBtn);
 
       // Delete button
-      const deleteBtn = this.createButton(width / 2 + 230, yPos, 'Delete', 0xe74c3c, 90, 40);
+      const deleteBtn = this.createButton(230, 0, 'Delete', 0xe74c3c, 90, 40);
       deleteBtn.on('pointerdown', () => this.deleteLevel(level.id));
+      cardContainer.add(deleteBtn);
+
+      this.levelCards.push(cardContainer);
     });
+
+    // Page indicator
+    const pageText = this.add.text(width / 2, height - 120, `Page ${this.currentPage + 1} of ${totalPages}`, {
+      fontSize: '20px',
+      color: '#ecf0f1',
+      fontStyle: 'bold'
+    }).setOrigin(0.5);
+
+    // Navigation buttons
+    if (totalPages > 1) {
+      // Previous button
+      if (this.currentPage > 0) {
+        const prevBtn = this.createButton(width / 2 - 150, height - 120, '< Previous', 0x3498db, 130, 45);
+        prevBtn.on('pointerdown', () => {
+          this.currentPage--;
+          this.scene.restart();
+        });
+      }
+
+      // Next button
+      if (this.currentPage < totalPages - 1) {
+        const nextBtn = this.createButton(width / 2 + 150, height - 120, 'Next >', 0x3498db, 130, 45);
+        nextBtn.on('pointerdown', () => {
+          this.currentPage++;
+          this.scene.restart();
+        });
+      }
+    }
   }
 
   private playLevel(level: CustomLevel): void {
