@@ -611,7 +611,7 @@ export default class GameScene extends Phaser.Scene {
 
   private generateWorld() {
     const tileSize = 70
-    const floorY = 1100
+    const floorY = 650
     
     // Create safe spawn platform (500 pixels wide, no enemies)
     const spawnPlatformWidth = 500
@@ -650,7 +650,7 @@ export default class GameScene extends Phaser.Scene {
   private generateChunk(startX: number) {
     const tileSize = 70
     const chunkWidth = 800
-    const floorY = 1100
+    const floorY = 650
     
     // Get biome-specific tiles
     const floorTile = this.getBiomeFloorTile()
@@ -679,7 +679,7 @@ export default class GameScene extends Phaser.Scene {
       if (structureType < 0.3) {
         // Floating platform
         const platformWidth = Phaser.Math.Between(2, 4)
-        const platformY = Phaser.Math.Between(600, 900)
+        const platformY = Phaser.Math.Between(400, 550)
         for (let i = 0; i < platformWidth; i++) {
           const platform = this.platforms.create(currentX + i * tileSize, platformY, platformTile)
           platform.setOrigin(0, 0.5)
@@ -689,7 +689,7 @@ export default class GameScene extends Phaser.Scene {
       } else if (structureType < 0.5) {
         // Staircase
         const steps = Phaser.Math.Between(4, 7)
-        let stepY = 1000
+        let stepY = 580
         for (let i = 0; i < steps; i++) {
           const step = this.platforms.create(currentX + i * tileSize, stepY, platformTile)
           step.setOrigin(0, 0.5)
@@ -700,7 +700,7 @@ export default class GameScene extends Phaser.Scene {
       } else if (structureType < 0.7) {
         // Pillar
         const pillarHeight = Phaser.Math.Between(3, 6)
-        const pillarTopY = Phaser.Math.Between(600, 800)
+        const pillarTopY = Phaser.Math.Between(400, 550)
         for (let i = 0; i < pillarHeight; i++) {
           const block = this.platforms.create(currentX, pillarTopY + i * tileSize, wallTile)
           block.setOrigin(0, 0.5)
