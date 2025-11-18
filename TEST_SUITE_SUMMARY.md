@@ -4,6 +4,42 @@
 
 Comprehensive test coverage has been added for both frontend and backend components of the Jump Jump Jump game.
 
+## 🔧 Recent Fixes (November 18, 2025)
+
+### Backend API Response Format Fixes
+
+Fixed API endpoints to return proper response formats expected by E2E tests:
+
+**1. Score Submission (`POST /api/scores`)**
+- ❌ Before: `{success: true, message: "...", id: 123}`
+- ✅ After: `{id, username, score, level_reached, created_at}`
+
+**2. Validation Error Status Codes**
+- ❌ Before: HTTP 400 for validation errors  
+- ✅ After: HTTP 422 (Unprocessable Entity)
+- Affected: Score submission, level creation/updates
+
+**3. Custom Level CRUD Operations**
+- `POST /api/levels` - Now returns full level object
+- `PATCH /api/levels/{id}/name` - Returns updated level object
+- `DELETE /api/levels/{id}` - Already working correctly
+
+### How to Test Changes
+
+```powershell
+# 1. Restart backend to load changes (important!)
+.\scripts\stop.ps1
+.\scripts\start.ps1
+
+# 2. Run API tests
+npx playwright test tests/e2e/api.spec.ts --project=chromium
+
+# 3. Run all tests
+.\scripts\playwright.ps1 -Project chromium
+```
+
+**Note**: Backend must be restarted after code changes - Python doesn't auto-reload!
+
 ## ✅ What Was Created
 
 ### Frontend Tests (Vitest + React Testing Library)

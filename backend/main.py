@@ -95,7 +95,7 @@ class UpdateLevelName(BaseModel):
 async def submit_score(score_data: ScoreSubmit):
     """Submit a new score to the database"""
     if not score_data.username or len(score_data.username.strip()) == 0:
-        raise HTTPException(status_code=400, detail="Username cannot be empty")
+        raise HTTPException(status_code=422, detail="Username cannot be empty")
 
     conn = sqlite3.connect('game_scores.db')
     cursor = conn.cursor()
@@ -107,12 +107,21 @@ async def submit_score(score_data: ScoreSubmit):
 
     conn.commit()
     score_id = cursor.lastrowid
+    
+    # Fetch the created record
+    cursor.execute(
+        "SELECT id, username, score, level_reached, created_at FROM scores WHERE id = ?",
+        (score_id,)
+    )
+    row = cursor.fetchone()
     conn.close()
 
     return {
-        "success": True,
-        "message": "Score saved successfully",
-        "id": score_id
+        "id": row[0],
+        "username": row[1],
+        "score": row[2],
+        "level_reached": row[3],
+        "created_at": row[4]
     }
 
 @app.get("/api/scores/leaderboard", response_model=List[ScoreResponse])
@@ -180,13 +189,13 @@ async def get_user_scores(username: str, limit: int = 5):
 async def save_custom_level(level_data: CustomLevel):
     """Save or update a custom level"""
     if not level_data.name or len(level_data.name.strip()) == 0:
-        raise HTTPException(status_code=400, detail="Level name cannot be empty")
+        raise HTTPException(status_code=422, detail="Level name cannot be empty")
     
     if not level_data.author or len(level_data.author.strip()) == 0:
-        raise HTTPException(status_code=400, detail="Author name cannot be empty")
+        raise HTTPException(status_code=422, detail="Author name cannot be empty")
     
     if len(level_data.lanes) == 0:
-        raise HTTPException(status_code=400, detail="Level must have at least one lane")
+        raise HTTPException(status_code=422, detail="Level must have at least one lane")
 
     conn = sqlite3.connect('game_scores.db')
     cursor = conn.cursor()
@@ -220,12 +229,26 @@ async def save_custom_level(level_data: CustomLevel):
         message = "Level saved successfully"
 
     conn.commit()
+    
+    # Fetch the saved/updated record
+    cursor.execute(
+        """SELECT id, name, author, description, background_color, lanes_data, 
+                  created_at, updated_at
+           FROM custom_levels WHERE id = ?""",
+        (level_data.id,)
+    )
+    row = cursor.fetchone()
     conn.close()
 
     return {
-        "success": True,
-        "message": message,
-        "id": level_data.id
+        "id": row[0],
+        "name": row[1],
+        "author": row[2],
+        "description": row[3],
+        "backgroundColor": row[4],
+        "lanes": json.loads(row[5]),
+        "created_at": row[6],
+        "updated_at": row[7]
     }
 
 @app.get("/api/levels", response_model=List[CustomLevelResponse])
@@ -313,7 +336,7 @@ async def delete_level(level_id: str):
 async def update_level_name(level_id: str, update_data: UpdateLevelName):
     """Update only the name of a custom level"""
     if not update_data.name or len(update_data.name.strip()) == 0:
-        raise HTTPException(status_code=400, detail="Level name cannot be empty")
+        raise HTTPException(status_code=422, detail="Level name cannot be empty")
     
     conn = sqlite3.connect('game_scores.db')
     cursor = conn.cursor()
@@ -327,14 +350,30 @@ async def update_level_name(level_id: str, update_data: UpdateLevelName):
     updated_count = cursor.rowcount
     
     conn.commit()
+    
+    if updated_count == 0:
+        conn.close()
+        raise HTTPException(status_code=404, detail="Level not found")
+    
+    # Fetch the updated record
+    cursor.execute(
+        """SELECT id, name, author, description, background_color, lanes_data, 
+                  created_at, updated_at
+           FROM custom_levels WHERE id = ?""",
+        (level_id,)
+    )
+    row = cursor.fetchone()
     conn.close()
 
-    if updated_count == 0:
-        raise HTTPException(status_code=404, detail="Level not found")
-
     return {
-        "success": True,
-        "message": "Level name updated successfully"
+        "id": row[0],
+        "name": row[1],
+        "author": row[2],
+        "description": row[3],
+        "backgroundColor": row[4],
+        "lanes": json.loads(row[5]),
+        "created_at": row[6],
+        "updated_at": row[7]
     }
 
 @app.get("/")
