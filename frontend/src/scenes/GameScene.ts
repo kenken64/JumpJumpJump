@@ -69,10 +69,29 @@ export default class GameScene extends Phaser.Scene {
     this.load.image('alienBeige_hurt', '/assets/kenney_platformer-art-extended-enemies/Alien sprites/alienBeige_hurt.png')
     this.load.image('alienBeige_duck', '/assets/kenney_platformer-art-extended-enemies/Alien sprites/alienBeige_duck.png')
 
-    // Load enemy sprites (using slimeGreen)
+    // Load enemy sprites - Small enemies (flies, bees)
+    this.load.image('fly', '/assets/kenney_platformer-art-extended-enemies/Enemy sprites/fly.png')
+    this.load.image('fly_fly', '/assets/kenney_platformer-art-extended-enemies/Enemy sprites/fly_fly.png')
+    this.load.image('fly_dead', '/assets/kenney_platformer-art-extended-enemies/Enemy sprites/fly_dead.png')
+    this.load.image('bee', '/assets/kenney_platformer-art-extended-enemies/Enemy sprites/bee.png')
+    this.load.image('bee_fly', '/assets/kenney_platformer-art-extended-enemies/Enemy sprites/bee_fly.png')
+    this.load.image('bee_dead', '/assets/kenney_platformer-art-extended-enemies/Enemy sprites/bee_dead.png')
+    
+    // Medium enemies (slimes)
     this.load.image('slimeGreen', '/assets/kenney_platformer-art-extended-enemies/Enemy sprites/slimeGreen.png')
     this.load.image('slimeGreen_walk', '/assets/kenney_platformer-art-extended-enemies/Enemy sprites/slimeGreen_walk.png')
     this.load.image('slimeGreen_dead', '/assets/kenney_platformer-art-extended-enemies/Enemy sprites/slimeGreen_dead.png')
+    this.load.image('slimeBlue', '/assets/kenney_platformer-art-extended-enemies/Enemy sprites/slimeBlue.png')
+    this.load.image('slimeBlue_walk', '/assets/kenney_platformer-art-extended-enemies/Enemy sprites/slimeBlue_walk.png')
+    this.load.image('slimeBlue_dead', '/assets/kenney_platformer-art-extended-enemies/Enemy sprites/slimeBlue_dead.png')
+    
+    // Large enemies (worms)
+    this.load.image('wormGreen', '/assets/kenney_platformer-art-extended-enemies/Enemy sprites/wormGreen.png')
+    this.load.image('wormGreen_walk', '/assets/kenney_platformer-art-extended-enemies/Enemy sprites/wormGreen_walk.png')
+    this.load.image('wormGreen_dead', '/assets/kenney_platformer-art-extended-enemies/Enemy sprites/wormGreen_dead.png')
+    this.load.image('wormPink', '/assets/kenney_platformer-art-extended-enemies/Enemy sprites/wormPink.png')
+    this.load.image('wormPink_walk', '/assets/kenney_platformer-art-extended-enemies/Enemy sprites/wormPink_walk.png')
+    this.load.image('wormPink_dead', '/assets/kenney_platformer-art-extended-enemies/Enemy sprites/wormPink_dead.png')
 
     // Load platform beams
     this.load.image('beam', '/assets/kenney_platformer-art-requests/Tiles/beam.png')
@@ -196,21 +215,83 @@ export default class GameScene extends Phaser.Scene {
       maxSize: 30
     })
 
-    // Create enemy animations
+    // Create enemy animations - Flies
     this.anims.create({
-      key: 'enemy_idle',
+      key: 'fly_idle',
+      frames: [{ key: 'fly' }],
+      frameRate: 1,
+      repeat: -1
+    })
+    this.anims.create({
+      key: 'fly_move',
+      frames: [{ key: 'fly' }, { key: 'fly_fly' }],
+      frameRate: 8,
+      repeat: -1
+    })
+    
+    // Bees
+    this.anims.create({
+      key: 'bee_idle',
+      frames: [{ key: 'bee' }],
+      frameRate: 1,
+      repeat: -1
+    })
+    this.anims.create({
+      key: 'bee_move',
+      frames: [{ key: 'bee' }, { key: 'bee_fly' }],
+      frameRate: 8,
+      repeat: -1
+    })
+    
+    // Slimes (medium)
+    this.anims.create({
+      key: 'slimeGreen_idle',
       frames: [{ key: 'slimeGreen' }],
       frameRate: 1,
       repeat: -1
     })
-
     this.anims.create({
-      key: 'enemy_walk',
-      frames: [
-        { key: 'slimeGreen' },
-        { key: 'slimeGreen_walk' }
-      ],
+      key: 'slimeGreen_move',
+      frames: [{ key: 'slimeGreen' }, { key: 'slimeGreen_walk' }],
       frameRate: 6,
+      repeat: -1
+    })
+    this.anims.create({
+      key: 'slimeBlue_idle',
+      frames: [{ key: 'slimeBlue' }],
+      frameRate: 1,
+      repeat: -1
+    })
+    this.anims.create({
+      key: 'slimeBlue_move',
+      frames: [{ key: 'slimeBlue' }, { key: 'slimeBlue_walk' }],
+      frameRate: 6,
+      repeat: -1
+    })
+    
+    // Worms (large)
+    this.anims.create({
+      key: 'wormGreen_idle',
+      frames: [{ key: 'wormGreen' }],
+      frameRate: 1,
+      repeat: -1
+    })
+    this.anims.create({
+      key: 'wormGreen_move',
+      frames: [{ key: 'wormGreen' }, { key: 'wormGreen_walk' }],
+      frameRate: 5,
+      repeat: -1
+    })
+    this.anims.create({
+      key: 'wormPink_idle',
+      frames: [{ key: 'wormPink' }],
+      frameRate: 1,
+      repeat: -1
+    })
+    this.anims.create({
+      key: 'wormPink_move',
+      frames: [{ key: 'wormPink' }, { key: 'wormPink_walk' }],
+      frameRate: 5,
       repeat: -1
     })
 
@@ -223,25 +304,7 @@ export default class GameScene extends Phaser.Scene {
       const x = Phaser.Math.Between(300, 3000)
       const y = Phaser.Math.Between(200, 900)
       
-      const enemy = this.enemies.create(x, y, 'slimeGreen')
-      enemy.setBounce(0.3)
-      enemy.setCollideWorldBounds(true)
-      enemy.play('enemy_idle')
-      enemy.setData('detectionRange', 300)
-      enemy.setData('speed', 80)
-      enemy.setData('wanderDirection', Phaser.Math.Between(-1, 1))
-      enemy.setData('wanderTimer', 0)
-      enemy.setData('idleTimer', 0)
-      enemy.setData('health', 4)
-      enemy.setData('maxHealth', 4)
-      enemy.setData('spawnX', x)
-      enemy.setData('spawnY', y)
-      
-      enemy.body!.setSize(enemy.width * 0.7, enemy.height * 0.7)
-      enemy.body!.setOffset(enemy.width * 0.15, enemy.height * 0.15)
-      enemy.body!.setMass(1)
-      enemy.setPushable(true)
-      enemy.body!.setMaxVelocity(200, 600)
+      this.spawnRandomEnemy(x, y, 1.0)
     }
 
     // Create block fragments group
@@ -492,6 +555,35 @@ export default class GameScene extends Phaser.Scene {
     })
   }
 
+  private dropCoins(x: number, y: number, count: number) {
+    // Drop coins at the enemy's position
+    for (let i = 0; i < count; i++) {
+      // Spawn coin with slight delay and spread
+      this.time.delayedCall(i * 50, () => {
+        const offsetX = Phaser.Math.Between(-30, 30)
+        const offsetY = Phaser.Math.Between(-20, 0)
+        const coin = this.coins.create(x + offsetX, y + offsetY, 'coinGold')
+        coin.setBounce(0.7)
+        coin.setVelocity(
+          Phaser.Math.Between(-100, 100),
+          Phaser.Math.Between(-200, -100)
+        )
+        coin.setScale(0.5)
+        coin.setCollideWorldBounds(true)
+        coin.body.setAllowGravity(true)
+        
+        // Fade in animation
+        coin.setAlpha(0)
+        this.tweens.add({
+          targets: coin,
+          alpha: 1,
+          duration: 200,
+          ease: 'Cubic.easeOut'
+        })
+      })
+    }
+  }
+
   private generateWorld() {
     const tileSize = 70
     const floorY = 1100
@@ -709,26 +801,65 @@ export default class GameScene extends Phaser.Scene {
       const x = Phaser.Math.Between(startX + 100, endX - 100)
       const y = Phaser.Math.Between(200, 900)
       
-      const enemy = this.enemies.create(x, y, 'slimeGreen')
-      enemy.setBounce(0.3)
-      enemy.setCollideWorldBounds(true)
-      enemy.play('enemy_idle')
-      enemy.setData('detectionRange', 300)
-      enemy.setData('speed', 80 + (difficultyMultiplier - 1) * 20)
-      enemy.setData('wanderDirection', Phaser.Math.Between(-1, 1))
-      enemy.setData('wanderTimer', 0)
-      enemy.setData('idleTimer', 0)
-      enemy.setData('health', Math.floor(4 * difficultyMultiplier))
-      enemy.setData('maxHealth', Math.floor(4 * difficultyMultiplier))
-      enemy.setData('spawnX', x)
-      enemy.setData('spawnY', y)
-      
-      enemy.body!.setSize(enemy.width * 0.7, enemy.height * 0.7)
-      enemy.body!.setOffset(enemy.width * 0.15, enemy.height * 0.15)
-      enemy.body!.setMass(1)
-      enemy.setPushable(true)
-      enemy.body!.setMaxVelocity(200, 600)
+      this.spawnRandomEnemy(x, y, difficultyMultiplier)
     }
+  }
+
+  private spawnRandomEnemy(x: number, y: number, difficultyMultiplier: number) {
+    // Randomly select enemy size with weighted probability
+    const rand = Math.random()
+    let enemyType: string
+    let enemySize: 'small' | 'medium' | 'large'
+    let scale: number
+    let baseHealth: number
+    let coinReward: number
+    
+    if (rand < 0.4) {
+      // Small enemies (40% chance) - flies or bees
+      enemyType = Math.random() < 0.5 ? 'fly' : 'bee'
+      enemySize = 'small'
+      scale = 0.6
+      baseHealth = 2
+      coinReward = 5
+    } else if (rand < 0.8) {
+      // Medium enemies (40% chance) - slimes
+      enemyType = Math.random() < 0.5 ? 'slimeGreen' : 'slimeBlue'
+      enemySize = 'medium'
+      scale = 1.0
+      baseHealth = 4
+      coinReward = 10
+    } else {
+      // Large enemies (20% chance) - worms
+      enemyType = Math.random() < 0.5 ? 'wormGreen' : 'wormPink'
+      enemySize = 'large'
+      scale = 1.3
+      baseHealth = 8
+      coinReward = 15
+    }
+    
+    const enemy = this.enemies.create(x, y, enemyType)
+    enemy.setScale(scale)
+    enemy.setBounce(0.3)
+    enemy.setCollideWorldBounds(true)
+    enemy.play(`${enemyType}_idle`)
+    enemy.setData('enemyType', enemyType)
+    enemy.setData('enemySize', enemySize)
+    enemy.setData('coinReward', coinReward)
+    enemy.setData('detectionRange', 300)
+    enemy.setData('speed', 80 + (difficultyMultiplier - 1) * 20)
+    enemy.setData('wanderDirection', Phaser.Math.Between(-1, 1))
+    enemy.setData('wanderTimer', 0)
+    enemy.setData('idleTimer', 0)
+    enemy.setData('health', Math.floor(baseHealth * difficultyMultiplier))
+    enemy.setData('maxHealth', Math.floor(baseHealth * difficultyMultiplier))
+    enemy.setData('spawnX', x)
+    enemy.setData('spawnY', y)
+    
+    enemy.body!.setSize(enemy.width * 0.7, enemy.height * 0.7)
+    enemy.body!.setOffset(enemy.width * 0.15, enemy.height * 0.15)
+    enemy.body!.setMass(1)
+    enemy.setPushable(true)
+    enemy.body!.setMaxVelocity(200, 600)
   }
 
   private createCheckpoint(x: number) {
@@ -1710,10 +1841,19 @@ export default class GameScene extends Phaser.Scene {
     if (health <= 0) {
       const spawnX = enemySprite.getData('spawnX')
       const spawnY = enemySprite.getData('spawnY')
+      const enemyType = enemySprite.getData('enemyType')
+      const coinReward = enemySprite.getData('coinReward')
+      const scale = enemySprite.scaleX
       
-      // Death animation for slime
+      // Drop coins
+      this.dropCoins(enemySprite.x, enemySprite.y, coinReward)
+      
+      // Death animation
       enemySprite.setVelocity(0, 0)
-      enemySprite.setTexture('slimeGreen_dead')
+      const deadTexture = `${enemyType}_dead`
+      if (this.textures.exists(deadTexture)) {
+        enemySprite.setTexture(deadTexture)
+      }
       enemySprite.setTint(0xff0000)
       
       // Fade out and sink down
@@ -1721,35 +1861,20 @@ export default class GameScene extends Phaser.Scene {
         targets: enemySprite,
         alpha: 0,
         y: enemySprite.y + 20,
-        scaleX: 1.2,
-        scaleY: 0.8,
+        scaleX: scale * 1.2,
+        scaleY: scale * 0.8,
         duration: 500,
         onComplete: () => {
           enemySprite.destroy()
         }
       })
       
-      // Respawn after 5 seconds
+      // Respawn after 5 seconds with same type
       this.time.delayedCall(5000, () => {
-        const newEnemy = this.enemies.create(spawnX, spawnY, 'slimeGreen')
-        newEnemy.setBounce(0.3)
-        newEnemy.setCollideWorldBounds(true)
-        newEnemy.play('enemy_idle')
-        newEnemy.setData('detectionRange', 300)
-        newEnemy.setData('speed', 80)
-        newEnemy.setData('wanderDirection', Phaser.Math.Between(-1, 1))
-        newEnemy.setData('wanderTimer', 0)
-        newEnemy.setData('idleTimer', 0)
-        newEnemy.setData('health', 4)
-        newEnemy.setData('maxHealth', 4)
-        newEnemy.setData('spawnX', spawnX)
-        newEnemy.setData('spawnY', spawnY)
-        
-        newEnemy.body!.setSize(newEnemy.width * 0.7, newEnemy.height * 0.7)
-        newEnemy.body!.setOffset(newEnemy.width * 0.15, newEnemy.height * 0.15)
-        newEnemy.body!.setMass(1)
-        newEnemy.setPushable(true)
-        newEnemy.body!.setMaxVelocity(200, 600)
+        const difficultyMultiplier = this.gameMode === 'endless' 
+          ? 1 + Math.floor(this.player.x / 5000) * 0.2 
+          : 1 + (this.currentLevel - 1) * 0.3
+        this.spawnRandomEnemy(spawnX, spawnY, difficultyMultiplier)
       })
     }
   }
