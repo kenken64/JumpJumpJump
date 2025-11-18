@@ -17,6 +17,10 @@ test.describe('Campaign Mode', () => {
   });
 
   test('should load game scene and render canvas', async ({ page }) => {
+    // Wait for button to be visible before clicking
+    const campaignBtn = page.locator('[data-testid="campaign-mode-button"]');
+    await expect(campaignBtn).toBeVisible({ timeout: 10000 });
+
     await page.click('[data-testid="campaign-mode-button"]');
     await page.waitForTimeout(1500);
 

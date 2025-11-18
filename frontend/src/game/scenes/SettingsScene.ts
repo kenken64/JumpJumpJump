@@ -30,6 +30,9 @@ export class SettingsScene extends Phaser.Scene {
     const width = this.scale.width;
     const height = this.scale.height;
 
+    // Save settings to localStorage on scene creation to ensure they exist
+    SettingsScene.saveSettings();
+
     // Background
     this.add.rectangle(0, 0, width, height, 0x2c3e50).setOrigin(0);
 

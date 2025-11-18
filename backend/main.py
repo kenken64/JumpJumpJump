@@ -1,11 +1,12 @@
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel
-from typing import List, Optional
+from pydantic import BaseModel, Field
+from typing import List, Optional, Union
 import sqlite3
 from datetime import datetime
 import uvicorn
 import json
+import uuid
 
 app = FastAPI()
 
@@ -63,17 +64,32 @@ class ScoreResponse(BaseModel):
     created_at: str
 
 class CustomLane(BaseModel):
-    vehicleType: str
+    vehicleType: Union[str, None] = Field(None, alias='vehicle_type')
+    vehicle_type: Union[str, None] = None
     speed: int
-    direction: int
-    spawnInterval: int
+    direction: Union[int, str]
+    spawnInterval: Union[int, float, None] = Field(None, alias='spawn_interval')
+    spawn_interval: Union[int, float, None] = None
+
+    class Config:
+        populate_by_name = True
+
+    def model_post_init(self, __context):
+        # Handle either camelCase or snake_case
+        if self.vehicle_type and not self.vehicleType:
+            self.vehicleType = self.vehicle_type
+        if self.spawn_interval is not None and self.spawnInterval is None:
+            self.spawnInterval = self.spawn_interval
+        # Convert direction string to int if needed
+        if isinstance(self.direction, str):
+            self.direction = 1 if self.direction == 'right' else -1
 
 class CustomLevel(BaseModel):
-    id: str
+    id: Optional[str] = None
     name: str
     author: str
-    description: str
-    backgroundColor: int
+    description: Optional[str] = ""
+    backgroundColor: Optional[int] = 0x2c3e50
     lanes: List[CustomLane]
     createdAt: Optional[int] = None
 
@@ -190,19 +206,23 @@ async def save_custom_level(level_data: CustomLevel):
     """Save or update a custom level"""
     if not level_data.name or len(level_data.name.strip()) == 0:
         raise HTTPException(status_code=422, detail="Level name cannot be empty")
-    
+
     if not level_data.author or len(level_data.author.strip()) == 0:
         raise HTTPException(status_code=422, detail="Author name cannot be empty")
-    
+
     if len(level_data.lanes) == 0:
         raise HTTPException(status_code=422, detail="Level must have at least one lane")
 
     conn = sqlite3.connect('game_scores.db')
     cursor = conn.cursor()
 
+    # Generate ID if not provided
+    if not level_data.id:
+        level_data.id = str(uuid.uuid4())
+
     # Serialize lanes to JSON
     lanes_json = json.dumps([lane.model_dump() for lane in level_data.lanes])
-    
+
     # Check if level exists
     cursor.execute("SELECT id FROM custom_levels WHERE id = ?", (level_data.id,))
     existing = cursor.fetchone()

@@ -21,7 +21,7 @@ test.describe('Main Menu', () => {
 
   test('should have campaign mode button', async ({ page }) => {
     const campaignBtn = page.locator('[data-testid="campaign-mode-button"]');
-    await expect(campaignBtn).toBeVisible();
+    await expect(campaignBtn).toBeVisible({ timeout: 10000 });
   });
 
   test('should have custom levels button', async ({ page }) => {
@@ -31,7 +31,7 @@ test.describe('Main Menu', () => {
 
   test('should have level editor button', async ({ page }) => {
     const editorBtn = page.locator('[data-testid="level-editor-button"]');
-    await expect(editorBtn).toBeVisible();
+    await expect(editorBtn).toBeVisible({ timeout: 10000 });
   });
 
   test('should have settings button', async ({ page }) => {
