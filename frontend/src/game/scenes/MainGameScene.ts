@@ -45,6 +45,8 @@ export class MainGameScene extends Phaser.Scene {
   private cheatModeActive: boolean = false;
   private cheatModeText?: Phaser.GameObjects.Text;
   private isPlayerInvulnerable: boolean = false;
+  private isPaused: boolean = false;
+  private pausedText?: Phaser.GameObjects.Text;
   private roadProps: Phaser.GameObjects.Sprite[] = [];
   private availableProps = ['barrier.png', 'light.png', 'light_double.png', 'sign_blue.png', 'sign_red.png', 'sign_street.png'];
   private previousPlayerPosition: { x: number; y: number } = { x: 0, y: 0 };
@@ -363,6 +365,16 @@ export class MainGameScene extends Phaser.Scene {
       fontStyle: 'bold'
     }).setOrigin(0.5).setDepth(uiDepth).setVisible(false);
 
+    // Pause indicator (hidden by default)
+    this.pausedText = this.add.text(width / 2, height / 2, '⏸️ PAUSED ⏸️\n\nPress Ctrl+A to Resume', {
+      fontSize: '48px',
+      color: '#ffff00',
+      stroke: '#000000',
+      strokeThickness: 6,
+      fontStyle: 'bold',
+      align: 'center'
+    }).setOrigin(0.5).setDepth(uiDepth + 1).setVisible(false);
+
     // Instructions at bottom right
     this.add.text(width - 16, 32, 'ESC: Menu', {
       fontSize: '12px',
@@ -496,6 +508,7 @@ export class MainGameScene extends Phaser.Scene {
           const vehicleBounds = vehicle.sprite.getBounds();
 
           if (Phaser.Geom.Intersects.RectangleToRectangle(playerBounds, vehicleBounds)) {
+            this.createCollisionParticles(playerPos.x, playerPos.y, 0xff0000); // Red particles for vehicle collision
             this.handlePlayerHit();
             return;
           }
@@ -510,6 +523,7 @@ export class MainGameScene extends Phaser.Scene {
       const propBounds = prop.getBounds();
       
       if (Phaser.Geom.Intersects.RectangleToRectangle(playerBounds, propBounds)) {
+        this.createCollisionParticles(playerPos.x, playerPos.y, 0xffaa00); // Orange particles for obstacle collision
         // Block player movement - revert to previous position
         this.player.sprite.setPosition(this.previousPlayerPosition.x, this.previousPlayerPosition.y);
         return; // Exit early to prevent further collision checks this frame
@@ -521,6 +535,41 @@ export class MainGameScene extends Phaser.Scene {
 
     if (distanceToTree < 50) { // Within 50 pixels of the tree
       this.handleGoalReached();
+    }
+  }
+
+  private createCollisionParticles(x: number, y: number, color: number): void {
+    // Create a burst of particles at the collision point
+    const particleCount = 15;
+    const particles: Phaser.GameObjects.Graphics[] = [];
+
+    for (let i = 0; i < particleCount; i++) {
+      const particle = this.add.graphics();
+      particle.fillStyle(color, 1);
+      particle.fillCircle(0, 0, 3);
+      particle.setPosition(x, y);
+
+      // Random velocity for explosion effect
+      const angle = (Math.PI * 2 * i) / particleCount + Phaser.Math.FloatBetween(-0.3, 0.3);
+      const speed = Phaser.Math.FloatBetween(50, 150);
+      const vx = Math.cos(angle) * speed;
+      const vy = Math.sin(angle) * speed;
+
+      particles.push(particle);
+
+      // Animate particles
+      this.tweens.add({
+        targets: particle,
+        x: x + vx,
+        y: y + vy,
+        alpha: 0,
+        scale: 0.3,
+        duration: 500,
+        ease: 'Cubic.easeOut',
+        onComplete: () => {
+          particle.destroy();
+        }
+      });
     }
   }
 
@@ -1364,7 +1413,7 @@ export class MainGameScene extends Phaser.Scene {
     if (ctrlKey?.isDown && Phaser.Input.Keyboard.JustDown(cKey!)) {
       this.cheatModeActive = !this.cheatModeActive;
       this.cheatModeText?.setVisible(this.cheatModeActive);
-      
+
       // Add visual feedback to player when cheat mode is active
       if (this.cheatModeActive) {
         this.player.sprite.setAlpha(0.5); // Make player semi-transparent
@@ -1372,6 +1421,22 @@ export class MainGameScene extends Phaser.Scene {
       } else {
         this.player.sprite.setAlpha(1.0); // Restore full opacity
         this.player.sprite.clearTint(); // Remove tint
+      }
+    }
+
+    // Check for Ctrl+A to toggle pause
+    const aKey = this.input.keyboard?.addKey(Phaser.Input.Keyboard.KeyCodes.A);
+    if (ctrlKey?.isDown && Phaser.Input.Keyboard.JustDown(aKey!)) {
+      this.isPaused = !this.isPaused;
+      this.pausedText?.setVisible(this.isPaused);
+
+      // Pause/resume physics and animations
+      if (this.isPaused) {
+        this.physics.pause();
+        this.anims.pauseAll();
+      } else {
+        this.physics.resume();
+        this.anims.resumeAll();
       }
     }
 
@@ -1430,7 +1495,7 @@ export class MainGameScene extends Phaser.Scene {
       return;
     }
 
-    if (this.isGameOver || this.isLevelTransition) return;
+    if (this.isGameOver || this.isLevelTransition || this.isPaused) return;
 
     // Update player (but only if countdown is not active)
     if (!this.countdownActive) {

@@ -26,6 +26,8 @@ export class CustomGameScene extends Phaser.Scene {
   private livesText!: Phaser.GameObjects.Text;
   private gamepadText!: Phaser.GameObjects.Text;
   private isGameOver: boolean = false;
+  private isPaused: boolean = false;
+  private pausedText?: Phaser.GameObjects.Text;
   private goalY: number = 0;
   private goalX: number = 0;
   private treeGraphics: Phaser.GameObjects.GameObject[] = [];
@@ -253,6 +255,16 @@ export class CustomGameScene extends Phaser.Scene {
       strokeThickness: 2
     });
 
+    // Pause indicator (hidden by default)
+    this.pausedText = this.add.text(width / 2, height / 2, '⏸️ PAUSED ⏸️\n\nPress Ctrl+A to Resume', {
+      fontSize: '48px',
+      color: '#ffff00',
+      stroke: '#000000',
+      strokeThickness: 6,
+      fontStyle: 'bold',
+      align: 'center'
+    }).setOrigin(0.5).setDepth(1000).setVisible(false);
+
     // Exit button
     const exitBtn = this.add.text(width - 16, 48, '[ESC] Exit', {
       fontSize: '14px',
@@ -311,6 +323,7 @@ export class CustomGameScene extends Phaser.Scene {
         const vehicleBounds = vehicle.sprite.getBounds();
 
         if (Phaser.Geom.Intersects.RectangleToRectangle(playerBounds, vehicleBounds)) {
+          this.createCollisionParticles(playerPos.x, playerPos.y, 0xff0000); // Red particles for vehicle collision
           this.handlePlayerHit();
           return;
         }
@@ -320,6 +333,41 @@ export class CustomGameScene extends Phaser.Scene {
     // Check if player reached goal
     if (playerPos.y < 100) {
       this.handleGoalReached();
+    }
+  }
+
+  private createCollisionParticles(x: number, y: number, color: number): void {
+    // Create a burst of particles at the collision point
+    const particleCount = 15;
+    const particles: Phaser.GameObjects.Graphics[] = [];
+
+    for (let i = 0; i < particleCount; i++) {
+      const particle = this.add.graphics();
+      particle.fillStyle(color, 1);
+      particle.fillCircle(0, 0, 3);
+      particle.setPosition(x, y);
+
+      // Random velocity for explosion effect
+      const angle = (Math.PI * 2 * i) / particleCount + Phaser.Math.FloatBetween(-0.3, 0.3);
+      const speed = Phaser.Math.FloatBetween(50, 150);
+      const vx = Math.cos(angle) * speed;
+      const vy = Math.sin(angle) * speed;
+
+      particles.push(particle);
+
+      // Animate particles
+      this.tweens.add({
+        targets: particle,
+        x: x + vx,
+        y: y + vy,
+        alpha: 0,
+        scale: 0.3,
+        duration: 500,
+        ease: 'Cubic.easeOut',
+        onComplete: () => {
+          particle.destroy();
+        }
+      });
     }
   }
 
@@ -412,6 +460,23 @@ export class CustomGameScene extends Phaser.Scene {
       this.gamepadText.setText('Gamepad: Not connected');
     }
 
+    // Check for Ctrl+A to toggle pause
+    const ctrlKey = this.input.keyboard?.addKey(Phaser.Input.Keyboard.KeyCodes.CTRL);
+    const aKey = this.input.keyboard?.addKey(Phaser.Input.Keyboard.KeyCodes.A);
+    if (ctrlKey?.isDown && Phaser.Input.Keyboard.JustDown(aKey!)) {
+      this.isPaused = !this.isPaused;
+      this.pausedText?.setVisible(this.isPaused);
+
+      // Pause/resume physics and animations
+      if (this.isPaused) {
+        this.physics.pause();
+        this.anims.pauseAll();
+      } else {
+        this.physics.resume();
+        this.anims.resumeAll();
+      }
+    }
+
     // Handle exit
     if (inputState.pause) {
       this.scene.start('CustomLevelSelectScene');
@@ -427,7 +492,7 @@ export class CustomGameScene extends Phaser.Scene {
       return;
     }
 
-    if (this.isGameOver) return;
+    if (this.isGameOver || this.isPaused) return;
 
     // Update player
     this.player.update(inputState);
