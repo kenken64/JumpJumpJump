@@ -1,6 +1,8 @@
 import Phaser from 'phaser'
 
 export default class MenuScene extends Phaser.Scene {
+  private coinCount: number = 0
+
   constructor() {
     super('MenuScene')
   }
@@ -12,6 +14,10 @@ export default class MenuScene extends Phaser.Scene {
   }
 
   create() {
+    // Load coin count from localStorage
+    const savedCoins = localStorage.getItem('playerCoins')
+    this.coinCount = savedCoins ? parseInt(savedCoins) : 0
+    
     // Set background to black
     this.cameras.main.setBackgroundColor('#000000')
     
@@ -82,9 +88,29 @@ export default class MenuScene extends Phaser.Scene {
     })
     endlessButton.setOrigin(0.5)
     
-    // Blinking animation for both buttons
+    // Add shop button
+    const shopButton = this.add.text(640, 600, 'PRESS S: SHOP', {
+      fontSize: '28px',
+      color: '#ff00ff',
+      fontStyle: 'bold',
+      stroke: '#000000',
+      strokeThickness: 6
+    })
+    shopButton.setOrigin(0.5)
+    
+    // Add coin display in top right
+    this.add.image(1150, 50, 'coin').setScale(0.5)
+    this.add.text(1200, 50, `${this.coinCount}`, {
+      fontSize: '32px',
+      color: '#FFD700',
+      fontStyle: 'bold',
+      stroke: '#000000',
+      strokeThickness: 4
+    }).setOrigin(0, 0.5)
+    
+    // Blinking animation for all buttons
     this.tweens.add({
-      targets: [playButton, endlessButton],
+      targets: [playButton, endlessButton, shopButton],
       alpha: 0.3,
       duration: 800,
       yoyo: true,
@@ -93,14 +119,14 @@ export default class MenuScene extends Phaser.Scene {
     })
     
     // Add controls text
-    const controls = this.add.text(640, 620, 'WASD/Arrows: Move | W/Up: Jump | Click: Shoot', {
+    const controls = this.add.text(640, 650, 'WASD/Arrows: Move | W/Up: Jump | Click: Shoot', {
       fontSize: '18px',
       color: '#aaaaaa'
     })
     controls.setOrigin(0.5)
     
     // Add credits
-    const credits = this.add.text(640, 680, 'Assets by Kenney.nl', {
+    const credits = this.add.text(640, 690, 'Assets by Kenney.nl', {
       fontSize: '16px',
       color: '#666666'
     })
@@ -114,6 +140,11 @@ export default class MenuScene extends Phaser.Scene {
     // Start endless mode on E
     this.input.keyboard!.on('keydown-E', () => {
       this.scene.start('GameScene', { gameMode: 'endless', level: 1 })
+    })
+    
+    // Open shop on S
+    this.input.keyboard!.on('keydown-S', () => {
+      this.scene.start('ShopScene', { coins: this.coinCount })
     })
     
     // Click starts level 1

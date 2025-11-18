@@ -52,7 +52,6 @@ export default class GameScene extends Phaser.Scene {
   private gameMode: 'levels' | 'endless' = 'levels'
   private levelLength: number = 10000 // 100 meters per level
   private levelEndMarker!: Phaser.GameObjects.Rectangle | null
-  private levelText!: Phaser.GameObjects.Text
   private distanceText!: Phaser.GameObjects.Text
   private gameModeText!: Phaser.GameObjects.Text
 
@@ -144,7 +143,11 @@ export default class GameScene extends Phaser.Scene {
     this.playerIsDead = false
     this.playerHealth = 100
     this.playerLives = 3
-    this.coinCount = 0
+    
+    // Load coin count from localStorage
+    const savedCoins = localStorage.getItem('playerCoins')
+    this.coinCount = savedCoins ? parseInt(savedCoins) : 0
+    
     this.worldGenerationX = 0
     this.currentBiome = 'metal'
     this.biomeLength = 0
@@ -541,6 +544,9 @@ export default class GameScene extends Phaser.Scene {
     // Increment counter
     this.coinCount++
     this.coinText.setText(this.coinCount.toString())
+    
+    // Save coins to localStorage
+    localStorage.setItem('playerCoins', this.coinCount.toString())
     
     // Play collection particle effect
     this.coinParticles.emitParticleAt(coin.x, coin.y)

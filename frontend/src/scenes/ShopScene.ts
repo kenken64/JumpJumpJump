@@ -1,0 +1,290 @@
+import Phaser from 'phaser'
+
+interface ShopItem {
+  id: string
+  name: string
+  type: 'weapon' | 'skin'
+  price: number
+  icon: string
+  description: string
+}
+
+export default class ShopScene extends Phaser.Scene {
+  private coinCount: number = 0
+  private coinText!: Phaser.GameObjects.Text
+  private shopItems: ShopItem[] = []
+  private purchasedItems: Set<string> = new Set()
+
+  constructor() {
+    super('ShopScene')
+  }
+
+  init(data: { coins?: number }) {
+    this.coinCount = data.coins || this.loadCoins()
+    this.loadPurchasedItems()
+  }
+
+  preload() {
+    // Load shop item icons
+    this.load.image('laserGun', '/assets/kenney_sci-fi-rts/PNG/Default size/Unit/gun01.png')
+    this.load.image('sword', '/assets/kenney_sci-fi-rts/PNG/Default size/Unit/weapon05.png')
+    
+    // Load skin previews (using different alien colors)
+    this.load.image('skinBlue', '/assets/kenney_platformer-art-extended-enemies/Alien sprites/alienBlue_stand.png')
+    this.load.image('skinGreen', '/assets/kenney_platformer-art-extended-enemies/Alien sprites/alienGreen_stand.png')
+    this.load.image('skinPink', '/assets/kenney_platformer-art-extended-enemies/Alien sprites/alienPink_stand.png')
+    this.load.image('skinYellow', '/assets/kenney_platformer-art-extended-enemies/Alien sprites/alienYellow_stand.png')
+    
+    // Load coin icon
+    this.load.image('coin', '/assets/kenney_platformer-art-requests/Tiles/coinGold.png')
+  }
+
+  create() {
+    // Shop items catalog
+    this.shopItems = [
+      {
+        id: 'laserGun',
+        name: 'Laser Gun',
+        type: 'weapon',
+        price: 50,
+        icon: 'laserGun',
+        description: 'Rapid fire laser weapon'
+      },
+      {
+        id: 'sword',
+        name: 'Energy Sword',
+        type: 'weapon',
+        price: 50,
+        icon: 'sword',
+        description: 'Melee weapon for close combat'
+      },
+      {
+        id: 'skinBlue',
+        name: 'Blue Alien',
+        type: 'skin',
+        price: 50,
+        icon: 'skinBlue',
+        description: 'Cool blue alien skin'
+      },
+      {
+        id: 'skinGreen',
+        name: 'Green Alien',
+        type: 'skin',
+        price: 50,
+        icon: 'skinGreen',
+        description: 'Mysterious green alien skin'
+      },
+      {
+        id: 'skinPink',
+        name: 'Pink Alien',
+        type: 'skin',
+        price: 50,
+        icon: 'skinPink',
+        description: 'Cute pink alien skin'
+      },
+      {
+        id: 'skinYellow',
+        name: 'Yellow Alien',
+        type: 'skin',
+        price: 50,
+        icon: 'skinYellow',
+        description: 'Bright yellow alien skin'
+      }
+    ]
+
+    // Background
+    this.cameras.main.setBackgroundColor('#1a1a2e')
+
+    // Title
+    this.add.text(640, 50, 'SHOP', {
+      fontSize: '64px',
+      color: '#ffffff',
+      fontStyle: 'bold'
+    }).setOrigin(0.5)
+
+    // Coin display
+    this.add.image(500, 120, 'coin').setScale(0.4)
+    this.coinText = this.add.text(540, 120, `${this.coinCount}`, {
+      fontSize: '32px',
+      color: '#FFD700',
+      fontStyle: 'bold'
+    }).setOrigin(0, 0.5)
+
+    // Create shop grid
+    const startX = 200
+    const startY = 200
+    const spacing = 400
+    const rowSpacing = 250
+
+    this.shopItems.forEach((item, index) => {
+      const col = index % 3
+      const row = Math.floor(index / 3)
+      const x = startX + col * spacing
+      const y = startY + row * rowSpacing
+
+      this.createShopItem(item, x, y)
+    })
+
+    // Back button
+    const backButton = this.add.rectangle(640, 650, 200, 60, 0x4a4a4a)
+      .setInteractive({ useHandCursor: true })
+      .on('pointerover', () => backButton.setFillStyle(0x6a6a6a))
+      .on('pointerout', () => backButton.setFillStyle(0x4a4a4a))
+      .on('pointerdown', () => {
+        this.saveCoins()
+        this.scene.start('MenuScene')
+      })
+
+    this.add.text(640, 650, 'BACK TO MENU', {
+      fontSize: '24px',
+      color: '#ffffff',
+      fontStyle: 'bold'
+    }).setOrigin(0.5)
+  }
+
+  private createShopItem(item: ShopItem, x: number, y: number) {
+    const isPurchased = this.purchasedItems.has(item.id)
+    const canAfford = this.coinCount >= item.price
+
+    // Item background
+    const bg = this.add.rectangle(x, y, 120, 180, 0x2a2a3e, 0.8)
+
+    // Item icon
+    const icon = this.add.image(x, y - 40, item.icon)
+    icon.setScale(0.8)
+    icon.displayHeight = Math.min(icon.displayHeight, 60)
+    icon.scaleX = icon.scaleY
+
+    // Item name
+    this.add.text(x, y + 20, item.name, {
+      fontSize: '16px',
+      color: '#ffffff',
+      fontStyle: 'bold',
+      align: 'center'
+    }).setOrigin(0.5)
+
+    // Price or purchased status
+    if (isPurchased) {
+      this.add.text(x, y + 60, 'OWNED', {
+        fontSize: '18px',
+        color: '#00ff00',
+        fontStyle: 'bold'
+      }).setOrigin(0.5)
+    } else {
+      // Price display
+      const priceContainer = this.add.container(x, y + 60)
+      const coinIcon = this.add.image(0, 0, 'coin').setScale(0.2)
+      const priceText = this.add.text(15, 0, `${item.price}`, {
+        fontSize: '18px',
+        color: canAfford ? '#FFD700' : '#888888',
+        fontStyle: 'bold'
+      }).setOrigin(0, 0.5)
+      priceContainer.add([coinIcon, priceText])
+
+      // Buy button
+      const buttonColor = canAfford ? 0x00aa00 : 0x444444
+      const buyButton = this.add.rectangle(x, y + 60, 100, 30, buttonColor)
+        .setInteractive({ useHandCursor: canAfford })
+
+      if (canAfford) {
+        buyButton
+          .on('pointerover', () => buyButton.setFillStyle(0x00cc00))
+          .on('pointerout', () => buyButton.setFillStyle(0x00aa00))
+          .on('pointerdown', () => this.purchaseItem(item))
+      }
+
+      this.add.text(x, y + 60, 'BUY', {
+        fontSize: '16px',
+        color: canAfford ? '#ffffff' : '#666666',
+        fontStyle: 'bold'
+      }).setOrigin(0.5)
+    }
+
+    // Description tooltip on hover
+    bg.setInteractive({ useHandCursor: false })
+      .on('pointerover', () => {
+        this.showTooltip(item.description, x, y + 100)
+      })
+      .on('pointerout', () => {
+        this.hideTooltip()
+      })
+  }
+
+  private tooltipText?: Phaser.GameObjects.Text
+  private tooltipBg?: Phaser.GameObjects.Rectangle
+
+  private showTooltip(text: string, x: number, y: number) {
+    this.hideTooltip()
+    
+    this.tooltipBg = this.add.rectangle(x, y, 200, 40, 0x000000, 0.9)
+    this.tooltipText = this.add.text(x, y, text, {
+      fontSize: '12px',
+      color: '#ffffff',
+      align: 'center',
+      wordWrap: { width: 180 }
+    }).setOrigin(0.5)
+  }
+
+  private hideTooltip() {
+    if (this.tooltipText) {
+      this.tooltipText.destroy()
+      this.tooltipText = undefined
+    }
+    if (this.tooltipBg) {
+      this.tooltipBg.destroy()
+      this.tooltipBg = undefined
+    }
+  }
+
+  private purchaseItem(item: ShopItem) {
+    if (this.coinCount >= item.price && !this.purchasedItems.has(item.id)) {
+      this.coinCount -= item.price
+      this.purchasedItems.add(item.id)
+      
+      // Update display
+      this.coinText.setText(`${this.coinCount}`)
+      
+      // Save purchases
+      this.saveCoins()
+      this.savePurchasedItems()
+      
+      // Show success message
+      const successText = this.add.text(640, 300, `${item.name} Purchased!`, {
+        fontSize: '32px',
+        color: '#00ff00',
+        fontStyle: 'bold'
+      }).setOrigin(0.5)
+
+      this.tweens.add({
+        targets: successText,
+        alpha: 0,
+        y: 250,
+        duration: 2000,
+        onComplete: () => successText.destroy()
+      })
+
+      // Refresh shop display
+      this.scene.restart({ coins: this.coinCount })
+    }
+  }
+
+  private loadCoins(): number {
+    const saved = localStorage.getItem('playerCoins')
+    return saved ? parseInt(saved) : 0
+  }
+
+  private saveCoins() {
+    localStorage.setItem('playerCoins', this.coinCount.toString())
+  }
+
+  private loadPurchasedItems() {
+    const saved = localStorage.getItem('purchasedItems')
+    if (saved) {
+      this.purchasedItems = new Set(JSON.parse(saved))
+    }
+  }
+
+  private savePurchasedItems() {
+    localStorage.setItem('purchasedItems', JSON.stringify(Array.from(this.purchasedItems)))
+  }
+}

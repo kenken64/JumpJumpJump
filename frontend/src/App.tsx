@@ -3,6 +3,7 @@ import Phaser from 'phaser'
 import './App.css'
 import MenuScene from './scenes/MenuScene'
 import GameScene from './scenes/GameScene'
+import ShopScene from './scenes/ShopScene'
 
 function App() {
   const gameRef = useRef<HTMLDivElement>(null)
@@ -23,7 +24,7 @@ function App() {
             debug: false
           }
         },
-        scene: [MenuScene, GameScene],
+        scene: [MenuScene, GameScene, ShopScene],
         scale: {
           mode: Phaser.Scale.FIT,
           autoCenter: Phaser.Scale.CENTER_BOTH
