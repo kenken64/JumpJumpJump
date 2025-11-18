@@ -63,8 +63,8 @@ export default class MenuScene extends Phaser.Scene {
     })
     
     // Add play button text
-    const playButton = this.add.text(640, 500, 'PRESS SPACE TO START', {
-      fontSize: '32px',
+    const playButton = this.add.text(640, 480, 'PRESS SPACE: START LEVEL 1', {
+      fontSize: '28px',
       color: '#ffff00',
       fontStyle: 'bold',
       stroke: '#000000',
@@ -72,9 +72,19 @@ export default class MenuScene extends Phaser.Scene {
     })
     playButton.setOrigin(0.5)
     
-    // Blinking animation
+    // Add endless mode button
+    const endlessButton = this.add.text(640, 540, 'PRESS E: ENDLESS MODE', {
+      fontSize: '28px',
+      color: '#00ffff',
+      fontStyle: 'bold',
+      stroke: '#000000',
+      strokeThickness: 6
+    })
+    endlessButton.setOrigin(0.5)
+    
+    // Blinking animation for both buttons
     this.tweens.add({
-      targets: playButton,
+      targets: [playButton, endlessButton],
       alpha: 0.3,
       duration: 800,
       yoyo: true,
@@ -83,7 +93,7 @@ export default class MenuScene extends Phaser.Scene {
     })
     
     // Add controls text
-    const controls = this.add.text(640, 580, 'WASD/Arrows: Move | W/Up: Jump | Click: Shoot', {
+    const controls = this.add.text(640, 620, 'WASD/Arrows: Move | W/Up: Jump | Click: Shoot', {
       fontSize: '18px',
       color: '#aaaaaa'
     })
@@ -96,13 +106,19 @@ export default class MenuScene extends Phaser.Scene {
     })
     credits.setOrigin(0.5)
     
-    // Start game on spacebar or click
+    // Start level 1 on spacebar
     this.input.keyboard!.on('keydown-SPACE', () => {
-      this.scene.start('GameScene')
+      this.scene.start('GameScene', { gameMode: 'levels', level: 1 })
     })
     
+    // Start endless mode on E
+    this.input.keyboard!.on('keydown-E', () => {
+      this.scene.start('GameScene', { gameMode: 'endless', level: 1 })
+    })
+    
+    // Click starts level 1
     this.input.on('pointerdown', () => {
-      this.scene.start('GameScene')
+      this.scene.start('GameScene', { gameMode: 'levels', level: 1 })
     })
   }
 }

@@ -44,6 +44,17 @@ export default class GameScene extends Phaser.Scene {
   private lastGeneratedX: number = 0
   private spikes!: Phaser.Physics.Arcade.StaticGroup
   private spikePositions: Array<{x: number, y: number, width: number}> = []
+  private checkpoints: Array<{x: number, marker: Phaser.GameObjects.Rectangle}> = []
+  private lastCheckpointX: number = 0
+  private currentCheckpoint: number = 0
+  private checkpointInterval: number = 2000 // 20 meters = 2000 pixels
+  private currentLevel: number = 1
+  private gameMode: 'levels' | 'endless' = 'levels'
+  private levelLength: number = 10000 // 100 meters per level
+  private levelEndMarker!: Phaser.GameObjects.Rectangle | null
+  private levelText!: Phaser.GameObjects.Text
+  private distanceText!: Phaser.GameObjects.Text
+  private gameModeText!: Phaser.GameObjects.Text
 
   constructor() {
     super('GameScene')
@@ -105,6 +116,11 @@ export default class GameScene extends Phaser.Scene {
   }
 
   create() {
+    // Get game mode and level from scene data (passed from menu)
+    const data = this.scene.settings.data as any
+    this.gameMode = data?.gameMode || 'levels'
+    this.currentLevel = data?.level || 1
+    
     // Reset all state variables
     this.playerIsDead = false
     this.playerHealth = 100
@@ -120,6 +136,10 @@ export default class GameScene extends Phaser.Scene {
     this.lastShotTime = 0
     this.wasOnGround = false
     this.spikePositions = []
+    this.checkpoints = []
+    this.lastCheckpointX = 0
+    this.currentCheckpoint = 0
+    this.levelEndMarker = null
     
     // Set world bounds (infinite to the right)
     this.physics.world.setBounds(0, 0, 100000, 1200)
@@ -269,6 +289,26 @@ export default class GameScene extends Phaser.Scene {
   private createUI() {
     const startX = this.cameras.main.width - 20
     const startY = 20
+    
+    // Create game mode indicator (top left)
+    this.gameModeText = this.add.text(20, 20, this.gameMode === 'endless' ? 'MODE: ENDLESS' : `LEVEL ${this.currentLevel}`, {
+      fontSize: '28px',
+      color: this.gameMode === 'endless' ? '#00ffff' : '#00ff00',
+      fontStyle: 'bold',
+      stroke: '#000000',
+      strokeThickness: 4
+    })
+    this.gameModeText.setScrollFactor(0)
+    
+    // Create distance tracker (below mode)
+    this.distanceText = this.add.text(20, 55, 'Distance: 0m', {
+      fontSize: '20px',
+      color: '#ffffff',
+      fontStyle: 'bold',
+      stroke: '#000000',
+      strokeThickness: 3
+    })
+    this.distanceText.setScrollFactor(0)
     
     // Create lives counter (top right)
     this.livesText = this.add.text(startX, startY, `Lives: ${this.playerLives}`, {
@@ -656,7 +696,15 @@ export default class GameScene extends Phaser.Scene {
     // Don't spawn enemies on the starting platform (first 500 pixels)
     if (startX < 500) return
     
-    const numEnemies = Phaser.Math.Between(2, 3)
+    // Scale difficulty based on level
+    const difficultyMultiplier = this.gameMode === 'endless' 
+      ? 1 + Math.floor(this.player.x / 5000) * 0.2 
+      : 1 + (this.currentLevel - 1) * 0.3
+    
+    const baseEnemies = 2
+    const maxEnemies = Math.min(5, baseEnemies + Math.floor(difficultyMultiplier))
+    const numEnemies = Phaser.Math.Between(baseEnemies, maxEnemies)
+    
     for (let i = 0; i < numEnemies; i++) {
       const x = Phaser.Math.Between(startX + 100, endX - 100)
       const y = Phaser.Math.Between(200, 900)
@@ -666,12 +714,12 @@ export default class GameScene extends Phaser.Scene {
       enemy.setCollideWorldBounds(true)
       enemy.play('enemy_idle')
       enemy.setData('detectionRange', 300)
-      enemy.setData('speed', 80)
+      enemy.setData('speed', 80 + (difficultyMultiplier - 1) * 20)
       enemy.setData('wanderDirection', Phaser.Math.Between(-1, 1))
       enemy.setData('wanderTimer', 0)
       enemy.setData('idleTimer', 0)
-      enemy.setData('health', 4)
-      enemy.setData('maxHealth', 4)
+      enemy.setData('health', Math.floor(4 * difficultyMultiplier))
+      enemy.setData('maxHealth', Math.floor(4 * difficultyMultiplier))
       enemy.setData('spawnX', x)
       enemy.setData('spawnY', y)
       
@@ -683,21 +731,223 @@ export default class GameScene extends Phaser.Scene {
     }
   }
 
+  private createCheckpoint(x: number) {
+    // Create visual checkpoint marker (green pole)
+    const marker = this.add.rectangle(x, 600, 30, 400, 0x00ff00, 0.7)
+    marker.setOrigin(0.5, 1)
+    
+    // Add glow effect
+    const glow = this.add.circle(x, 400, 40, 0x00ff00, 0.3)
+    
+    // Pulse animation
+    this.tweens.add({
+      targets: [marker, glow],
+      alpha: 0.4,
+      scale: 1.1,
+      duration: 1000,
+      yoyo: true,
+      repeat: -1,
+      ease: 'Sine.easeInOut'
+    })
+    
+    // Add checkpoint text
+    const text = this.add.text(x, 350, 'CHECKPOINT', {
+      fontSize: '24px',
+      color: '#00ff00',
+      fontStyle: 'bold',
+      stroke: '#000000',
+      strokeThickness: 4
+    })
+    text.setOrigin(0.5)
+    
+    this.checkpoints.push({ x, marker })
+  }
+
+  private checkCheckpoints() {
+    // Check if player has passed a new checkpoint
+    for (let i = this.currentCheckpoint; i < this.checkpoints.length; i++) {
+      const checkpoint = this.checkpoints[i]
+      if (this.player.x >= checkpoint.x && i > this.currentCheckpoint) {
+        this.currentCheckpoint = i
+        
+        // Visual feedback
+        this.cameras.main.flash(200, 0, 255, 0)
+        
+        // Sound effect (screen shake)
+        this.cameras.main.shake(150, 0.003)
+        
+        // Heal player a bit
+        this.playerHealth = Math.min(this.maxHealth, this.playerHealth + 20)
+        
+        // Show notification
+        const notif = this.add.text(this.cameras.main.centerX, 200, 'CHECKPOINT REACHED!\n+20 HP', {
+          fontSize: '32px',
+          color: '#00ff00',
+          fontStyle: 'bold',
+          stroke: '#000000',
+          strokeThickness: 6,
+          align: 'center'
+        })
+        notif.setOrigin(0.5)
+        notif.setScrollFactor(0)
+        
+        this.tweens.add({
+          targets: notif,
+          alpha: 0,
+          y: 150,
+          duration: 2000,
+          ease: 'Power2',
+          onComplete: () => notif.destroy()
+        })
+        
+        break
+      }
+    }
+  }
+
+  private createLevelEndMarker() {
+    const endX = this.levelLength
+    
+    // Create finish line
+    const finishLine = this.add.rectangle(endX, 600, 50, 400, 0xffff00, 0.8)
+    finishLine.setOrigin(0.5, 1)
+    
+    // Add flag
+    const flag = this.add.triangle(endX, 250, 0, 0, 50, 25, 0, 50, 0xffff00)
+    
+    // Wave animation
+    this.tweens.add({
+      targets: [finishLine, flag],
+      scaleX: 1.2,
+      duration: 500,
+      yoyo: true,
+      repeat: -1,
+      ease: 'Sine.easeInOut'
+    })
+    
+    // Add text
+    const text = this.add.text(endX, 180, 'FINISH', {
+      fontSize: '48px',
+      color: '#ffff00',
+      fontStyle: 'bold',
+      stroke: '#000000',
+      strokeThickness: 8
+    })
+    text.setOrigin(0.5)
+    
+    this.levelEndMarker = finishLine
+  }
+
+  private checkLevelComplete() {
+    if (!this.levelEndMarker) return
+    
+    // Check if player reached the end
+    if (this.player.x >= this.levelLength) {
+      this.showLevelComplete()
+    }
+  }
+
+  private showLevelComplete() {
+    this.playerIsDead = true // Stop player movement
+    
+    // Stop player
+    this.player.setVelocity(0, 0)
+    
+    // Create completion screen
+    const bg = this.add.rectangle(640, 360, 1280, 720, 0x000000, 0.8)
+    bg.setScrollFactor(0)
+    bg.setDepth(1000)
+    
+    const title = this.add.text(640, 200, 'LEVEL COMPLETE!', {
+      fontSize: '72px',
+      color: '#ffff00',
+      fontStyle: 'bold',
+      stroke: '#000000',
+      strokeThickness: 8
+    })
+    title.setOrigin(0.5)
+    title.setScrollFactor(0)
+    title.setDepth(1001)
+    
+    const stats = this.add.text(640, 320, 
+      `Coins Collected: ${this.coinCount}\nLives Remaining: ${this.playerLives}\n\nNext Level: ${this.currentLevel + 1}`, {
+      fontSize: '32px',
+      color: '#ffffff',
+      fontStyle: 'bold',
+      stroke: '#000000',
+      strokeThickness: 4,
+      align: 'center'
+    })
+    stats.setOrigin(0.5)
+    stats.setScrollFactor(0)
+    stats.setDepth(1001)
+    
+    const nextText = this.add.text(640, 520, 'Press SPACE for Next Level\nPress E for Endless Mode\nPress M for Menu', {
+      fontSize: '24px',
+      color: '#00ff00',
+      stroke: '#000000',
+      strokeThickness: 4,
+      align: 'center'
+    })
+    nextText.setOrigin(0.5)
+    nextText.setScrollFactor(0)
+    nextText.setDepth(1001)
+    
+    // Blinking animation
+    this.tweens.add({
+      targets: nextText,
+      alpha: 0.3,
+      duration: 800,
+      yoyo: true,
+      repeat: -1
+    })
+    
+    // Input handlers
+    this.input.keyboard!.once('keydown-SPACE', () => {
+      this.tweens.killAll()
+      this.scene.restart({ gameMode: 'levels', level: this.currentLevel + 1 })
+    })
+    
+    this.input.keyboard!.once('keydown-E', () => {
+      this.tweens.killAll()
+      this.scene.restart({ gameMode: 'endless', level: 1 })
+    })
+    
+    this.input.keyboard!.once('keydown-M', () => {
+      this.tweens.killAll()
+      this.scene.start('MenuScene')
+    })
+  }
+
   update() {
     // Player movement
     this.handlePlayerMovement()
     
     // Generate new world chunks as player moves forward
     if (this.player.x > this.lastGeneratedX - 1600) {
-      this.generateChunk(this.worldGenerationX)
-      this.worldGenerationX += 800
-      this.lastGeneratedX = this.worldGenerationX
+      // Check if we need to stop generation (levels mode only)
+      const shouldGenerate = this.gameMode === 'endless' || this.worldGenerationX < this.levelLength
       
-      // Spawn coins in new area
-      this.spawnCoinsInArea(this.worldGenerationX - 800, this.worldGenerationX)
+      if (shouldGenerate) {
+        this.generateChunk(this.worldGenerationX)
+        this.worldGenerationX += 800
+        this.lastGeneratedX = this.worldGenerationX
+        
+        // Spawn coins in new area
+        this.spawnCoinsInArea(this.worldGenerationX - 800, this.worldGenerationX)
+        
+        // Spawn enemies in new area with difficulty scaling
+        this.spawnEnemiesInArea(this.worldGenerationX - 800, this.worldGenerationX)
+      } else if (!this.levelEndMarker) {
+        // Create level end marker
+        this.createLevelEndMarker()
+      }
       
-      // Spawn enemies in new area
-      this.spawnEnemiesInArea(this.worldGenerationX - 800, this.worldGenerationX)
+      // Generate checkpoints every 20 meters
+      if (this.player.x > this.lastCheckpointX + this.checkpointInterval) {
+        this.createCheckpoint(this.lastCheckpointX + this.checkpointInterval)
+        this.lastCheckpointX += this.checkpointInterval
+      }
     }
     
     // Update gun position and aiming
@@ -718,11 +968,23 @@ export default class GameScene extends Phaser.Scene {
     // Check spike collision with custom hitbox
     this.checkSpikeCollision()
     
+    // Check for checkpoint activation
+    this.checkCheckpoints()
+    
+    // Check for level completion (only in levels mode)
+    if (this.gameMode === 'levels') {
+      this.checkLevelComplete()
+    }
+    
     // Update UI
     this.updateUI()
   }
 
   private updateUI() {
+    // Update distance
+    const distanceMeters = Math.floor(this.player.x / 100)
+    this.distanceText.setText(`Distance: ${distanceMeters}m`)
+    
     // Update health bar
     const healthPercent = this.playerHealth / this.maxHealth
     const healthBarMaxWidth = 200
@@ -1157,7 +1419,9 @@ export default class GameScene extends Phaser.Scene {
   }
 
   private respawnPlayer() {
-    this.player.setPosition(this.playerSpawnX, this.playerSpawnY)
+    // Reset player position to last checkpoint
+    const checkpointX = this.checkpoints[this.currentCheckpoint]?.x || this.playerSpawnX
+    this.player.setPosition(checkpointX, this.playerSpawnY)
     this.player.setAlpha(1)
     this.player.setTexture('alienBeige_stand')
     this.player.setGravityY(200)
