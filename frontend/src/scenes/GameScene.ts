@@ -42,6 +42,8 @@ export default class GameScene extends Phaser.Scene {
   private currentBiome: 'metal' | 'stone' | 'dirt' = 'metal'
   private biomeLength: number = 0
   private lastGeneratedX: number = 0
+  private spikes!: Phaser.Physics.Arcade.StaticGroup
+  private spikePositions: Array<{x: number, y: number, width: number}> = []
 
   constructor() {
     super('GameScene')
@@ -97,9 +99,28 @@ export default class GameScene extends Phaser.Scene {
     
     // Load particle (using laser burst for particles)
     this.load.image('particle', '/assets/kenney_platformer-art-requests/Tiles/laserYellowBurst.png')
+    
+    // Load spikes
+    this.load.image('spikes', '/assets/kenney_platformer-art-requests/Tiles/spikes.png')
   }
 
   create() {
+    // Reset all state variables
+    this.playerIsDead = false
+    this.playerHealth = 100
+    this.playerLives = 3
+    this.coinCount = 0
+    this.worldGenerationX = 0
+    this.currentBiome = 'metal'
+    this.biomeLength = 0
+    this.lastGeneratedX = 0
+    this.canDoubleJump = true
+    this.hasDoubleJumped = false
+    this.isStomping = false
+    this.lastShotTime = 0
+    this.wasOnGround = false
+    this.spikePositions = []
+    
     // Set world bounds (infinite to the right)
     this.physics.world.setBounds(0, 0, 100000, 1200)
     this.cameras.main.setBounds(0, 0, 100000, 1200)
@@ -109,6 +130,7 @@ export default class GameScene extends Phaser.Scene {
 
     // Create platforms with procedural generation
     this.platforms = this.physics.add.staticGroup()
+    this.spikes = this.physics.add.staticGroup()
     this.generateWorld()
 
     // Create player animations FIRST before creating the player sprite
@@ -225,6 +247,8 @@ export default class GameScene extends Phaser.Scene {
     
     // Setup coin collection
     this.physics.add.overlap(this.player, this.coins, this.collectCoin as any, undefined, this)
+    
+    // No collider with spikes - we'll handle manually in update
 
     // Setup input
     this.cursors = this.input.keyboard!.createCursorKeys()
@@ -532,9 +556,24 @@ export default class GameScene extends Phaser.Scene {
           platform.refreshBody()
         }
         currentX += Phaser.Math.Between(200, 350)
-      } else {
+      } else if (structureType < 0.85) {
         // Gap (no structure)
         currentX += Phaser.Math.Between(150, 250)
+      } else {
+        // Spike trap on floor
+        const spikeWidth = Phaser.Math.Between(2, 4)
+        for (let i = 0; i < spikeWidth; i++) {
+          const spike = this.spikes.create(currentX + i * tileSize, floorY - tileSize, 'spikes')
+          spike.setOrigin(0, 0.5)
+          spike.refreshBody()
+        }
+        // Track spike position for coin spawn prevention
+        this.spikePositions.push({
+          x: currentX,
+          y: floorY - tileSize,
+          width: spikeWidth * tileSize
+        })
+        currentX += Phaser.Math.Between(150, 300)
       }
     }
   }
@@ -573,8 +612,19 @@ export default class GameScene extends Phaser.Scene {
   private spawnCoinsInArea(startX: number, endX: number) {
     const numCoins = Phaser.Math.Between(2, 4)
     for (let i = 0; i < numCoins; i++) {
-      const x = Phaser.Math.Between(startX + 100, endX - 100)
-      const y = Phaser.Math.Between(400, 900)
+      let x = Phaser.Math.Between(startX + 100, endX - 100)
+      let y = Phaser.Math.Between(400, 900)
+      
+      // Check if coin would spawn on spikes, retry if so
+      let retries = 0
+      while (retries < 5 && this.isOnSpikes(x, y)) {
+        x = Phaser.Math.Between(startX + 100, endX - 100)
+        y = Phaser.Math.Between(400, 900)
+        retries++
+      }
+      
+      // Skip if still on spikes after retries
+      if (this.isOnSpikes(x, y)) continue
       
       const coin = this.coins.create(x, y, 'coin')
       coin.setScale(0.5)
@@ -664,6 +714,9 @@ export default class GameScene extends Phaser.Scene {
 
     // Update stomp mechanic
     this.handleStompMechanic()
+    
+    // Check spike collision with custom hitbox
+    this.checkSpikeCollision()
     
     // Update UI
     this.updateUI()
@@ -1166,6 +1219,8 @@ export default class GameScene extends Phaser.Scene {
     
     // Restart on space
     this.input.keyboard!.once('keydown-SPACE', () => {
+      // Clear all tweens before restart
+      this.tweens.killAll()
       this.scene.restart()
     })
   }
@@ -1243,6 +1298,75 @@ export default class GameScene extends Phaser.Scene {
         bullet.setData('angle', gunAngle)
       }
     }
+  }
+
+  private isOnSpikes(x: number, y: number): boolean {
+    for (const spike of this.spikePositions) {
+      if (x >= spike.x && x <= spike.x + spike.width &&
+          Math.abs(y - spike.y) < 100) {
+        return true
+      }
+    }
+    return false
+  }
+
+  private checkSpikeCollision() {
+    if (this.playerIsDead) return
+    
+    // Check if player's feet (bottom) touch spike tips (top)
+    const playerBottom = this.player.y + (this.player.height / 2)
+    const playerLeft = this.player.x - (this.player.width / 4)
+    const playerRight = this.player.x + (this.player.width / 4)
+    
+    // Check if player has invincibility frames
+    const lastHitTime = this.player.getData('lastHitTime') || 0
+    const currentTime = this.time.now
+    const invincibilityDuration = 1000 // 1 second of invincibility
+
+    if (currentTime - lastHitTime < invincibilityDuration) {
+      return // Player is still invincible
+    }
+    
+    this.spikes.children.entries.forEach((spike: any) => {
+      const spikeSprite = spike as Phaser.Physics.Arcade.Sprite
+      const spikeTop = spikeSprite.y - (spikeSprite.height / 2) + 10 // Only top 10px are dangerous
+      const spikeLeft = spikeSprite.x - (spikeSprite.width / 2)
+      const spikeRight = spikeSprite.x + (spikeSprite.width / 2)
+      
+      // Check if player's feet overlap with spike tips
+      if (playerBottom >= spikeTop && playerBottom <= spikeTop + 20 &&
+          playerRight >= spikeLeft && playerLeft <= spikeRight) {
+        
+        // Player takes damage
+        this.playerHealth -= 15
+        this.player.setData('lastHitTime', currentTime)
+
+        // Check if player died
+        if (this.playerHealth <= 0) {
+          this.playerHealth = 0
+          this.handlePlayerDeath()
+          return
+        }
+
+        // Flash player red
+        this.player.setTint(0xff0000)
+        this.time.delayedCall(100, () => {
+          this.player.setTint(0xffffff)
+          this.time.delayedCall(100, () => {
+            this.player.setTint(0xff0000)
+            this.time.delayedCall(100, () => {
+              this.player.setTint(0xffffff)
+            })
+          })
+        })
+        
+        // Knockback effect
+        this.player.setVelocityY(-300)
+        
+        // Screen shake effect
+        this.cameras.main.shake(100, 0.005)
+      }
+    })
   }
 
   private updateBullets() {
