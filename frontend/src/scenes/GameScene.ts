@@ -52,6 +52,7 @@ export default class GameScene extends Phaser.Scene {
   private gameMode: 'levels' | 'endless' = 'levels'
   private levelLength: number = 10000 // 100 meters per level
   private levelEndMarker!: Phaser.GameObjects.Rectangle | null
+  private portal!: Phaser.Physics.Arcade.Sprite | null
   private distanceText!: Phaser.GameObjects.Text
   private gameModeText!: Phaser.GameObjects.Text
 
@@ -131,6 +132,10 @@ export default class GameScene extends Phaser.Scene {
     
     // Load spikes
     this.load.image('spikes', '/assets/kenney_platformer-art-requests/Tiles/spikes.png')
+    
+    // Load portal sprite
+    this.load.image('portal', '/assets/kenney_sci-fi-rts/PNG/Default size/Structure/barricadeLarge.png')
+    this.load.image('homeIcon', '/assets/kenney_ui-pack-space-expansion/PNG/Blue/Default/button_home.png')
   }
 
   create() {
@@ -162,6 +167,7 @@ export default class GameScene extends Phaser.Scene {
     this.lastCheckpointX = 0
     this.currentCheckpoint = 0
     this.levelEndMarker = null
+    this.portal = null
     
     // Set world bounds (infinite to the right)
     this.physics.world.setBounds(0, 0, 100000, 1200)
@@ -454,6 +460,19 @@ export default class GameScene extends Phaser.Scene {
       strokeThickness: 4
     })
     this.coinText.setScrollFactor(0)
+    
+    // Create home button (top-right)
+    const homeButton = this.add.image(1230, 30, 'homeIcon')
+    homeButton.setScrollFactor(0)
+    homeButton.setScale(0.8)
+    homeButton.setInteractive({ useHandCursor: true })
+    homeButton.on('pointerover', () => homeButton.setScale(0.9))
+    homeButton.on('pointerout', () => homeButton.setScale(0.8))
+    homeButton.on('pointerdown', () => {
+      // Save coins before returning to menu
+      localStorage.setItem('playerCoins', this.coinCount.toString())
+      this.scene.start('MenuScene')
+    })
     
     // Create particle emitters
     this.jumpParticles = this.add.particles(0, 0, 'particle', {
@@ -945,34 +964,94 @@ export default class GameScene extends Phaser.Scene {
   private createLevelEndMarker() {
     const endX = this.levelLength
     
-    // Create finish line
-    const finishLine = this.add.rectangle(endX, 600, 50, 400, 0xffff00, 0.8)
-    finishLine.setOrigin(0.5, 1)
+    // Create portal sprite
+    this.portal = this.physics.add.sprite(endX, 450, 'portal')
+    this.portal.setScale(1.5)
+    this.portal.setImmovable(true)
+    if (this.portal.body) {
+      (this.portal.body as Phaser.Physics.Arcade.Body).setAllowGravity(false)
+    }
     
-    // Add flag
-    const flag = this.add.triangle(endX, 250, 0, 0, 50, 25, 0, 50, 0xffff00)
+    // Portal glow effect
+    const glow1 = this.add.circle(endX, 450, 80, 0x00ffff, 0.3)
+    const glow2 = this.add.circle(endX, 450, 100, 0x0088ff, 0.2)
     
-    // Wave animation
+    // Pulsing animation
     this.tweens.add({
-      targets: [finishLine, flag],
-      scaleX: 1.2,
-      duration: 500,
+      targets: [glow1, glow2],
+      alpha: 0.1,
+      scale: 1.2,
+      duration: 1000,
       yoyo: true,
       repeat: -1,
       ease: 'Sine.easeInOut'
     })
     
-    // Add text
-    const text = this.add.text(endX, 180, 'FINISH', {
-      fontSize: '48px',
-      color: '#ffff00',
+    // Rotating animation for portal
+    this.tweens.add({
+      targets: this.portal,
+      angle: 360,
+      duration: 3000,
+      repeat: -1,
+      ease: 'Linear'
+    })
+    
+    // Add text above portal
+    const text = this.add.text(endX, 320, 'PORTAL\nEnter to\nNext Level', {
+      fontSize: '24px',
+      color: '#00ffff',
       fontStyle: 'bold',
       stroke: '#000000',
-      strokeThickness: 8
+      strokeThickness: 4,
+      align: 'center'
     })
     text.setOrigin(0.5)
     
-    this.levelEndMarker = finishLine
+    // Text floating animation
+    this.tweens.add({
+      targets: text,
+      y: 310,
+      duration: 1500,
+      yoyo: true,
+      repeat: -1,
+      ease: 'Sine.easeInOut'
+    })
+    
+    // Add collision detection
+    this.physics.add.overlap(this.player, this.portal, () => {
+      if (this.portal && this.portal.active) {
+        this.portal.active = false
+        this.enterPortal()
+      }
+    })
+    
+    this.levelEndMarker = this.add.rectangle(endX, 600, 50, 400, 0xffff00, 0) // Invisible marker for reference
+  }
+
+  private enterPortal() {
+    if (this.playerIsDead) return
+    this.playerIsDead = true
+    
+    // Save coins before transitioning
+    localStorage.setItem('playerCoins', this.coinCount.toString())
+    
+    // Portal entry effect
+    this.cameras.main.flash(500, 0, 255, 255)
+    this.player.setTint(0x00ffff)
+    
+    // Scale down player into portal
+    this.tweens.add({
+      targets: this.player,
+      scale: 0,
+      alpha: 0,
+      duration: 500,
+      ease: 'Power2'
+    })
+    
+    // Wait for animation then transition
+    this.time.delayedCall(600, () => {
+      this.scene.restart({ gameMode: 'levels', level: this.currentLevel + 1 })
+    })
   }
 
   private checkLevelComplete() {

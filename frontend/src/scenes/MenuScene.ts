@@ -68,35 +68,53 @@ export default class MenuScene extends Phaser.Scene {
       ease: 'Linear'
     })
     
-    // Add play button text
-    const playButton = this.add.text(640, 480, 'PRESS SPACE: START LEVEL 1', {
-      fontSize: '28px',
-      color: '#ffff00',
-      fontStyle: 'bold',
-      stroke: '#000000',
-      strokeThickness: 6
+    // Create Level Mode Button
+    const levelButton = this.add.rectangle(640, 470, 300, 60, 0x00aa00)
+    levelButton.setInteractive({ useHandCursor: true })
+    levelButton.on('pointerover', () => levelButton.setFillStyle(0x00ff00))
+    levelButton.on('pointerout', () => levelButton.setFillStyle(0x00aa00))
+    levelButton.on('pointerdown', () => {
+      this.scene.start('GameScene', { gameMode: 'levels', level: 1 })
     })
-    playButton.setOrigin(0.5)
     
-    // Add endless mode button
-    const endlessButton = this.add.text(640, 540, 'PRESS E: ENDLESS MODE', {
-      fontSize: '28px',
-      color: '#00ffff',
-      fontStyle: 'bold',
-      stroke: '#000000',
-      strokeThickness: 6
+    const levelText = this.add.text(640, 470, 'LEVEL MODE', {
+      fontSize: '32px',
+      color: '#ffffff',
+      fontStyle: 'bold'
     })
-    endlessButton.setOrigin(0.5)
+    levelText.setOrigin(0.5)
     
-    // Add shop button
-    const shopButton = this.add.text(640, 600, 'PRESS S: SHOP', {
-      fontSize: '28px',
-      color: '#ff00ff',
-      fontStyle: 'bold',
-      stroke: '#000000',
-      strokeThickness: 6
+    // Create Endless Mode Button
+    const endlessButton = this.add.rectangle(640, 550, 300, 60, 0x0088aa)
+    endlessButton.setInteractive({ useHandCursor: true })
+    endlessButton.on('pointerover', () => endlessButton.setFillStyle(0x00ccff))
+    endlessButton.on('pointerout', () => endlessButton.setFillStyle(0x0088aa))
+    endlessButton.on('pointerdown', () => {
+      this.scene.start('GameScene', { gameMode: 'endless', level: 1 })
     })
-    shopButton.setOrigin(0.5)
+    
+    const endlessText = this.add.text(640, 550, 'ENDLESS MODE', {
+      fontSize: '32px',
+      color: '#ffffff',
+      fontStyle: 'bold'
+    })
+    endlessText.setOrigin(0.5)
+    
+    // Create Shop Button
+    const shopButton = this.add.rectangle(640, 630, 300, 60, 0xaa00aa)
+    shopButton.setInteractive({ useHandCursor: true })
+    shopButton.on('pointerover', () => shopButton.setFillStyle(0xff00ff))
+    shopButton.on('pointerout', () => shopButton.setFillStyle(0xaa00aa))
+    shopButton.on('pointerdown', () => {
+      this.scene.start('ShopScene', { coins: this.coinCount })
+    })
+    
+    const shopText = this.add.text(640, 630, 'SHOP', {
+      fontSize: '32px',
+      color: '#ffffff',
+      fontStyle: 'bold'
+    })
+    shopText.setOrigin(0.5)
     
     // Add coin display in top right
     this.add.image(1150, 50, 'coin').setScale(0.5)
@@ -108,48 +126,18 @@ export default class MenuScene extends Phaser.Scene {
       strokeThickness: 4
     }).setOrigin(0, 0.5)
     
-    // Blinking animation for all buttons
-    this.tweens.add({
-      targets: [playButton, endlessButton, shopButton],
-      alpha: 0.3,
-      duration: 800,
-      yoyo: true,
-      repeat: -1,
-      ease: 'Sine.easeInOut'
-    })
-    
-    // Add controls text
-    const controls = this.add.text(640, 650, 'WASD/Arrows: Move | W/Up: Jump | Click: Shoot', {
+    // Add controls text (moved up)
+    const controls = this.add.text(640, 260, 'WASD/Arrows: Move | W/Up: Jump | Click: Shoot', {
       fontSize: '18px',
       color: '#aaaaaa'
     })
     controls.setOrigin(0.5)
     
     // Add credits
-    const credits = this.add.text(640, 690, 'Assets by Kenney.nl', {
+    const credits = this.add.text(640, 700, 'Assets by Kenney.nl', {
       fontSize: '16px',
       color: '#666666'
     })
     credits.setOrigin(0.5)
-    
-    // Start level 1 on spacebar
-    this.input.keyboard!.on('keydown-SPACE', () => {
-      this.scene.start('GameScene', { gameMode: 'levels', level: 1 })
-    })
-    
-    // Start endless mode on E
-    this.input.keyboard!.on('keydown-E', () => {
-      this.scene.start('GameScene', { gameMode: 'endless', level: 1 })
-    })
-    
-    // Open shop on S
-    this.input.keyboard!.on('keydown-S', () => {
-      this.scene.start('ShopScene', { coins: this.coinCount })
-    })
-    
-    // Click starts level 1
-    this.input.on('pointerdown', () => {
-      this.scene.start('GameScene', { gameMode: 'levels', level: 1 })
-    })
   }
 }
