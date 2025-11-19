@@ -55,6 +55,10 @@ export default class GameScene extends Phaser.Scene {
   private portal!: Phaser.Physics.Arcade.Sprite | null
   private distanceText!: Phaser.GameObjects.Text
   private gameModeText!: Phaser.GameObjects.Text
+  private boss!: Phaser.Physics.Arcade.Sprite | null
+  private bossActive: boolean = false
+  private bossHealthBar!: Phaser.GameObjects.Rectangle | null
+  private bossHealthBarBg!: Phaser.GameObjects.Rectangle | null
 
   constructor() {
     super('GameScene')
@@ -144,6 +148,17 @@ export default class GameScene extends Phaser.Scene {
     this.load.image('planet03', '/assets/kenny_planets/Planets/planet03.png')
     this.load.image('planet04', '/assets/kenny_planets/Planets/planet04.png')
     this.load.image('planet05', '/assets/kenny_planets/Planets/planet05.png')
+    
+    // Load boss spritesheet
+    this.load.spritesheet('geminiBoss', '/assets/gemini-boss-spritesheet.png', {
+      frameWidth: 128,
+      frameHeight: 128
+    })
+    
+    // Load power-up sprites
+    this.load.image('powerSpeed', '/assets/kenney_platformer-art-requests/Tiles/powerupYellow.png')
+    this.load.image('powerShield', '/assets/kenney_platformer-art-requests/Tiles/powerupBlue.png')
+    this.load.image('powerLife', '/assets/kenney_platformer-art-requests/Tiles/powerupGreen.png')
   }
 
   create() {
@@ -227,6 +242,12 @@ export default class GameScene extends Phaser.Scene {
       repeat: -1,
       ease: 'Linear'
     })
+    
+    // Initialize boss variables
+    this.boss = null
+    this.bossActive = false
+    this.bossHealthBar = null
+    this.bossHealthBarBg = null
     
     // Set world bounds (infinite to the right)
     this.physics.world.setBounds(0, 0, 100000, 1200)
@@ -361,6 +382,20 @@ export default class GameScene extends Phaser.Scene {
       frames: [{ key: 'wormPink' }, { key: 'wormPink_walk' }],
       frameRate: 5,
       repeat: -1
+    })
+    
+    // Boss animations
+    this.anims.create({
+      key: 'boss_idle',
+      frames: this.anims.generateFrameNumbers('geminiBoss', { start: 0, end: 3 }),
+      frameRate: 6,
+      repeat: -1
+    })
+    this.anims.create({
+      key: 'boss_attack',
+      frames: this.anims.generateFrameNumbers('geminiBoss', { start: 4, end: 7 }),
+      frameRate: 10,
+      repeat: 0
     })
 
     // Create enemies
@@ -946,6 +981,220 @@ export default class GameScene extends Phaser.Scene {
     enemy.body!.setMaxVelocity(200, 600)
   }
 
+  private spawnBoss(x: number) {
+    if (this.bossActive || this.boss) return
+    
+    this.bossActive = true
+    const bossY = 400
+    
+    // Create boss sprite
+    this.boss = this.physics.add.sprite(x, bossY, 'geminiBoss')
+    this.boss.setScale(2)
+    this.boss.play('boss_idle')
+    this.boss.setCollideWorldBounds(true)
+    
+    // Boss stats
+    const bossMaxHealth = 50 + (this.currentLevel * 20)
+    this.boss.setData('health', bossMaxHealth)
+    this.boss.setData('maxHealth', bossMaxHealth)
+    this.boss.setData('lastAttack', 0)
+    this.boss.setData('attackCooldown', 2000)
+    this.boss.setData('phase', 1)
+    
+    if (this.boss.body) {
+      (this.boss.body as Phaser.Physics.Arcade.Body).setAllowGravity(false)
+    }
+    
+    // Create boss health bar
+    this.bossHealthBarBg = this.add.rectangle(640, 50, 500, 30, 0x000000, 0.7)
+    this.bossHealthBarBg.setScrollFactor(0)
+    this.bossHealthBarBg.setDepth(999)
+    
+    this.bossHealthBar = this.add.rectangle(640, 50, 500, 30, 0xff0000, 1)
+    this.bossHealthBar.setScrollFactor(0)
+    this.bossHealthBar.setDepth(1000)
+    
+    const bossText = this.add.text(640, 50, 'GEMINI BOSS', {
+      fontSize: '20px',
+      color: '#ffffff',
+      fontStyle: 'bold'
+    })
+    bossText.setOrigin(0.5)
+    bossText.setScrollFactor(0)
+    bossText.setDepth(1001)
+    
+    // Add collision with player bullets
+    this.physics.add.overlap(this.bullets, this.boss, this.handleBulletBossCollision as any, undefined, this)
+    
+    // Add collision with player (damage player)
+    this.physics.add.overlap(this.player, this.boss, () => {
+      if (!this.playerIsDead) {
+        this.damagePlayer(10)
+      }
+    })
+  }
+
+  private updateBoss() {
+    if (!this.boss || !this.boss.active || !this.bossActive) return
+    
+    const bossHealth = this.boss.getData('health')
+    const bossMaxHealth = this.boss.getData('maxHealth')
+    
+    // Update health bar
+    if (this.bossHealthBar) {
+      const healthPercent = bossHealth / bossMaxHealth
+      this.bossHealthBar.width = 500 * healthPercent
+    }
+    
+    // Boss AI
+    const distanceToPlayer = Phaser.Math.Distance.Between(
+      this.boss.x, this.boss.y,
+      this.player.x, this.player.y
+    )
+    
+    const lastAttack = this.boss.getData('lastAttack')
+    const attackCooldown = this.boss.getData('attackCooldown')
+    
+    // Move toward player
+    if (distanceToPlayer > 300) {
+      const speed = 100
+      if (this.boss.x < this.player.x) {
+        this.boss.setVelocityX(speed)
+        this.boss.setFlipX(false)
+      } else {
+        this.boss.setVelocityX(-speed)
+        this.boss.setFlipX(true)
+      }
+    } else {
+      this.boss.setVelocityX(0)
+    }
+    
+    // Hovering motion
+    const hoverY = 400 + Math.sin(this.time.now / 1000) * 50
+    this.boss.setVelocityY((hoverY - this.boss.y) * 2)
+    
+    // Attack
+    if (this.time.now - lastAttack > attackCooldown && distanceToPlayer < 600) {
+      this.bossAttack()
+      this.boss.setData('lastAttack', this.time.now)
+    }
+  }
+
+  private bossAttack() {
+    if (!this.boss) return
+    
+    this.boss.play('boss_attack')
+    
+    // Fire 3 projectiles in spread pattern
+    const angles = [-20, 0, 20]
+    angles.forEach(angleOffset => {
+      const angle = Phaser.Math.Angle.Between(
+        this.boss!.x, this.boss!.y,
+        this.player.x, this.player.y
+      ) + Phaser.Math.DegToRad(angleOffset)
+      
+      const projectile = this.physics.add.sprite(this.boss!.x, this.boss!.y, 'laserBlue')
+      projectile.setTint(0xff0000)
+      projectile.setScale(1.5)
+      projectile.setVelocity(
+        Math.cos(angle) * 300,
+        Math.sin(angle) * 300
+      )
+      projectile.setRotation(angle)
+      
+      // Damage player on hit
+      this.physics.add.overlap(this.player, projectile, () => {
+        if (!this.playerIsDead) {
+          this.damagePlayer(15)
+          projectile.destroy()
+        }
+      })
+      
+      // Destroy after 3 seconds
+      this.time.delayedCall(3000, () => {
+        if (projectile.active) projectile.destroy()
+      })
+    })
+  }
+
+  private handleBulletBossCollision(bullet: any, boss: any) {
+    const bulletSprite = bullet as Phaser.Physics.Arcade.Sprite
+    const bossSprite = boss as Phaser.Physics.Arcade.Sprite
+    
+    // Destroy bullet
+    bulletSprite.setActive(false)
+    bulletSprite.setVisible(false)
+    
+    // Damage boss
+    let health = bossSprite.getData('health')
+    health -= 2
+    bossSprite.setData('health', health)
+    
+    // Flash effect
+    bossSprite.setTint(0xff0000)
+    this.time.delayedCall(100, () => {
+      bossSprite.clearTint()
+    })
+    
+    // Check if boss defeated
+    if (health <= 0) {
+      this.defeatBoss()
+    }
+  }
+
+  private defeatBoss() {
+    if (!this.boss) return
+    
+    this.bossActive = false
+    
+    // Reward coins
+    const coinReward = 100
+    this.dropCoins(this.boss.x, this.boss.y, coinReward)
+    
+    // Death animation
+    this.tweens.add({
+      targets: this.boss,
+      alpha: 0,
+      scale: 0,
+      duration: 1000,
+      onComplete: () => {
+        if (this.boss) {
+          this.boss.destroy()
+          this.boss = null
+        }
+      }
+    })
+    
+    // Remove health bar
+    if (this.bossHealthBar) {
+      this.bossHealthBar.destroy()
+      this.bossHealthBar = null
+    }
+    if (this.bossHealthBarBg) {
+      this.bossHealthBarBg.destroy()
+      this.bossHealthBarBg = null
+    }
+    
+    // Victory message
+    const victoryText = this.add.text(640, 300, 'BOSS DEFEATED!\\n+100 Coins', {
+      fontSize: '48px',
+      color: '#ffff00',
+      fontStyle: 'bold',
+      align: 'center'
+    })
+    victoryText.setOrigin(0.5)
+    victoryText.setScrollFactor(0)
+    victoryText.setDepth(1002)
+    
+    this.tweens.add({
+      targets: victoryText,
+      alpha: 0,
+      y: 250,
+      duration: 3000,
+      onComplete: () => victoryText.destroy()
+    })
+  }
+
   private createCheckpoint(x: number) {
     // Create visual checkpoint marker (green pole)
     const marker = this.add.rectangle(x, 600, 30, 400, 0x00ff00, 0.7)
@@ -1236,6 +1485,18 @@ export default class GameScene extends Phaser.Scene {
     
     // Enemy AI
     this.handleEnemyAI()
+    
+    // Boss AI
+    if (this.bossActive) {
+      this.updateBoss()
+    }
+    
+    // Spawn boss at certain levels (levels 5, 10, 15, etc.)
+    if (this.gameMode === 'levels' && !this.bossActive && !this.boss) {
+      if (this.currentLevel % 5 === 0 && this.player.x > this.levelLength - 3000 && this.player.x < this.levelLength - 2800) {
+        this.spawnBoss(this.levelLength - 2500)
+      }
+    }
 
     // Update stomp mechanic
     this.handleStompMechanic()
@@ -1580,6 +1841,33 @@ export default class GameScene extends Phaser.Scene {
         enemy.setData('idleTimer', idleTimer)
         enemy.setData('wanderTimer', wanderTimer)
       }
+    })
+  }
+
+  private damagePlayer(damage: number) {
+    if (this.playerIsDead) return
+    
+    const currentTime = this.time.now
+    const lastHitTime = this.player.getData('lastHitTime') || 0
+    const invincibilityDuration = 1000
+    
+    if (currentTime - lastHitTime < invincibilityDuration) {
+      return // Still invincible
+    }
+    
+    this.player.setData('lastHitTime', currentTime)
+    this.playerHealth -= damage
+    
+    if (this.playerHealth <= 0) {
+      this.playerHealth = 0
+      this.handlePlayerDeath()
+      return
+    }
+    
+    // Flash effect
+    this.player.setTint(0xff0000)
+    this.time.delayedCall(100, () => {
+      this.player.clearTint()
     })
   }
 
