@@ -24,7 +24,7 @@ export default class GameScene extends Phaser.Scene {
   private maxHealth: number = 100
   private playerLives: number = 3
   private playerSpawnX: number = 400
-  private playerSpawnY: number = 300
+  private playerSpawnY: number = 550
   private healthBarBackground!: Phaser.GameObjects.Rectangle
   private healthBarFill!: Phaser.GameObjects.Rectangle
   private livesText!: Phaser.GameObjects.Text
@@ -206,7 +206,7 @@ export default class GameScene extends Phaser.Scene {
     })
 
     // Create player
-    this.player = this.physics.add.sprite(400, 300, 'alienBeige_stand')
+    this.player = this.physics.add.sprite(400, 550, 'alienBeige_stand')
     this.player.setBounce(0.1)
     this.player.setCollideWorldBounds(true)
     this.player.setGravityY(200)
