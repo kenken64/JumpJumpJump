@@ -136,6 +136,14 @@ export default class GameScene extends Phaser.Scene {
     // Load portal sprite
     this.load.image('portal', '/assets/kenney_sci-fi-rts/PNG/Default size/Structure/barricadeLarge.png')
     this.load.image('homeIcon', '/assets/kenney_ui-pack-space-expansion/PNG/Blue/Default/button_home.png')
+    
+    // Load planet backgrounds
+    this.load.image('planet00', '/assets/kenny_planets/Planets/planet00.png')
+    this.load.image('planet01', '/assets/kenny_planets/Planets/planet01.png')
+    this.load.image('planet02', '/assets/kenny_planets/Planets/planet02.png')
+    this.load.image('planet03', '/assets/kenny_planets/Planets/planet03.png')
+    this.load.image('planet04', '/assets/kenny_planets/Planets/planet04.png')
+    this.load.image('planet05', '/assets/kenny_planets/Planets/planet05.png')
   }
 
   create() {
@@ -168,6 +176,57 @@ export default class GameScene extends Phaser.Scene {
     this.currentCheckpoint = 0
     this.levelEndMarker = null
     this.portal = null
+    
+    // Create space background
+    this.cameras.main.setBackgroundColor('#0a0a1a')
+    
+    // Add planet backgrounds with parallax scrolling
+    const planet1 = this.add.image(200, 150, 'planet00')
+    planet1.setScale(0.3)
+    planet1.setScrollFactor(0.1)
+    planet1.setAlpha(0.8)
+    
+    const planet2 = this.add.image(800, 250, 'planet01')
+    planet2.setScale(0.4)
+    planet2.setScrollFactor(0.15)
+    planet2.setAlpha(0.7)
+    
+    const planet3 = this.add.image(1500, 180, 'planet02')
+    planet3.setScale(0.35)
+    planet3.setScrollFactor(0.12)
+    planet3.setAlpha(0.75)
+    
+    const planet4 = this.add.image(2500, 220, 'planet03')
+    planet4.setScale(0.5)
+    planet4.setScrollFactor(0.2)
+    planet4.setAlpha(0.6)
+    
+    const planet5 = this.add.image(3800, 160, 'planet04')
+    planet5.setScale(0.45)
+    planet5.setScrollFactor(0.18)
+    planet5.setAlpha(0.65)
+    
+    const planet6 = this.add.image(5200, 200, 'planet05')
+    planet6.setScale(0.38)
+    planet6.setScrollFactor(0.14)
+    planet6.setAlpha(0.7)
+    
+    // Add slow rotation to planets
+    this.tweens.add({
+      targets: [planet1, planet3, planet5],
+      angle: 360,
+      duration: 60000,
+      repeat: -1,
+      ease: 'Linear'
+    })
+    
+    this.tweens.add({
+      targets: [planet2, planet4, planet6],
+      angle: -360,
+      duration: 80000,
+      repeat: -1,
+      ease: 'Linear'
+    })
     
     // Set world bounds (infinite to the right)
     this.physics.world.setBounds(0, 0, 100000, 1200)

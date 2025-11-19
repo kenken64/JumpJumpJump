@@ -37,6 +37,7 @@ export default class ShopScene extends Phaser.Scene {
     
     // Load coin icon
     this.load.image('coin', '/assets/kenney_platformer-art-requests/Tiles/coinGold.png')
+    this.load.image('backArrow', '/assets/kenney_ui-pack-space-expansion/PNG/Blue/Default/button_back.png')
   }
 
   create() {
@@ -102,13 +103,24 @@ export default class ShopScene extends Phaser.Scene {
       fontStyle: 'bold'
     }).setOrigin(0.5)
 
-    // Coin display
-    this.add.image(500, 120, 'coin').setScale(0.4)
-    this.coinText = this.add.text(540, 120, `${this.coinCount}`, {
+    // Coin display (top-right)
+    this.add.image(1150, 50, 'coin').setScale(0.5)
+    this.coinText = this.add.text(1200, 50, `${this.coinCount}`, {
       fontSize: '32px',
       color: '#FFD700',
       fontStyle: 'bold'
     }).setOrigin(0, 0.5)
+    
+    // Back arrow button (top-left)
+    const backArrow = this.add.image(50, 50, 'backArrow')
+    backArrow.setScale(0.6)
+    backArrow.setInteractive({ useHandCursor: true })
+    backArrow.on('pointerover', () => backArrow.setScale(0.7))
+    backArrow.on('pointerout', () => backArrow.setScale(0.6))
+    backArrow.on('pointerdown', () => {
+      this.saveCoins()
+      this.scene.start('MenuScene')
+    })
 
     // Create shop grid
     const startX = 200
@@ -124,22 +136,6 @@ export default class ShopScene extends Phaser.Scene {
 
       this.createShopItem(item, x, y)
     })
-
-    // Back button
-    const backButton = this.add.rectangle(640, 650, 200, 60, 0x4a4a4a)
-      .setInteractive({ useHandCursor: true })
-      .on('pointerover', () => backButton.setFillStyle(0x6a6a6a))
-      .on('pointerout', () => backButton.setFillStyle(0x4a4a4a))
-      .on('pointerdown', () => {
-        this.saveCoins()
-        this.scene.start('MenuScene')
-      })
-
-    this.add.text(640, 650, 'BACK TO MENU', {
-      fontSize: '24px',
-      color: '#ffffff',
-      fontStyle: 'bold'
-    }).setOrigin(0.5)
   }
 
   private createShopItem(item: ShopItem, x: number, y: number) {
