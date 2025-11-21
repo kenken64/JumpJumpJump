@@ -63,7 +63,11 @@ export default class BossGalleryScene extends Phaser.Scene {
     try {
       // Fetch boss data from backend
       this.bosses = await GameAPI.getAllBosses()
-      loadingText.destroy()
+      
+      // Check if loadingText still exists before destroying
+      if (loadingText && loadingText.scene) {
+        loadingText.destroy()
+      }
 
       // Calculate total pages
       this.totalPages = Math.ceil(this.bosses.length / this.bossesPerPage)
@@ -75,8 +79,11 @@ export default class BossGalleryScene extends Phaser.Scene {
       this.createPaginationControls()
 
     } catch (error) {
-      loadingText.setText('Failed to load bosses. Check backend connection.')
-      loadingText.setColor('#ff0000')
+      // Check if loadingText still exists before updating
+      if (loadingText && loadingText.scene) {
+        loadingText.setText('Failed to load bosses. Check backend connection.')
+        loadingText.setColor('#ff0000')
+      }
       console.error('Failed to fetch bosses:', error)
     }
 
@@ -177,58 +184,40 @@ export default class BossGalleryScene extends Phaser.Scene {
     })
 
     // Update page text
-    if (this.pageText) {
+    if (this.pageText && this.pageText.scene) {
       this.pageText.setText(`Page ${this.currentPage + 1} / ${this.totalPages}`)
     }
 
-    // Update button states
-    if (this.prevButton) {
-      if (this.currentPage === 0) {
-        this.prevButton.setAlpha(0.3)
-        if (this.prevButtonText) this.prevButtonText.setAlpha(0.3)
-        this.prevButton.disableInteractive()
-      } else {
-        this.prevButton.setAlpha(1)
-        if (this.prevButtonText) this.prevButtonText.setAlpha(1)
-        this.prevButton.setInteractive({ useHandCursor: true })
-      }
-    }
-
-    if (this.nextButton) {
-      if (this.currentPage === this.totalPages - 1) {
-        this.nextButton.setAlpha(0.3)
-        if (this.nextButtonText) this.nextButtonText.setAlpha(0.3)
-        this.nextButton.disableInteractive()
-      } else {
-        this.nextButton.setAlpha(1)
-        if (this.nextButtonText) this.nextButtonText.setAlpha(1)
-        this.nextButton.setInteractive({ useHandCursor: true })
-      }
-    }
+    // Update button states using the new method
+    this.updateButtonStates()
   }
 
   private createPaginationControls() {
     // Clear existing pagination elements if they exist
-    if (this.pageText) {
+    if (this.pageText && this.pageText.scene) {
       this.pageText.destroy()
-      this.pageText = undefined
     }
-    if (this.prevButton) {
+    this.pageText = undefined
+    
+    if (this.prevButton && this.prevButton.scene) {
       this.prevButton.destroy()
-      this.prevButton = undefined
     }
-    if (this.prevButtonText) {
+    this.prevButton = undefined
+    
+    if (this.prevButtonText && this.prevButtonText.scene) {
       this.prevButtonText.destroy()
-      this.prevButtonText = undefined
     }
-    if (this.nextButton) {
+    this.prevButtonText = undefined
+    
+    if (this.nextButton && this.nextButton.scene) {
       this.nextButton.destroy()
-      this.nextButton = undefined
     }
-    if (this.nextButtonText) {
+    this.nextButton = undefined
+    
+    if (this.nextButtonText && this.nextButtonText.scene) {
       this.nextButtonText.destroy()
-      this.nextButtonText = undefined
     }
+    this.nextButtonText = undefined
     
     // Page indicator
     this.pageText = this.add.text(640, 630, `Page ${this.currentPage + 1} / ${this.totalPages}`, {
@@ -276,7 +265,34 @@ export default class BossGalleryScene extends Phaser.Scene {
     })
     this.nextButtonText.setOrigin(0.5)
 
-    // Update button states
-    this.displayBossPage()
+    // Update button states after controls are created
+    this.updateButtonStates()
+  }
+
+  private updateButtonStates() {
+    // Update button states based on current page
+    if (this.prevButton && this.prevButton.scene) {
+      if (this.currentPage === 0) {
+        this.prevButton.setAlpha(0.3)
+        if (this.prevButtonText) this.prevButtonText.setAlpha(0.3)
+        this.prevButton.disableInteractive()
+      } else {
+        this.prevButton.setAlpha(1)
+        if (this.prevButtonText) this.prevButtonText.setAlpha(1)
+        this.prevButton.setInteractive({ useHandCursor: true })
+      }
+    }
+
+    if (this.nextButton && this.nextButton.scene) {
+      if (this.currentPage === this.totalPages - 1) {
+        this.nextButton.setAlpha(0.3)
+        if (this.nextButtonText) this.nextButtonText.setAlpha(0.3)
+        this.nextButton.disableInteractive()
+      } else {
+        this.nextButton.setAlpha(1)
+        if (this.nextButtonText) this.nextButtonText.setAlpha(1)
+        this.nextButton.setInteractive({ useHandCursor: true })
+      }
+    }
   }
 }

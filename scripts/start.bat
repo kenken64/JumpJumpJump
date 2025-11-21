@@ -14,7 +14,7 @@ REM Start Frontend
 echo.
 echo Starting Frontend (React + Vite)...
 set PATH=%PATH%;%LOCALAPPDATA%\pnpm
-start "Frontend Server" cmd /k "cd /d %~dp0..\frontend && pnpm dev"
+start "Frontend Server" cmd /k "cd /d %~dp0..\frontend && echo Installing dependencies... && pnpm install && echo Starting dev server... && pnpm dev"
 
 echo.
 echo ==================================

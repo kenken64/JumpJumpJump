@@ -20,7 +20,7 @@ Start-Sleep -Seconds 2
 Write-Host "`nStarting Frontend (React + Vite)..." -ForegroundColor Cyan
 $frontendPath = Join-Path $PSScriptRoot "..\frontend"
 if (Test-Path $frontendPath) {
-    Start-Process powershell -ArgumentList "-NoExit", "-Command", "cd '$frontendPath'; Write-Host 'Frontend Server' -ForegroundColor Yellow; `$env:Path += ';' + `$env:LOCALAPPDATA + '\pnpm'; pnpm dev"
+    Start-Process powershell -ArgumentList "-NoExit", "-Command", "cd '$frontendPath'; Write-Host 'Frontend Server' -ForegroundColor Yellow; `$env:Path += ';' + `$env:LOCALAPPDATA + '\pnpm'; Write-Host 'Installing dependencies...' -ForegroundColor Cyan; pnpm install; Write-Host 'Starting dev server...' -ForegroundColor Cyan; pnpm dev"
     Write-Host "Frontend started on http://localhost:3000" -ForegroundColor Green
 } else {
     Write-Host "Frontend directory not found!" -ForegroundColor Red

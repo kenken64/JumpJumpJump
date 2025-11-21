@@ -29,8 +29,9 @@ export default class MenuScene extends Phaser.Scene {
     // Check API connection status
     this.checkAPIConnection()
     
-    // Set background to black
-    this.cameras.main.setBackgroundColor('#000000')
+    // Set background to black with blackhole effect
+    this.cameras.main.setBackgroundColor('#0a0a1a')
+    this.createBlackholeBackground()
     
     // Add player name button in top-left corner
     const playerName = localStorage.getItem('player_name') || 'Guest'
@@ -515,6 +516,129 @@ export default class MenuScene extends Phaser.Scene {
         inputDisplay.setText(inputText + '|')
       }
     })
+  }
+
+  private createBlackholeBackground() {
+    // Create a single centered blackhole for the menu
+    const centerX = 640
+    const centerY = 360
+    const scale = 1.5
+    
+    // Create the blackhole core (event horizon)
+    const core = this.add.circle(centerX, centerY, 60 * scale, 0x000000, 1)
+    core.setDepth(-100)
+    
+    // Create the inner shadow/gradient ring
+    const innerRing = this.add.circle(centerX, centerY, 90 * scale, 0x1a0a2e, 0.9)
+    innerRing.setDepth(-99)
+    
+    // Create accretion disk rings (multiple layers for depth)
+    const diskLayers = [
+      { radius: 120, color: 0x8b2ff4, alpha: 0.6 },
+      { radius: 150, color: 0x6b1fd4, alpha: 0.5 },
+      { radius: 180, color: 0x4a0fb4, alpha: 0.4 },
+      { radius: 210, color: 0x2a0594, alpha: 0.3 },
+      { radius: 240, color: 0x1a0474, alpha: 0.2 }
+    ]
+    
+    diskLayers.forEach(layer => {
+      const ring = this.add.circle(centerX, centerY, layer.radius * scale, layer.color, layer.alpha)
+      ring.setDepth(-98)
+      
+      // Add rotation animation to disk
+      this.tweens.add({
+        targets: ring,
+        angle: 360,
+        duration: 20000 - (layer.radius * 50), // Inner rings rotate faster
+        repeat: -1,
+        ease: 'Linear'
+      })
+    })
+    
+    // Create gravitational lensing effect using graphics
+    const graphics = this.add.graphics()
+    graphics.setDepth(-97)
+    
+    // Draw light distortion rings
+    for (let i = 0; i < 5; i++) {
+      const radius = 270 + (i * 40)
+      graphics.lineStyle(2 - (i * 0.3), 0xff6b2f, 0.15 - (i * 0.02))
+      graphics.strokeCircle(centerX, centerY, radius * scale)
+    }
+    
+    // Create particle emitter for matter being pulled in
+    const particles = this.add.particles(centerX, centerY, 'coin', {
+      speed: { min: 30, max: 60 },
+      scale: { start: 0.4, end: 0 },
+      alpha: { start: 0.8, end: 0 },
+      lifespan: 3000,
+      frequency: 80,
+      angle: { min: 0, max: 360 },
+      tint: [0x8b2ff4, 0x6b1fd4, 0xff6b2f, 0xffa500],
+      emitZone: {
+        type: 'edge',
+        source: new Phaser.Geom.Circle(0, 0, 300 * scale),
+        quantity: 48
+      },
+      moveToX: centerX,
+      moveToY: centerY
+    })
+    particles.setDepth(-96)
+    
+    // Add pulsing glow effect to core
+    this.tweens.add({
+      targets: [core, innerRing],
+      alpha: 0.7,
+      duration: 2000,
+      yoyo: true,
+      repeat: -1,
+      ease: 'Sine.easeInOut'
+    })
+    
+    // Add some energy jets shooting out from poles (like a real blackhole)
+    const jetGraphics = this.add.graphics()
+    jetGraphics.setDepth(-95)
+    
+    // Top jet
+    jetGraphics.fillStyle(0x4a88ff, 0.3)
+    jetGraphics.fillRect(centerX - 15 * scale, centerY - 300 * scale, 30 * scale, 240 * scale)
+    jetGraphics.fillStyle(0x88bbff, 0.4)
+    jetGraphics.fillRect(centerX - 9 * scale, centerY - 300 * scale, 18 * scale, 240 * scale)
+    
+    // Bottom jet
+    jetGraphics.fillStyle(0x4a88ff, 0.3)
+    jetGraphics.fillRect(centerX - 15 * scale, centerY + 60 * scale, 30 * scale, 240 * scale)
+    jetGraphics.fillStyle(0x88bbff, 0.4)
+    jetGraphics.fillRect(centerX - 9 * scale, centerY + 60 * scale, 18 * scale, 240 * scale)
+    
+    // Animate jet intensity
+    this.tweens.add({
+      targets: jetGraphics,
+      alpha: 0.5,
+      duration: 1500,
+      yoyo: true,
+      repeat: -1,
+      ease: 'Sine.easeInOut'
+    })
+    
+    // Add some stars in the background
+    for (let i = 0; i < 100; i++) {
+      const x = Phaser.Math.Between(0, 1280)
+      const y = Phaser.Math.Between(0, 720)
+      const size = Phaser.Math.Between(1, 3)
+      const star = this.add.circle(x, y, size, 0xffffff, Phaser.Math.FloatBetween(0.3, 0.9))
+      star.setDepth(-101)
+      
+      // Twinkle effect
+      this.tweens.add({
+        targets: star,
+        alpha: Phaser.Math.FloatBetween(0.1, 0.9),
+        duration: Phaser.Math.Between(1000, 3000),
+        yoyo: true,
+        repeat: -1,
+        ease: 'Sine.easeInOut'
+      })
+    }
   }
 
   private async checkAPIConnection() {
