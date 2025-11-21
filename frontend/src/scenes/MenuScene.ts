@@ -1,7 +1,9 @@
 import Phaser from 'phaser'
+import { GameAPI } from '../services/api'
 
 export default class MenuScene extends Phaser.Scene {
   private coinCount: number = 0
+  private apiStatusText?: Phaser.GameObjects.Text
 
   constructor() {
     super('MenuScene')
@@ -13,10 +15,13 @@ export default class MenuScene extends Phaser.Scene {
     this.load.image('alienBeige_stand', '/assets/kenney_platformer-art-extended-enemies/Alien sprites/alienBeige_stand.png')
   }
 
-  create() {
+  async create() {
     // Load coin count from localStorage
     const savedCoins = localStorage.getItem('playerCoins')
     this.coinCount = savedCoins ? parseInt(savedCoins) : 0
+
+    // Check API connection status
+    this.checkAPIConnection()
     
     // Set background to black
     this.cameras.main.setBackgroundColor('#000000')
@@ -277,6 +282,30 @@ export default class MenuScene extends Phaser.Scene {
     })
     closeText.setOrigin(0.5)
     closeText.setDepth(102)
+  }
+
+  private async checkAPIConnection() {
+    // Add API status indicator in bottom right
+    this.apiStatusText = this.add.text(1200, 690, '● Checking API...', {
+      fontSize: '14px',
+      color: '#ffaa00'
+    })
+    this.apiStatusText.setOrigin(1, 1)
+
+    try {
+      const isConnected = await GameAPI.checkConnection()
+      if (isConnected) {
+        this.apiStatusText.setText('● API Connected')
+        this.apiStatusText.setColor('#00ff00')
+      } else {
+        this.apiStatusText.setText('● API Offline')
+        this.apiStatusText.setColor('#ff0000')
+      }
+    } catch (error) {
+      this.apiStatusText.setText('● API Error')
+      this.apiStatusText.setColor('#ff0000')
+      console.error('API connection check failed:', error)
+    }
   }
 }
 
