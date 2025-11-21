@@ -39,6 +39,7 @@ export default class GameScene extends Phaser.Scene {
   private highScore: number = 0
   private scoreText!: Phaser.GameObjects.Text
   private highScoreText!: Phaser.GameObjects.Text
+  private levelText!: Phaser.GameObjects.Text
   private enemiesDefeated: number = 0
   private jumpParticles!: Phaser.GameObjects.Particles.ParticleEmitter
   private landParticles!: Phaser.GameObjects.Particles.ParticleEmitter
@@ -71,6 +72,8 @@ export default class GameScene extends Phaser.Scene {
   private hasShield: boolean = false
   private shieldSprite!: Phaser.GameObjects.Sprite | null
   private audioContext!: AudioContext
+  private farthestPlayerX: number = 0 // Track farthest X position reached
+  private levelCompleteShown: boolean = false // Prevent multiple level complete triggers
   
   // Debug mode
   private debugMode: boolean = false
@@ -203,6 +206,7 @@ export default class GameScene extends Phaser.Scene {
     this.load.image('powerSpeed', '/assets/kenney_platformer-art-requests/Tiles/powerupYellow.png')
     this.load.image('powerShield', '/assets/kenney_platformer-art-requests/Tiles/powerupBlue.png')
     this.load.image('powerLife', '/assets/kenney_platformer-art-requests/Tiles/powerupGreen.png')
+    this.load.image('powerHealth', '/assets/pico-8/Transparent/Tiles/tile_0066.png')
   }
 
   create() {
@@ -239,21 +243,17 @@ export default class GameScene extends Phaser.Scene {
     this.playerHealth = 100
     this.playerLives = 3
     this.debugMode = false  // Always reset debug mode on scene start/restart
+    this.levelCompleteShown = false // Reset level complete flag
     
     // Load coin count from localStorage
     const savedCoins = localStorage.getItem('playerCoins')
     this.coinCount = savedCoins ? parseInt(savedCoins) : 0
     
-    // Load equipped items
-    const equipped = localStorage.getItem('equippedItems')
-    if (equipped) {
-      const items = JSON.parse(equipped)
-      this.equippedSkin = items.skin || 'alienBeige'
-      this.equippedWeapon = items.weapon || 'raygun'
-    } else {
-      this.equippedSkin = 'alienBeige'
-      this.equippedWeapon = 'raygun'
-    }
+    // Load equipped items from inventory
+    const equippedWeapon = localStorage.getItem('equippedWeapon')
+    const equippedSkin = localStorage.getItem('equippedSkin')
+    this.equippedWeapon = equippedWeapon || 'raygun'
+    this.equippedSkin = equippedSkin || 'alienBeige'
     
     // Initialize power-up state
     this.hasSpeedBoost = false
@@ -458,7 +458,12 @@ export default class GameScene extends Phaser.Scene {
 
     // Create gun (visual representation using equipped weapon)
     this.gun = this.add.image(0, 0, this.equippedWeapon)
-    this.gun.setOrigin(0, 0.5) // Pivot from the base of the gun
+    // For sword, pivot from handle (bottom). For guns, pivot from base
+    if (this.equippedWeapon === 'sword') {
+      this.gun.setOrigin(0.5, 0.9) // Pivot from near the bottom (handle)
+    } else {
+      this.gun.setOrigin(0, 0.5) // Pivot from the base of the gun
+    }
     this.gun.setScale(1.0) // Larger gun size
     this.gun.setDepth(10)
 
@@ -795,6 +800,19 @@ export default class GameScene extends Phaser.Scene {
     })
     this.highScoreText.setScrollFactor(0)
     
+    // Level display
+    const levelDisplayText = this.gameMode === 'endless' ? 'ENDLESS MODE' : `LEVEL ${this.currentLevel}`
+    this.levelText = this.add.text(640, 20, levelDisplayText, {
+      fontSize: '28px',
+      color: '#00ffff',
+      fontStyle: 'bold',
+      stroke: '#000000',
+      strokeThickness: 4
+    })
+    this.levelText.setOrigin(0.5, 0)
+    this.levelText.setScrollFactor(0)
+    this.levelText.setDepth(100)
+    
     // Create home button (bottom-left corner)
     const homeButtonX = 50
     const homeButtonY = 680
@@ -960,8 +978,8 @@ export default class GameScene extends Phaser.Scene {
 
   private spawnPowerUps() {
     // Spawn power-ups at random positions on platforms
-    const powerUpTypes = ['powerSpeed', 'powerShield', 'powerLife']
-    const numPowerUps = 8
+    const powerUpTypes = ['powerSpeed', 'powerShield', 'powerLife', 'powerHealth', 'powerHealth']
+    const numPowerUps = 10
     
     for (let i = 0; i < numPowerUps; i++) {
       const x = Phaser.Math.Between(1000, 8000)
@@ -1004,7 +1022,7 @@ export default class GameScene extends Phaser.Scene {
     
     // Show tip on first power-up
     if (this.shownTips.size < 5) {
-      this.showTip('powerups', 'Power-ups: Yellow=Speed, Blue=Shield, Green=Extra Life')
+      this.showTip('powerups', 'Power-ups: Yellow=Speed, Blue=Shield, Green=Life, Heart=Health')
     }
     
     // Apply power-up effect
@@ -1070,6 +1088,36 @@ export default class GameScene extends Phaser.Scene {
           this.shieldSprite.destroy()
           this.shieldSprite = null
         }
+      })
+    } else if (type === 'powerHealth') {
+      // Restore health
+      const healthRestored = 30
+      this.playerHealth = Math.min(100, this.playerHealth + healthRestored)
+      
+      // Update health bar width
+      const healthPercent = this.playerHealth / 100
+      const maxWidth = 200
+      this.healthBarFill.width = maxWidth * healthPercent
+      
+      // Flash health bar white then back to green
+      this.healthBarFill.setFillStyle(0xffffff)
+      this.time.delayedCall(100, () => {
+        this.healthBarFill.setFillStyle(0x00ff00)
+      })
+      
+      // Show notification
+      const text = this.add.text(this.player.x, this.player.y - 50, `+${healthRestored} HEALTH!`, {
+        fontSize: '24px',
+        color: '#00ff00'
+      })
+      text.setOrigin(0.5)
+      
+      this.tweens.add({
+        targets: text,
+        y: text.y - 50,
+        alpha: 0,
+        duration: 2000,
+        onComplete: () => text.destroy()
       })
     } else if (type === 'powerLife') {
       // Add extra life
@@ -1591,6 +1639,7 @@ export default class GameScene extends Phaser.Scene {
     enemy.setScale(scale)
     enemy.setBounce(0.3)
     enemy.setCollideWorldBounds(true)
+    enemy.clearTint() // Ensure no tint on spawn
     enemy.play(`${enemyType}_idle`)
     enemy.setData('enemyType', enemyType)
     enemy.setData('enemySize', enemySize)
@@ -1624,11 +1673,20 @@ export default class GameScene extends Phaser.Scene {
     // Play boss spawn sound
     this.playBossSound()
     
-    // Create boss sprite
+    // Create boss sprite in background (large and non-moving)
     this.boss = this.physics.add.sprite(x, bossY, 'geminiBoss')
-    this.boss.setScale(2)
+    this.boss.setScale(3) // Larger scale
     this.boss.play('boss_idle')
-    this.boss.setCollideWorldBounds(true)
+    this.boss.setDepth(-10) // Behind everything
+    this.boss.setScrollFactor(0.3, 0.3) // Parallax effect
+    
+    // Set hitbox to match the entire sprite
+    if (this.boss.body) {
+      const body = this.boss.body as Phaser.Physics.Arcade.Body
+      body.setSize(128, 128) // Full sprite size
+      body.setOffset(0, 0) // No offset, use full image
+      body.setAllowGravity(false)
+    }
     
     // Boss stats
     const bossMaxHealth = 50 + (this.currentLevel * 20)
@@ -1637,10 +1695,6 @@ export default class GameScene extends Phaser.Scene {
     this.boss.setData('lastAttack', 0)
     this.boss.setData('attackCooldown', 2000)
     this.boss.setData('phase', 1)
-    
-    if (this.boss.body) {
-      (this.boss.body as Phaser.Physics.Arcade.Body).setAllowGravity(false)
-    }
     
     // Create boss health bar
     this.bossHealthBarBg = this.add.rectangle(640, 50, 500, 30, 0x000000, 0.7)
@@ -1683,41 +1737,25 @@ export default class GameScene extends Phaser.Scene {
       this.bossHealthBar.width = 500 * healthPercent
     }
     
-    // Boss AI
-    const distanceToPlayer = Phaser.Math.Distance.Between(
-      this.boss.x, this.boss.y,
-      this.player.x, this.player.y
-    )
-    
+    // Boss AI - stays in background, only attacks
     const lastAttack = this.boss.getData('lastAttack')
     const attackCooldown = this.boss.getData('attackCooldown')
     
-    // Move toward player
-    if (distanceToPlayer > 300) {
-      const speed = 100
-      if (this.boss.x < this.player.x) {
-        this.boss.setVelocityX(speed)
-        this.boss.setFlipX(false)
-      } else {
-        this.boss.setVelocityX(-speed)
-        this.boss.setFlipX(true)
-      }
-    } else {
-      this.boss.setVelocityX(0)
-    }
+    // Boss stays stationary in background
+    this.boss.setVelocity(0, 0)
     
-    // Hovering motion
-    const hoverY = 400 + Math.sin(this.time.now / 1000) * 50
-    this.boss.setVelocityY((hoverY - this.boss.y) * 2)
+    // Slow rotation animation
+    this.boss.rotation += 0.001
     
-    // Attack
-    if (this.time.now - lastAttack > attackCooldown && distanceToPlayer < 600) {
-      this.bossAttack()
+    // Attack patterns - alternate between 360 spray and homing
+    if (this.time.now - lastAttack > attackCooldown) {
+      const attackType = Math.random() < 0.5 ? '360' : 'homing'
+      this.bossAttack(attackType)
       this.boss.setData('lastAttack', this.time.now)
     }
   }
 
-  private bossAttack() {
+  private bossAttack(attackType: string = '360') {
     if (!this.boss) return
     
     this.boss.play('boss_attack')
@@ -1725,36 +1763,80 @@ export default class GameScene extends Phaser.Scene {
     // Play boss attack sound
     this.playBossAttackSound()
     
-    // Fire 3 projectiles in spread pattern
-    const angles = [-20, 0, 20]
-    angles.forEach(angleOffset => {
-      const angle = Phaser.Math.Angle.Between(
-        this.boss!.x, this.boss!.y,
-        this.player.x, this.player.y
-      ) + Phaser.Math.DegToRad(angleOffset)
-      
-      const projectile = this.physics.add.sprite(this.boss!.x, this.boss!.y, 'laserBlue')
-      projectile.setTint(0xff0000)
-      projectile.setScale(1.5)
-      projectile.setVelocity(
-        Math.cos(angle) * 300,
-        Math.sin(angle) * 300
-      )
-      projectile.setRotation(angle)
-      
-      // Damage player on hit
-      this.physics.add.overlap(this.player, projectile, () => {
-        if (!this.playerIsDead) {
-          this.damagePlayer(15)
-          projectile.destroy()
-        }
-      })
-      
-      // Destroy after 3 seconds
-      this.time.delayedCall(3000, () => {
-        if (projectile.active) projectile.destroy()
-      })
-    })
+    if (attackType === '360') {
+      // 360-degree spray attack - 12 projectiles in a circle
+      for (let i = 0; i < 12; i++) {
+        const angle = (Math.PI * 2 * i) / 12
+        
+        const projectile = this.physics.add.sprite(this.boss!.x, this.boss!.y, 'laserBlue')
+        projectile.setTint(0xff0000)
+        projectile.setScale(1.5)
+        projectile.setVelocity(
+          Math.cos(angle) * 250,
+          Math.sin(angle) * 250
+        )
+        projectile.setRotation(angle)
+        projectile.setData('attackType', '360')
+        
+        // Damage player on hit
+        this.physics.add.overlap(this.player, projectile, () => {
+          if (!this.playerIsDead) {
+            this.damagePlayer(15)
+            projectile.destroy()
+          }
+        })
+        
+        // Destroy after 4 seconds
+        this.time.delayedCall(4000, () => {
+          if (projectile.active) projectile.destroy()
+        })
+      }
+    } else {
+      // Homing attack - 3 projectiles that follow the player
+      for (let i = 0; i < 3; i++) {
+        this.time.delayedCall(i * 300, () => {
+          const projectile = this.physics.add.sprite(this.boss!.x, this.boss!.y, 'laserBlue')
+          projectile.setTint(0xff00ff) // Purple for homing
+          projectile.setScale(1.8)
+          projectile.setData('attackType', 'homing')
+          projectile.setData('spawnTime', this.time.now)
+          
+          // Damage player on hit
+          this.physics.add.overlap(this.player, projectile, () => {
+            if (!this.playerIsDead) {
+              this.damagePlayer(20) // More damage for homing
+              projectile.destroy()
+            }
+          })
+          
+          // Destroy after 5 seconds
+          this.time.delayedCall(5000, () => {
+            if (projectile.active) projectile.destroy()
+          })
+          
+          // Update homing projectile in update loop
+          const updateHomingEvent = this.time.addEvent({
+            delay: 50,
+            callback: () => {
+              if (projectile.active && this.player.active) {
+                const angle = Phaser.Math.Angle.Between(
+                  projectile.x, projectile.y,
+                  this.player.x, this.player.y
+                )
+                projectile.setVelocity(
+                  Math.cos(angle) * 200,
+                  Math.sin(angle) * 200
+                )
+                projectile.setRotation(angle)
+              } else {
+                updateHomingEvent.remove()
+              }
+            },
+            loop: true
+          })
+        })
+      }
+    }
   }
 
   private handleBulletBossCollision(bullet: any, boss: any) {
@@ -2007,9 +2089,11 @@ export default class GameScene extends Phaser.Scene {
 
   private checkLevelComplete() {
     if (!this.levelEndMarker) return
+    if (this.levelCompleteShown) return // Prevent multiple triggers
     
     // Check if player reached the end
     if (this.player.x >= this.levelLength) {
+      this.levelCompleteShown = true
       this.showLevelComplete()
     }
   }
@@ -2049,7 +2133,7 @@ export default class GameScene extends Phaser.Scene {
     stats.setScrollFactor(0)
     stats.setDepth(1001)
     
-    const nextText = this.add.text(640, 520, 'Press SPACE for Next Level\nPress E for Endless Mode\nPress M for Menu', {
+    const nextText = this.add.text(640, 520, 'Press SPACE for Next Level\nPress E for Endless Mode', {
       fontSize: '24px',
       color: '#00ff00',
       stroke: '#000000',
@@ -2067,6 +2151,33 @@ export default class GameScene extends Phaser.Scene {
       duration: 800,
       yoyo: true,
       repeat: -1
+    })
+    
+    // Home button
+    const homeButton = this.add.text(640, 600, 'HOME', {
+      fontSize: '32px',
+      color: '#ffffff',
+      backgroundColor: '#0066cc',
+      padding: { x: 30, y: 15 },
+      stroke: '#000000',
+      strokeThickness: 4
+    })
+    homeButton.setOrigin(0.5)
+    homeButton.setScrollFactor(0)
+    homeButton.setDepth(1001)
+    homeButton.setInteractive({ useHandCursor: true })
+    
+    homeButton.on('pointerover', () => {
+      homeButton.setStyle({ backgroundColor: '#0088ff' })
+    })
+    
+    homeButton.on('pointerout', () => {
+      homeButton.setStyle({ backgroundColor: '#0066cc' })
+    })
+    
+    homeButton.on('pointerdown', () => {
+      this.tweens.killAll()
+      this.scene.start('MenuScene')
     })
     
     // Input handlers
@@ -2091,6 +2202,11 @@ export default class GameScene extends Phaser.Scene {
     if (this.time.now % 1000 < 20) {  // Log roughly once per second
       const body = this.player.body as Phaser.Physics.Arcade.Body
       console.log('Player Y:', Math.round(this.player.y), 'VelocityY:', Math.round(body.velocity.y), 'Touching.down:', body.touching.down, 'Blocked.down:', body.blocked.down)
+    }
+    
+    // Track farthest X position player has reached
+    if (this.player.x > this.farthestPlayerX) {
+      this.farthestPlayerX = this.player.x
     }
     
     // Player movement
@@ -2474,7 +2590,8 @@ export default class GameScene extends Phaser.Scene {
           enemy.setFlipX(direction === -1) // Flip when moving left
         }
         
-        enemy.play('enemy_walk', true)
+        const enemyType = enemy.getData('enemyType')
+        enemy.play(`${enemyType}_move`, true)
         
         // Reset idle timer when chasing
         enemy.setData('idleTimer', 0)
@@ -2514,11 +2631,13 @@ export default class GameScene extends Phaser.Scene {
         if (wanderDirection !== 0) {
           enemy.setVelocityX(wanderDirection * speed * 0.5) // Half speed when wandering
           enemy.setFlipX(wanderDirection === -1) // Flip when moving left
-          enemy.play('enemy_walk', true)
+          const enemyType = enemy.getData('enemyType')
+          enemy.play(`${enemyType}_move`, true)
           idleTimer = 0 // Reset idle timer when moving
         } else {
           enemy.setVelocityX(0)
-          enemy.play('enemy_idle', true)
+          const enemyType = enemy.getData('enemyType')
+          enemy.play(`${enemyType}_idle`, true)
         }
         
         // Save updated timers
@@ -3033,21 +3152,27 @@ export default class GameScene extends Phaser.Scene {
       worldPoint.y
     )
     
+    // For sword, position 23 degrees ahead of player relative to mouse direction
+    let gunAngle = angleToMouse
+    if (this.equippedWeapon === 'sword') {
+      gunAngle = angleToMouse + Phaser.Math.DegToRad(23)
+    }
+    
     // Position gun around player center with distance
     const distanceFromPlayer = 30 // Distance from player center
-    const gunX = this.player.x + Math.cos(angleToMouse) * distanceFromPlayer
-    const gunY = this.player.y + Math.sin(angleToMouse) * distanceFromPlayer
+    const gunX = this.player.x + Math.cos(gunAngle) * distanceFromPlayer
+    const gunY = this.player.y + Math.sin(gunAngle) * distanceFromPlayer
     this.gun.setPosition(gunX, gunY)
     
     // Flip gun sprite vertically if pointing upward to prevent upside-down appearance
-    if (angleToMouse > Math.PI / 2 || angleToMouse < -Math.PI / 2) {
+    if (gunAngle > Math.PI / 2 || gunAngle < -Math.PI / 2) {
       this.gun.setScale(1.0, -1.0) // Flip Y
     } else {
       this.gun.setScale(1.0, 1.0) // Normal
     }
     
     // Apply rotation directly without any clamping
-    this.gun.setRotation(angleToMouse)
+    this.gun.setRotation(gunAngle)
   }
 
   private handleShooting() {
@@ -3056,6 +3181,13 @@ export default class GameScene extends Phaser.Scene {
     
     const pointer = this.input.activePointer
     const currentTime = this.time.now
+    
+    // Right mouse button for special attack (sword blade throw)
+    if (pointer.rightButtonDown() && this.equippedWeapon === 'sword' && currentTime - this.lastShotTime > 2000) {
+      this.throwSwordBlade()
+      this.lastShotTime = currentTime
+      return // Skip normal attack
+    }
     
     // Weapon-specific cooldowns and behavior
     let shootCooldown = 1000 // Default raygun cooldown
@@ -3074,9 +3206,75 @@ export default class GameScene extends Phaser.Scene {
       this.lastShotTime = currentTime
       
       if (this.equippedWeapon === 'sword') {
+        // Get current angle to mouse
+        const worldPoint = this.cameras.main.getWorldPoint(pointer.x, pointer.y)
+        const angleToMouse = Phaser.Math.Angle.Between(
+          this.player.x,
+          this.player.y,
+          worldPoint.x,
+          worldPoint.y
+        )
+        
+        // Sword swing animation - smooth arc swing with motion trail
+        const startAngle = angleToMouse + Phaser.Math.DegToRad(-60)
+        const endAngle = angleToMouse + Phaser.Math.DegToRad(60)
+        
+        // Immediately set starting position
+        this.gun.setRotation(startAngle)
+        
+        // Create trail effect with multiple ghost images
+        const trailImages: Phaser.GameObjects.Image[] = []
+        
+        // Animate the sword swinging through the arc
+        this.tweens.add({
+          targets: this.gun,
+          rotation: endAngle,
+          duration: 300, // Slightly longer for smoother appearance
+          ease: 'Quad.easeOut',
+          onUpdate: (tween) => {
+            // Create trail images during swing
+            if (tween.progress > 0 && Math.random() < 0.4) { // 40% chance each frame
+              const trailImage = this.add.image(this.gun.x, this.gun.y, this.gun.texture.key)
+              trailImage.setOrigin(this.gun.originX, this.gun.originY)
+              trailImage.setRotation(this.gun.rotation)
+              trailImage.setScale(this.gun.scaleX, this.gun.scaleY)
+              trailImage.setTint(0xff00ff) // Purple trail
+              trailImage.setAlpha(0.4)
+              trailImage.setDepth(this.gun.depth - 1)
+              
+              trailImages.push(trailImage)
+              
+              // Fade out trail image
+              this.tweens.add({
+                targets: trailImage,
+                alpha: 0,
+                duration: 200,
+                onComplete: () => {
+                  trailImage.destroy()
+                }
+              })
+            }
+          },
+          onComplete: () => {
+            // Clean up any remaining trail images
+            trailImages.forEach(img => {
+              if (img && img.active) img.destroy()
+            })
+            trailImages.length = 0
+            
+            // Return to normal position (23 degrees ahead)
+            this.tweens.add({
+              targets: this.gun,
+              rotation: angleToMouse + Phaser.Math.DegToRad(23),
+              duration: 150,
+              ease: 'Quad.easeIn'
+            })
+          }
+        })
+        
         // Melee attack: damage enemies in front of player
         const meleeRange = 80
-        const meleeDirection = this.player.flipX ? -1 : 1
+        const meleeDirection = Math.cos(angleToMouse) > 0 ? 1 : -1
         const meleeX = this.player.x + (meleeDirection * meleeRange)
         const meleeY = this.player.y
         
@@ -3092,10 +3290,18 @@ export default class GameScene extends Phaser.Scene {
             enemySprite.setData('health', enemyHealth)
             
             // Visual feedback: flash and knockback
+            enemySprite.clearTint() // Clear any existing tint first
             enemySprite.setTint(0xff0000)
-            this.time.delayedCall(100, () => {
-              enemySprite.clearTint()
+            // Clear any existing tint timer
+            const existingTimer = enemySprite.getData('tintTimer')
+            if (existingTimer) existingTimer.remove()
+            // Set new timer and store reference
+            const tintTimer = this.time.delayedCall(100, () => {
+              if (enemySprite && enemySprite.active) {
+                enemySprite.clearTint()
+              }
             })
+            enemySprite.setData('tintTimer', tintTimer)
             
             // Knockback
             const knockbackForce = 300
@@ -3141,8 +3347,13 @@ export default class GameScene extends Phaser.Scene {
                 }
               })
               
-              // Respawn after 5 seconds
+              // Respawn after 5 seconds only if location is ahead of player's progress
               this.time.delayedCall(5000, () => {
+                // Don't respawn if player has already passed this area
+                if (spawnX < this.farthestPlayerX - 500) {
+                  return // Skip respawn in explored areas
+                }
+                
                 const difficultyMultiplier = this.gameMode === 'endless' 
                   ? 1 + Math.floor(this.player.x / 5000) * 0.2 
                   : 1 + (this.currentLevel - 1) * 0.3
@@ -3337,10 +3548,18 @@ export default class GameScene extends Phaser.Scene {
     enemySprite.setData('health', health)
     
     // Flash red to show damage
+    enemySprite.clearTint() // Clear any existing tint first
     enemySprite.setTint(0xff0000)
-    this.time.delayedCall(100, () => {
-      enemySprite.clearTint()
+    // Clear any existing tint timer
+    const existingTimer = enemySprite.getData('tintTimer')
+    if (existingTimer) existingTimer.remove()
+    // Set new timer and store reference
+    const tintTimer = this.time.delayedCall(100, () => {
+      if (enemySprite && enemySprite.active) {
+        enemySprite.clearTint()
+      }
     })
+    enemySprite.setData('tintTimer', tintTimer)
     
     // Check if enemy is dead
     if (health <= 0) {
@@ -3382,8 +3601,13 @@ export default class GameScene extends Phaser.Scene {
         }
       })
       
-      // Respawn after 5 seconds with same type
+      // Respawn after 5 seconds only if location is ahead of player's progress
       this.time.delayedCall(5000, () => {
+        // Don't respawn if player has already passed this area
+        if (spawnX < this.farthestPlayerX - 500) {
+          return // Skip respawn in explored areas
+        }
+        
         const difficultyMultiplier = this.gameMode === 'endless' 
           ? 1 + Math.floor(this.player.x / 5000) * 0.2 
           : 1 + (this.currentLevel - 1) * 0.3
@@ -3574,7 +3798,7 @@ export default class GameScene extends Phaser.Scene {
   private createFallbackTextures() {
     // Create fallback textures for any assets that failed to load
     const missingTextures = [
-      // Check if essential textures exist, if not create colored rectangles as fallbacks
+      // Check if essential textures exist, if not create transparent or minimal fallbacks
       'alienBeige_stand', 'alienBeige_walk1', 'alienBeige_walk2', 'alienBeige_jump',
       'alienBlue_stand', 'alienGreen_stand', 'alienPink_stand', 'alienYellow_stand',
       'fly', 'bee', 'slimeGreen', 'slimeBlue', 'wormGreen', 'wormPink',
@@ -3587,19 +3811,9 @@ export default class GameScene extends Phaser.Scene {
         console.warn(`Creating fallback texture for: ${key}`)
         const graphics = this.make.graphics({ x: 0, y: 0 })
         
-        // Different colors for different types
-        let color = 0x888888 // Default gray
-        if (key.includes('alien')) color = 0x00ff00 // Green for aliens
-        else if (key.includes('fly') || key.includes('bee')) color = 0xffaa00 // Orange for flying enemies
-        else if (key.includes('slime')) color = 0x00ffaa // Cyan for slimes  
-        else if (key.includes('worm')) color = 0xff00aa // Pink for worms
-        else if (key.includes('metal') || key.includes('beam')) color = 0x666666 // Dark gray for platforms
-        else if (key.includes('stone')) color = 0x996633 // Brown for stone
-        
-        graphics.fillStyle(color, 1)
+        // Create completely transparent fallback texture
+        graphics.fillStyle(0x000000, 0) // Fully transparent
         graphics.fillRect(0, 0, 70, 70)
-        graphics.fillStyle(0xffffff, 0.3)
-        graphics.fillRect(5, 5, 60, 60)
         graphics.generateTexture(key, 70, 70)
         graphics.destroy()
       }
@@ -3744,26 +3958,30 @@ export default class GameScene extends Phaser.Scene {
     laserGunGraphics.generateTexture('laserGun', 48, 36)
     laserGunGraphics.destroy()
     
-    // Create Sword (Silver blade)
+    // Create Sword (Purple energy blade - matching shop style)
     const swordGraphics = this.make.graphics({ x: 0, y: 0 })
-    swordGraphics.fillStyle(0x888888, 1)
-    swordGraphics.fillRect(8, 16, 32, 4)
-    swordGraphics.fillStyle(0xcccccc, 1)
-    swordGraphics.fillRect(10, 17, 28, 2)
-    // Blade tip
-    swordGraphics.fillStyle(0x888888, 1)
+    
+    // Purple energy blade
+    swordGraphics.fillStyle(0xff00ff, 1)
+    swordGraphics.fillRect(12, 10, 6, 20) // Main blade
+    // Blade tip (triangle)
     swordGraphics.beginPath()
-    swordGraphics.moveTo(38, 14)
-    swordGraphics.lineTo(46, 18)
-    swordGraphics.lineTo(38, 22)
+    swordGraphics.moveTo(15, 6) // Tip point
+    swordGraphics.lineTo(12, 10)
+    swordGraphics.lineTo(18, 10)
     swordGraphics.closePath()
     swordGraphics.fillPath()
-    // Handle
-    swordGraphics.fillStyle(0x8b4513, 1)
-    swordGraphics.fillRect(4, 14, 8, 8)
-    swordGraphics.fillStyle(0xffd700, 1)
-    swordGraphics.fillRect(10, 12, 4, 12)
-    swordGraphics.generateTexture('sword', 48, 36)
+    
+    // Bright glow/inner blade
+    swordGraphics.fillStyle(0xffaaff, 0.8)
+    swordGraphics.fillRect(13, 11, 4, 18)
+    
+    // Gray handle/hilt
+    swordGraphics.fillStyle(0x888888, 1)
+    swordGraphics.fillRect(14, 30, 2, 4) // Grip
+    swordGraphics.fillRect(11, 29, 8, 2) // Guard
+    
+    swordGraphics.generateTexture('sword', 30, 36)
     swordGraphics.destroy()
     
     // Create Spikes (Red triangular spikes)
@@ -4152,5 +4370,108 @@ export default class GameScene extends Phaser.Scene {
     noText.setOrigin(0.5)
     noText.setScrollFactor(0)
     noText.setDepth(10003)
+  }
+
+  private throwSwordBlade() {
+    // Create spinning purple blade projectile
+    const direction = this.player.flipX ? -1 : 1
+    const blade = this.physics.add.sprite(
+      this.player.x + (direction * 30),
+      this.player.y,
+      'sword'
+    )
+    blade.setScale(1.2)
+    blade.setVelocityX(direction * 700)
+    blade.setVelocityY(-50) // Slight upward arc
+    blade.setTint(0xff00ff) // Purple glow
+    blade.setDepth(10)
+    
+    // Spinning animation
+    this.tweens.add({
+      targets: blade,
+      angle: direction * 720, // 2 full rotations
+      duration: 1000,
+      ease: 'Linear'
+    })
+    
+    // Glowing trail effect
+    const trail = this.add.particles(blade.x, blade.y, 'particle', {
+      speed: { min: 50, max: 100 },
+      scale: { start: 0.4, end: 0 },
+      alpha: { start: 0.8, end: 0 },
+      lifespan: 300,
+      frequency: 30,
+      tint: 0xff00ff,
+      follow: blade
+    })
+    
+    // Check collision with enemies
+    this.physics.add.overlap(blade, this.enemies, (_bladeObj: any, enemy: any) => {
+      const enemySprite = enemy as Phaser.Physics.Arcade.Sprite
+      
+      // Damage enemy (15 damage - stronger than normal attack)
+      let enemyHealth = enemySprite.getData('health') || 1
+      enemyHealth -= 15
+      enemySprite.setData('health', enemyHealth)
+      
+      // Visual feedback
+      enemySprite.clearTint()
+      enemySprite.setTint(0xff00ff)
+      this.time.delayedCall(100, () => {
+        if (enemySprite && enemySprite.active) {
+          enemySprite.clearTint()
+        }
+      })
+      
+      // Strong knockback
+      const knockbackDirection = blade.body!.velocity.x > 0 ? 1 : -1
+      enemySprite.setVelocityX(knockbackDirection * 500)
+      enemySprite.setVelocityY(-200)
+      
+      // Check if enemy died
+      if (enemyHealth <= 0) {
+        const coinReward = enemySprite.getData('coinReward')
+        this.dropCoins(enemySprite.x, enemySprite.y, coinReward)
+        
+        this.enemiesDefeated++
+        const enemySize = enemySprite.getData('enemySize')
+        let scoreReward = 50
+        if (enemySize === 'medium') scoreReward = 100
+        if (enemySize === 'large') scoreReward = 200
+        this.updateScore(scoreReward)
+        
+        enemySprite.setVelocity(0, 0)
+        enemySprite.setTint(0xff00ff)
+        
+        this.tweens.add({
+          targets: enemySprite,
+          alpha: 0,
+          y: enemySprite.y + 20,
+          duration: 500,
+          onComplete: () => enemySprite.destroy()
+        })
+      }
+    })
+    
+    // Destroy blade after 2 seconds or when off screen
+    this.time.delayedCall(2000, () => {
+      if (blade.active) {
+        trail.destroy()
+        blade.destroy()
+      }
+    })
+    
+    // Also destroy if too far off screen
+    const checkBounds = () => {
+      if (Math.abs(blade.x - this.player.x) > 1000) {
+        trail.destroy()
+        blade.destroy()
+      }
+    }
+    this.time.addEvent({
+      delay: 100,
+      callback: checkBounds,
+      repeat: 20
+    })
   }
 }

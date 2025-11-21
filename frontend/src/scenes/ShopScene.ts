@@ -25,12 +25,9 @@ export default class ShopScene extends Phaser.Scene {
   }
 
   preload() {
-    // Create procedural back arrow instead of loading image
+    // Create procedural textures for missing assets
     this.createBackArrow()
-    
-    // Load shop item icons
-    this.load.image('laserGun', '/assets/kenney_sci-fi-rts/PNG/Default size/Unit/gun01.png')
-    this.load.image('sword', '/assets/kenney_sci-fi-rts/PNG/Default size/Unit/weapon05.png')
+    this.createWeaponIcons()
     
     // Load skin previews (using different alien colors)
     this.load.image('skinBlue', '/assets/kenney_platformer-art-extended-enemies/Alien sprites/alienBlue_stand.png')
@@ -64,6 +61,46 @@ export default class ShopScene extends Phaser.Scene {
     
     graphics.generateTexture('backArrow', 100, 100)
     graphics.destroy()
+  }
+
+  private createWeaponIcons() {
+    // Create laser gun icon
+    const laserGunGraphics = this.make.graphics({ x: 0, y: 0 })
+    
+    // Green laser gun
+    laserGunGraphics.fillStyle(0x00ff00, 1)
+    laserGunGraphics.fillRect(10, 35, 50, 15) // Barrel
+    laserGunGraphics.fillRect(5, 40, 10, 10) // Tip
+    laserGunGraphics.fillRect(55, 30, 15, 25) // Handle
+    laserGunGraphics.fillRect(60, 55, 10, 10) // Grip
+    
+    // Energy core (cyan glow)
+    laserGunGraphics.fillStyle(0x00ffff, 1)
+    laserGunGraphics.fillCircle(60, 42, 5)
+    
+    laserGunGraphics.generateTexture('laserGun', 80, 80)
+    laserGunGraphics.destroy()
+    
+    // Create sword icon
+    const swordGraphics = this.make.graphics({ x: 0, y: 0 })
+    
+    // Purple energy sword blade
+    swordGraphics.fillStyle(0xff00ff, 1)
+    swordGraphics.fillRect(15, 5, 10, 50) // Blade
+    swordGraphics.fillRect(10, 0, 20, 8) // Blade tip (pointed)
+    
+    // Bright glow
+    swordGraphics.fillStyle(0xffaaff, 0.8)
+    swordGraphics.fillRect(17, 7, 6, 46)
+    
+    // Handle/hilt
+    swordGraphics.fillStyle(0x888888, 1)
+    swordGraphics.fillRect(18, 55, 4, 15) // Grip
+    swordGraphics.fillRect(12, 52, 16, 5) // Guard
+    swordGraphics.fillRect(16, 70, 8, 5) // Pommel
+    
+    swordGraphics.generateTexture('sword', 40, 80)
+    swordGraphics.destroy()
   }
 
   create() {

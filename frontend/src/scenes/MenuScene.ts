@@ -12,7 +12,13 @@ export default class MenuScene extends Phaser.Scene {
   preload() {
     // Load UI assets
     this.load.image('coin', '/assets/kenney_platformer-art-requests/Tiles/shieldGold.png')
+    
+    // Load all alien skins
     this.load.image('alienBeige_stand', '/assets/kenney_platformer-art-extended-enemies/Alien sprites/alienBeige_stand.png')
+    this.load.image('alienBlue_stand', '/assets/kenney_platformer-art-extended-enemies/Alien sprites/alienBlue_stand.png')
+    this.load.image('alienGreen_stand', '/assets/kenney_platformer-art-extended-enemies/Alien sprites/alienGreen_stand.png')
+    this.load.image('alienPink_stand', '/assets/kenney_platformer-art-extended-enemies/Alien sprites/alienPink_stand.png')
+    this.load.image('alienYellow_stand', '/assets/kenney_platformer-art-extended-enemies/Alien sprites/alienYellow_stand.png')
   }
 
   async create() {
@@ -44,8 +50,11 @@ export default class MenuScene extends Phaser.Scene {
     })
     subtitle.setOrigin(0.5)
     
-    // Add player character preview
-    const playerPreview = this.add.image(640, 360, 'alienBeige_stand')
+    // Get equipped skin from inventory
+    const equippedSkin = localStorage.getItem('equippedSkin') || 'alienBeige'
+    
+    // Add player character preview with equipped skin
+    const playerPreview = this.add.image(640, 360, `${equippedSkin}_stand`)
     playerPreview.setScale(2)
     
     // Floating animation for player
@@ -106,7 +115,7 @@ export default class MenuScene extends Phaser.Scene {
     endlessText.setOrigin(0.5)
     
     // Create Shop Button
-    const shopButton = this.add.rectangle(480, 630, 260, 60, 0xaa00aa)
+    const shopButton = this.add.rectangle(400, 630, 220, 60, 0xaa00aa)
     shopButton.setInteractive({ useHandCursor: true })
     shopButton.on('pointerover', () => shopButton.setFillStyle(0xff00ff))
     shopButton.on('pointerout', () => shopButton.setFillStyle(0xaa00aa))
@@ -114,15 +123,31 @@ export default class MenuScene extends Phaser.Scene {
       this.scene.start('ShopScene', { coins: this.coinCount })
     })
     
-    const shopText = this.add.text(480, 630, 'SHOP', {
-      fontSize: '32px',
+    const shopText = this.add.text(400, 630, 'SHOP', {
+      fontSize: '26px',
       color: '#ffffff',
       fontStyle: 'bold'
     })
     shopText.setOrigin(0.5)
     
+    // Create Inventory Button
+    const inventoryButton = this.add.rectangle(640, 630, 220, 60, 0xaa6600)
+    inventoryButton.setInteractive({ useHandCursor: true })
+    inventoryButton.on('pointerover', () => inventoryButton.setFillStyle(0xffaa00))
+    inventoryButton.on('pointerout', () => inventoryButton.setFillStyle(0xaa6600))
+    inventoryButton.on('pointerdown', () => {
+      this.scene.start('InventoryScene')
+    })
+    
+    const inventoryText = this.add.text(640, 630, 'INVENTORY', {
+      fontSize: '26px',
+      color: '#ffffff',
+      fontStyle: 'bold'
+    })
+    inventoryText.setOrigin(0.5)
+    
     // Create Leaderboard Button
-    const leaderboardButton = this.add.rectangle(800, 630, 260, 60, 0x0066cc)
+    const leaderboardButton = this.add.rectangle(880, 630, 220, 60, 0x0066cc)
     leaderboardButton.setInteractive({ useHandCursor: true })
     leaderboardButton.on('pointerover', () => leaderboardButton.setFillStyle(0x0099ff))
     leaderboardButton.on('pointerout', () => leaderboardButton.setFillStyle(0x0066cc))
@@ -130,8 +155,8 @@ export default class MenuScene extends Phaser.Scene {
       this.scene.start('LeaderboardScene')
     })
     
-    const leaderboardText = this.add.text(800, 630, 'LEADERBOARD', {
-      fontSize: '28px',
+    const leaderboardText = this.add.text(880, 630, 'LEADERBOARD', {
+      fontSize: '26px',
       color: '#ffffff',
       fontStyle: 'bold'
     })
