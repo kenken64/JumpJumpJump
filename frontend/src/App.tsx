@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import Phaser from 'phaser'
 import './App.css'
 import MenuScene from './scenes/MenuScene'
@@ -9,9 +9,14 @@ import LeaderboardScene from './scenes/LeaderboardScene'
 function App() {
   const gameRef = useRef<HTMLDivElement>(null)
   const phaserGameRef = useRef<Phaser.Game | null>(null)
+  const [audioReady, setAudioReady] = useState(false)
+
+  const handleStartAudio = () => {
+    setAudioReady(true)
+  }
 
   useEffect(() => {
-    if (gameRef.current && !phaserGameRef.current) {
+    if (gameRef.current && !phaserGameRef.current && audioReady) {
       const config: Phaser.Types.Core.GameConfig = {
         type: Phaser.AUTO,
         width: 1280,
@@ -41,10 +46,46 @@ function App() {
         phaserGameRef.current = null
       }
     }
-  }, [])
+  }, [audioReady])
 
   return (
     <div className="App">
+      {!audioReady && (
+        <div 
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            width: '100%',
+            height: '100%',
+            backgroundColor: '#0a0a1a',
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 9999,
+            cursor: 'pointer'
+          }}
+          onClick={handleStartAudio}
+        >
+          <h1 style={{ color: '#00ff00', fontSize: '48px', marginBottom: '20px' }}>
+            JUMP JUMP JUMP
+          </h1>
+          <p style={{ color: '#ffffff', fontSize: '24px', marginBottom: '40px' }}>
+            Click anywhere to start with audio
+          </p>
+          <div style={{ 
+            padding: '20px 40px', 
+            backgroundColor: '#00aa00', 
+            color: '#ffffff', 
+            fontSize: '24px',
+            borderRadius: '10px',
+            fontWeight: 'bold'
+          }}>
+            ▶ START GAME
+          </div>
+        </div>
+      )}
       <div ref={gameRef} id="game-container"></div>
     </div>
   )
