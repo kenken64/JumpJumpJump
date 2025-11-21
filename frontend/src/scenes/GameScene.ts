@@ -83,6 +83,11 @@ export default class GameScene extends Phaser.Scene {
   }
 
   preload() {
+    // Listen for load errors and create fallback textures
+    this.load.on('loaderror', (file: any) => {
+      console.warn(`Failed to load: ${file.key} from ${file.url}, will create fallback`)
+    })
+
     // Load alien sprites (using alienBeige as the player)
     this.load.image('alienBeige_stand', '/assets/kenney_platformer-art-extended-enemies/Alien sprites/alienBeige_stand.png')
     this.load.image('alienBeige_walk1', '/assets/kenney_platformer-art-extended-enemies/Alien sprites/alienBeige_walk1.png')
@@ -205,6 +210,9 @@ export default class GameScene extends Phaser.Scene {
     const data = this.scene.settings.data as any
     this.gameMode = data?.gameMode || 'levels'
     this.currentLevel = data?.level || 1
+
+    // Create fallback textures for any missing assets
+    this.createFallbackTextures()
     
     // Create procedural textures for power-ups and items
     this.createProceduralTextures()
@@ -3531,6 +3539,41 @@ export default class GameScene extends Phaser.Scene {
     oscillator.stop(this.audioContext.currentTime + 0.15)
   }
   
+  private createFallbackTextures() {
+    // Create fallback textures for any assets that failed to load
+    const missingTextures = [
+      // Check if essential textures exist, if not create colored rectangles as fallbacks
+      'alienBeige_stand', 'alienBeige_walk1', 'alienBeige_walk2', 'alienBeige_jump',
+      'alienBlue_stand', 'alienGreen_stand', 'alienPink_stand', 'alienYellow_stand',
+      'fly', 'bee', 'slimeGreen', 'slimeBlue', 'wormGreen', 'wormPink',
+      'beam', 'beamBolts', 'metalCenter', 'metalLeft', 'metalMid', 'metalRight',
+      'metalPlatform', 'stoneCaveTop', 'homeIcon'
+    ]
+
+    missingTextures.forEach(key => {
+      if (!this.textures.exists(key)) {
+        console.warn(`Creating fallback texture for: ${key}`)
+        const graphics = this.make.graphics({ x: 0, y: 0 })
+        
+        // Different colors for different types
+        let color = 0x888888 // Default gray
+        if (key.includes('alien')) color = 0x00ff00 // Green for aliens
+        else if (key.includes('fly') || key.includes('bee')) color = 0xffaa00 // Orange for flying enemies
+        else if (key.includes('slime')) color = 0x00ffaa // Cyan for slimes  
+        else if (key.includes('worm')) color = 0xff00aa // Pink for worms
+        else if (key.includes('metal') || key.includes('beam')) color = 0x666666 // Dark gray for platforms
+        else if (key.includes('stone')) color = 0x996633 // Brown for stone
+        
+        graphics.fillStyle(color, 1)
+        graphics.fillRect(0, 0, 70, 70)
+        graphics.fillStyle(0xffffff, 0.3)
+        graphics.fillRect(5, 5, 60, 60)
+        graphics.generateTexture(key, 70, 70)
+        graphics.destroy()
+      }
+    })
+  }
+
   private createProceduralTextures() {
     // Create Speed Power-up (Yellow Lightning Bolt)
     const speedGraphics = this.make.graphics({ x: 0, y: 0 })
