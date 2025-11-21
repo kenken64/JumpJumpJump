@@ -69,7 +69,7 @@ export default class MenuScene extends Phaser.Scene {
     title.setOrigin(0.5)
     
     // Add subtitle
-    const subtitle = this.add.text(640, 230, 'A Platformer Adventure', {
+    const subtitle = this.add.text(640, 230, 'A Sci-Fi Platformer Adventure', {
       fontSize: '24px',
       color: '#ffffff',
       fontStyle: 'italic'
@@ -149,7 +149,7 @@ export default class MenuScene extends Phaser.Scene {
     endlessText.setOrigin(0.5)
     
     // Create Shop Button
-    const shopButton = this.add.rectangle(400, 630, 220, 60, 0xaa00aa)
+    const shopButton = this.add.rectangle(320, 630, 180, 60, 0xaa00aa)
     shopButton.setInteractive({ useHandCursor: true })
     shopButton.on('pointerover', () => shopButton.setFillStyle(0xff00ff))
     shopButton.on('pointerout', () => shopButton.setFillStyle(0xaa00aa))
@@ -157,15 +157,15 @@ export default class MenuScene extends Phaser.Scene {
       this.scene.start('ShopScene', { coins: this.coinCount })
     })
     
-    const shopText = this.add.text(400, 630, 'SHOP', {
-      fontSize: '26px',
+    const shopText = this.add.text(320, 630, 'SHOP', {
+      fontSize: '24px',
       color: '#ffffff',
       fontStyle: 'bold'
     })
     shopText.setOrigin(0.5)
     
     // Create Inventory Button
-    const inventoryButton = this.add.rectangle(640, 630, 220, 60, 0xaa6600)
+    const inventoryButton = this.add.rectangle(520, 630, 180, 60, 0xaa6600)
     inventoryButton.setInteractive({ useHandCursor: true })
     inventoryButton.on('pointerover', () => inventoryButton.setFillStyle(0xffaa00))
     inventoryButton.on('pointerout', () => inventoryButton.setFillStyle(0xaa6600))
@@ -173,15 +173,31 @@ export default class MenuScene extends Phaser.Scene {
       this.scene.start('InventoryScene')
     })
     
-    const inventoryText = this.add.text(640, 630, 'INVENTORY', {
-      fontSize: '26px',
+    const inventoryText = this.add.text(520, 630, 'INVENTORY', {
+      fontSize: '24px',
       color: '#ffffff',
       fontStyle: 'bold'
     })
     inventoryText.setOrigin(0.5)
     
+    // Create Bosses Button
+    const bossesButton = this.add.rectangle(720, 630, 180, 60, 0xcc0000)
+    bossesButton.setInteractive({ useHandCursor: true })
+    bossesButton.on('pointerover', () => bossesButton.setFillStyle(0xff0000))
+    bossesButton.on('pointerout', () => bossesButton.setFillStyle(0xcc0000))
+    bossesButton.on('pointerdown', () => {
+      this.scene.start('BossGalleryScene')
+    })
+    
+    const bossesText = this.add.text(720, 630, 'BOSSES', {
+      fontSize: '24px',
+      color: '#ffffff',
+      fontStyle: 'bold'
+    })
+    bossesText.setOrigin(0.5)
+    
     // Create Leaderboard Button
-    const leaderboardButton = this.add.rectangle(880, 630, 220, 60, 0x0066cc)
+    const leaderboardButton = this.add.rectangle(920, 630, 180, 60, 0x0066cc)
     leaderboardButton.setInteractive({ useHandCursor: true })
     leaderboardButton.on('pointerover', () => leaderboardButton.setFillStyle(0x0099ff))
     leaderboardButton.on('pointerout', () => leaderboardButton.setFillStyle(0x0066cc))
@@ -189,8 +205,8 @@ export default class MenuScene extends Phaser.Scene {
       this.scene.start('LeaderboardScene')
     })
     
-    const leaderboardText = this.add.text(880, 630, 'LEADERBOARD', {
-      fontSize: '26px',
+    const leaderboardText = this.add.text(920, 630, 'LEADERBOARD', {
+      fontSize: '22px',
       color: '#ffffff',
       fontStyle: 'bold'
     })

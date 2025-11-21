@@ -6,6 +6,7 @@ import GameScene from './scenes/GameScene'
 import ShopScene from './scenes/ShopScene'
 import LeaderboardScene from './scenes/LeaderboardScene'
 import InventoryScene from './scenes/InventoryScene'
+import BossGalleryScene from './scenes/BossGalleryScene'
 
 function App() {
   const gameRef = useRef<HTMLDivElement>(null)
@@ -31,7 +32,7 @@ function App() {
             debug: false
           }
         },
-        scene: [MenuScene, GameScene, ShopScene, LeaderboardScene, InventoryScene],
+        scene: [MenuScene, GameScene, ShopScene, LeaderboardScene, InventoryScene, BossGalleryScene],
         scale: {
           mode: Phaser.Scale.FIT,
           autoCenter: Phaser.Scale.CENTER_BOTH

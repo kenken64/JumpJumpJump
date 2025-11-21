@@ -4,6 +4,12 @@ import { GameAPI, type ScoreResponse } from '../services/api'
 export default class LeaderboardScene extends Phaser.Scene {
   private leaderboardData: ScoreResponse[] = []
   private selectedMode: 'all' | 'levels' | 'endless' = 'all'
+  private currentPage: number = 1
+  private itemsPerPage: number = 6
+  private prevButton?: Phaser.GameObjects.Rectangle
+  private nextButton?: Phaser.GameObjects.Rectangle
+  private prevButtonText?: Phaser.GameObjects.Text
+  private nextButtonText?: Phaser.GameObjects.Text
 
   constructor() {
     super({ key: 'LeaderboardScene' })
@@ -12,6 +18,9 @@ export default class LeaderboardScene extends Phaser.Scene {
   async create() {
     // Background
     this.cameras.main.setBackgroundColor('#0a0a1a')
+
+    // Reset page to 1 on scene start
+    this.currentPage = 1
 
     // Title
     const title = this.add.text(640, 50, 'LEADERBOARD', {
@@ -32,7 +41,7 @@ export default class LeaderboardScene extends Phaser.Scene {
 
     // Load leaderboard data
     try {
-      this.leaderboardData = await GameAPI.getLeaderboard(10)
+      this.leaderboardData = await GameAPI.getLeaderboard(100) // Load more to support pagination
       loadingText.destroy()
       this.displayLeaderboard()
     } catch (error) {
@@ -42,6 +51,9 @@ export default class LeaderboardScene extends Phaser.Scene {
 
     // Mode filter buttons
     this.createFilterButtons()
+
+    // Pagination controls
+    this.createPaginationControls()
 
     // Back button
     this.createBackButton()
@@ -91,25 +103,39 @@ export default class LeaderboardScene extends Phaser.Scene {
     const startY = 200
     const lineHeight = 50
 
+    // Clear previous leaderboard display
+    this.children.each((child) => {
+      if (child.getData('leaderboardItem')) {
+        child.destroy()
+      }
+    })
+
     // Header
-    this.add.text(150, startY, 'RANK   PLAYER                SCORE      LEVEL    MODE', {
+    const header = this.add.text(150, startY, 'RANK   PLAYER                SCORE      LEVEL    MODE', {
       fontSize: '20px',
       color: '#ffaa00',
       fontStyle: 'bold',
       fontFamily: 'monospace'
     })
+    header.setData('leaderboardItem', true)
 
     // Load data based on selected mode
     try {
       const mode = this.selectedMode === 'all' ? undefined : this.selectedMode
-      this.leaderboardData = await GameAPI.getLeaderboard(10, mode)
+      this.leaderboardData = await GameAPI.getLeaderboard(100, mode)
     } catch (error) {
       console.error('Failed to load leaderboard:', error)
       return
     }
 
-    // Display each score
-    this.leaderboardData.forEach((score, index) => {
+    // Calculate pagination
+    const totalPages = Math.ceil(this.leaderboardData.length / this.itemsPerPage)
+    const startIndex = (this.currentPage - 1) * this.itemsPerPage
+    const endIndex = startIndex + this.itemsPerPage
+    const pageData = this.leaderboardData.slice(startIndex, endIndex)
+
+    // Display each score for current page
+    pageData.forEach((score, index) => {
       const y = startY + 40 + (index * lineHeight)
       
       // Rank color based on position
@@ -130,6 +156,7 @@ export default class LeaderboardScene extends Phaser.Scene {
         color: rankColor,
         fontFamily: 'monospace'
       })
+      text.setData('leaderboardItem', true)
 
       // Hover effect
       text.setInteractive({ useHandCursor: true })
@@ -138,7 +165,7 @@ export default class LeaderboardScene extends Phaser.Scene {
         text.setColor('#00ff00')
         
         // Show detailed stats
-        const detailsText = this.add.text(640, 650, 
+        const detailsText = this.add.text(640, 600, 
           `Coins: ${score.coins} | Enemies: ${score.enemies_defeated} | Distance: ${score.distance}m`, {
           fontSize: '20px',
           color: '#ffffff',
@@ -147,6 +174,7 @@ export default class LeaderboardScene extends Phaser.Scene {
         })
         detailsText.setOrigin(0.5)
         detailsText.setName('details')
+        detailsText.setData('leaderboardItem', true)
       })
 
       text.on('pointerout', () => {
@@ -161,10 +189,115 @@ export default class LeaderboardScene extends Phaser.Scene {
 
     // Show empty state if no scores
     if (this.leaderboardData.length === 0) {
-      this.add.text(640, 400, 'No scores yet. Be the first!', {
+      const emptyText = this.add.text(640, 400, 'No scores yet. Be the first!', {
         fontSize: '32px',
         color: '#888888'
       }).setOrigin(0.5)
+      emptyText.setData('leaderboardItem', true)
+    }
+
+    // Update pagination buttons state
+    this.updatePaginationButtons()
+  }
+
+  private createPaginationControls() {
+    const buttonY = 580
+    const buttonWidth = 120
+    const buttonHeight = 50
+
+    // Previous button
+    this.prevButton = this.add.rectangle(440, buttonY, buttonWidth, buttonHeight, 0x444444)
+    this.prevButton.setStrokeStyle(3, 0x666666)
+    this.prevButton.setInteractive({ useHandCursor: true })
+
+    this.prevButtonText = this.add.text(440, buttonY, '< PREV', {
+      fontSize: '20px',
+      color: '#ffffff',
+      fontStyle: 'bold'
+    })
+    this.prevButtonText.setOrigin(0.5)
+
+    this.prevButton.on('pointerover', () => {
+      if (this.currentPage > 1) {
+        this.prevButton!.setFillStyle(0x666666)
+      }
+    })
+
+    this.prevButton.on('pointerout', () => {
+      const isDisabled = this.currentPage <= 1
+      this.prevButton!.setFillStyle(isDisabled ? 0x222222 : 0x444444)
+    })
+
+    this.prevButton.on('pointerdown', () => {
+      if (this.currentPage > 1) {
+        this.currentPage--
+        this.displayLeaderboard()
+      }
+    })
+
+    // Next button
+    this.nextButton = this.add.rectangle(840, buttonY, buttonWidth, buttonHeight, 0x444444)
+    this.nextButton.setStrokeStyle(3, 0x666666)
+    this.nextButton.setInteractive({ useHandCursor: true })
+
+    this.nextButtonText = this.add.text(840, buttonY, 'NEXT >', {
+      fontSize: '20px',
+      color: '#ffffff',
+      fontStyle: 'bold'
+    })
+    this.nextButtonText.setOrigin(0.5)
+
+    this.nextButton.on('pointerover', () => {
+      const totalPages = Math.ceil(this.leaderboardData.length / this.itemsPerPage)
+      if (this.currentPage < totalPages) {
+        this.nextButton!.setFillStyle(0x666666)
+      }
+    })
+
+    this.nextButton.on('pointerout', () => {
+      const totalPages = Math.ceil(this.leaderboardData.length / this.itemsPerPage)
+      const isDisabled = this.currentPage >= totalPages
+      this.nextButton!.setFillStyle(isDisabled ? 0x222222 : 0x444444)
+    })
+
+    this.nextButton.on('pointerdown', () => {
+      const totalPages = Math.ceil(this.leaderboardData.length / this.itemsPerPage)
+      if (this.currentPage < totalPages) {
+        this.currentPage++
+        this.displayLeaderboard()
+      }
+    })
+
+    // Page indicator
+    const pageText = this.add.text(640, buttonY, 'Page 1 / 1', {
+      fontSize: '20px',
+      color: '#ffffff',
+      fontStyle: 'bold'
+    })
+    pageText.setOrigin(0.5)
+    pageText.setName('pageIndicator')
+  }
+
+  private updatePaginationButtons() {
+    const totalPages = Math.ceil(this.leaderboardData.length / this.itemsPerPage)
+    
+    // Update button states
+    if (this.prevButton && this.prevButtonText) {
+      const prevDisabled = this.currentPage <= 1
+      this.prevButton.setFillStyle(prevDisabled ? 0x222222 : 0x444444)
+      this.prevButtonText.setAlpha(prevDisabled ? 0.5 : 1)
+    }
+
+    if (this.nextButton && this.nextButtonText) {
+      const nextDisabled = this.currentPage >= totalPages
+      this.nextButton.setFillStyle(nextDisabled ? 0x222222 : 0x444444)
+      this.nextButtonText.setAlpha(nextDisabled ? 0.5 : 1)
+    }
+
+    // Update page indicator
+    const pageIndicator = this.children.getByName('pageIndicator') as Phaser.GameObjects.Text
+    if (pageIndicator) {
+      pageIndicator.setText(`Page ${this.currentPage} / ${totalPages}`)
     }
   }
 

@@ -18,6 +18,15 @@ export interface ScoreResponse extends ScoreData {
   rank?: number
 }
 
+export interface Boss {
+  id: number
+  boss_index: number
+  boss_name: string
+  notorious_title: string
+  frame_x: number
+  frame_y: number
+}
+
 export class GameAPI {
   private static async fetchAPI(endpoint: string, options?: RequestInit) {
     try {
@@ -77,5 +86,9 @@ export class GameAPI {
     } catch {
       return false
     }
+  }
+
+  static async getAllBosses(): Promise<Boss[]> {
+    return this.fetchAPI('/api/bosses')
   }
 }

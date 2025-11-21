@@ -1678,7 +1678,28 @@ export default class GameScene extends Phaser.Scene {
     enemy.body!.setMaxVelocity(200, 600)
   }
 
-  private spawnBoss(x: number) {
+  // Find next undefeated boss for current player (cycles through all 24 bosses)
+  private findNextUndefeatedBoss(startIndex: number): number | null {
+    const playerName = localStorage.getItem('player_name') || 'Guest'
+    const totalBosses = 24
+    
+    // Check all bosses starting from startIndex
+    for (let i = 0; i < totalBosses; i++) {
+      const checkIndex = (startIndex + i) % totalBosses
+      const bossKey = `${playerName}_boss_${checkIndex}`
+      const isDefeated = localStorage.getItem(bossKey) === 'defeated'
+      
+      if (!isDefeated) {
+        console.log('✅ Found undefeated boss:', checkIndex)
+        return checkIndex
+      }
+    }
+    
+    console.log('🏆 All bosses defeated! Starting over from boss 0')
+    return 0 // If all bosses defeated, start over
+  }
+
+  private spawnBoss(x: number, forcedBossIndex?: number) {
     if (this.bossActive || this.boss) return
     
     this.bossActive = true
@@ -1692,7 +1713,9 @@ export default class GameScene extends Phaser.Scene {
     
     // Calculate which boss to use based on level (0-23 different bosses in the spritesheet)
     // Spritesheet has 4 columns and 6 rows = 24 bosses total
-    const bossIndex = ((this.currentLevel - 1) / 5) % 24
+    // Level 5 = boss 0, Level 10 = boss 1, Level 15 = boss 2, etc.
+    const defaultBossIndex = Math.floor((this.currentLevel / 5) - 1) % 24
+    const bossIndex = forcedBossIndex !== undefined ? forcedBossIndex : defaultBossIndex
     const bossRow = Math.floor(bossIndex / 4)
     const bossCol = bossIndex % 4
     const baseFrame = bossRow * 4 + bossCol // Calculate the frame index
@@ -1745,6 +1768,7 @@ export default class GameScene extends Phaser.Scene {
     this.boss.setData('lastAttack', 0)
     this.boss.setData('attackCooldown', 2000)
     this.boss.setData('phase', 1)
+    this.boss.setData('bossIndex', baseFrame) // Store boss index for defeat tracking
     
     // Create boss health bar (moved down to avoid level text overlap)
     this.bossHealthBarBg = this.add.rectangle(640, 80, 500, 30, 0x000000, 0.7)
@@ -1954,9 +1978,18 @@ export default class GameScene extends Phaser.Scene {
     if (!this.boss) return
     
     this.bossActive = false
-    this.defeatedBossLevels.add(this.currentLevel) // Track this boss level as defeated
     
-    // Save to localStorage to persist across scene restarts
+    // Get player name and boss index
+    const playerName = localStorage.getItem('player_name') || 'Guest'
+    const bossIndex = this.boss.getData('bossIndex') || 0
+    const bossKey = `${playerName}_boss_${bossIndex}`
+    
+    // Save defeated boss with player-specific key
+    localStorage.setItem(bossKey, 'defeated')
+    console.log('💾 Boss defeated by', playerName, '- Boss Index:', bossIndex)
+    
+    // Also track in current session
+    this.defeatedBossLevels.add(this.currentLevel)
     localStorage.setItem('defeatedBossLevels', JSON.stringify(Array.from(this.defeatedBossLevels)))
     console.log('💾 Saved defeated boss level:', this.currentLevel)
     
@@ -2352,10 +2385,28 @@ export default class GameScene extends Phaser.Scene {
       this.updateBoss()
     }
     
-    // Spawn boss at certain levels (levels 5, 10, 15, etc.) - only if not already defeated
+    // Spawn boss at certain levels (levels 5, 10, 15, etc.) - only if not already defeated by this player
     if (this.gameMode === 'levels' && !this.bossActive && !this.boss && !this.defeatedBossLevels.has(this.currentLevel)) {
       if (this.currentLevel % 5 === 0 && this.player.x > this.levelLength - 3000 && this.player.x < this.levelLength - 2800) {
-        this.spawnBoss(this.levelLength - 2500)
+        // Check if this player has defeated this specific boss
+        const playerName = localStorage.getItem('player_name') || 'Guest'
+        const defaultBossIndex = Math.floor((this.currentLevel / 5) - 1) % 24
+        const bossKey = `${playerName}_boss_${defaultBossIndex}`
+        const alreadyDefeated = localStorage.getItem(bossKey) === 'defeated'
+        
+        console.log('🎮 Level', this.currentLevel, '- Default Boss Index:', defaultBossIndex, '- Already defeated:', alreadyDefeated)
+        
+        if (!alreadyDefeated) {
+          // Spawn the default boss for this level
+          this.spawnBoss(this.levelLength - 2500)
+        } else {
+          // Find next undefeated boss and spawn it instead
+          console.log('🔄 Boss', defaultBossIndex, 'already defeated, finding next undefeated boss...')
+          const nextBossIndex = this.findNextUndefeatedBoss(defaultBossIndex + 1)
+          if (nextBossIndex !== null) {
+            this.spawnBoss(this.levelLength - 2500, nextBossIndex)
+          }
+        }
       }
     }
 

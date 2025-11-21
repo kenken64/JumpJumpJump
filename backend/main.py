@@ -64,6 +64,48 @@ def init_db():
         CREATE INDEX IF NOT EXISTS idx_score_desc ON scores(score DESC)
     """)
     
+    # Create bosses table
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS bosses (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            boss_index INTEGER NOT NULL UNIQUE,
+            boss_name TEXT NOT NULL,
+            notorious_title TEXT NOT NULL,
+            frame_x INTEGER NOT NULL,
+            frame_y INTEGER NOT NULL
+        )
+    """)
+    
+    # Insert boss data if not exists (16 bosses from 4x4 spritesheet)
+    cursor.execute("SELECT COUNT(*) FROM bosses")
+    if cursor.fetchone()[0] == 0:
+        boss_names = [
+            ("Vortex Reaper", "The Dimensional Destroyer"),
+            ("Nebula Tyrant", "Cosmic Annihilator"),
+            ("Quantum Phantom", "Master of Reality Collapse"),
+            ("Crimson Void", "The Blood Star"),
+            ("Eclipse Warden", "Shadow of Oblivion"),
+            ("Stellar Juggernaut", "Planet Crusher"),
+            ("Chrono Scourge", "Time's End"),
+            ("Nova Hellion", "The Supernova Beast"),
+            ("Celestial Nightmare", "Harbinger of Chaos"),
+            ("Void Leviathan", "The Abyss Walker"),
+            ("Galactic Sentinel", "Guardian of the Dark"),
+            ("Plasma Overlord", "Emperor of Destruction"),
+            ("Astral Devourer", "Consumer of Worlds"),
+            ("Omega Colossus", "The Final Terror"),
+            ("Infinity Bane", "Eternal Nemesis"),
+            ("Genesis Titan", "The First Destroyer")
+        ]
+        
+        for idx, (name, title) in enumerate(boss_names):
+            frame_x = (idx % 4) * 256
+            frame_y = (idx // 4) * 256
+            cursor.execute("""
+                INSERT INTO bosses (boss_index, boss_name, notorious_title, frame_x, frame_y)
+                VALUES (?, ?, ?, ?, ?)
+            """, (idx, name, title, frame_x, frame_y))
+    
     conn.commit()
     conn.close()
 
@@ -91,6 +133,14 @@ class ScoreResponse(BaseModel):
     game_mode: str
     created_at: str
     rank: Optional[int] = None
+
+class Boss(BaseModel):
+    id: int
+    boss_index: int
+    boss_name: str
+    notorious_title: str
+    frame_x: int
+    frame_y: int
 
 # API Endpoints
 @app.get("/")
@@ -249,6 +299,33 @@ def get_score_rank(score: int, game_mode: Optional[str] = None, api_key: str = S
         conn.close()
         
         return {"score": score, "rank": rank}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/api/bosses", response_model=List[Boss])
+def get_all_bosses(api_key: str = Security(verify_api_key)):
+    """Get all boss data from the database"""
+    try:
+        conn = sqlite3.connect(DB_PATH)
+        cursor = conn.cursor()
+        
+        cursor.execute("""
+            SELECT id, boss_index, boss_name, notorious_title, frame_x, frame_y
+            FROM bosses
+            ORDER BY boss_index
+        """)
+        
+        rows = cursor.fetchall()
+        conn.close()
+        
+        return [Boss(
+            id=row[0],
+            boss_index=row[1],
+            boss_name=row[2],
+            notorious_title=row[3],
+            frame_x=row[4],
+            frame_y=row[5]
+        ) for row in rows]
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
