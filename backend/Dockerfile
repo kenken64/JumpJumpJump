@@ -15,6 +15,7 @@ RUN mkdir -p /app/data
 # Set default environment variables (can be overridden by Railway)
 ENV ALLOWED_ORIGINS=http://localhost:3000,http://localhost:5173
 ENV DATA_DIR=/app/data
+ENV API_KEY=your-secret-api-key-here
 
 # Expose port (Railway will override with PORT env var)
 EXPOSE 8000

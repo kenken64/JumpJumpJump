@@ -1,5 +1,6 @@
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Security, Header
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.security import APIKeyHeader
 from pydantic import BaseModel
 from typing import List, Optional
 import sqlite3
@@ -7,6 +8,19 @@ from datetime import datetime
 import os
 
 app = FastAPI(title="JumpJumpJump API")
+
+# API Key configuration
+API_KEY = os.getenv("API_KEY", "your-secret-api-key-here")
+api_key_header = APIKeyHeader(name="X-API-Key", auto_error=False)
+
+async def verify_api_key(api_key: str = Security(api_key_header)):
+    """Verify the API key from request header"""
+    if api_key != API_KEY:
+        raise HTTPException(
+            status_code=403,
+            detail="Invalid or missing API key"
+        )
+    return api_key
 
 # CORS middleware to allow frontend requests
 # Get allowed origins from environment variable or use defaults
@@ -84,7 +98,7 @@ def read_root():
     return {"message": "JumpJumpJump API is running!"}
 
 @app.post("/api/scores", response_model=ScoreResponse)
-def submit_score(score_data: ScoreSubmit):
+def submit_score(score_data: ScoreSubmit, api_key: str = Security(verify_api_key)):
     """Submit a new score to the leaderboard"""
     try:
         conn = sqlite3.connect(DB_PATH)
@@ -130,7 +144,7 @@ def submit_score(score_data: ScoreSubmit):
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/api/scores/leaderboard", response_model=List[ScoreResponse])
-def get_leaderboard(limit: int = 10, game_mode: Optional[str] = None):
+def get_leaderboard(limit: int = 10, game_mode: Optional[str] = None, api_key: str = Security(verify_api_key)):
     """Get top scores from the leaderboard"""
     try:
         conn = sqlite3.connect(DB_PATH)
@@ -175,7 +189,7 @@ def get_leaderboard(limit: int = 10, game_mode: Optional[str] = None):
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/api/scores/player/{player_name}", response_model=ScoreResponse)
-def get_player_high_score(player_name: str):
+def get_player_high_score(player_name: str, api_key: str = Security(verify_api_key)):
     """Get a player's highest score"""
     try:
         conn = sqlite3.connect(DB_PATH)
@@ -212,7 +226,7 @@ def get_player_high_score(player_name: str):
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/api/scores/rank/{score}")
-def get_score_rank(score: int, game_mode: Optional[str] = None):
+def get_score_rank(score: int, game_mode: Optional[str] = None, api_key: str = Security(verify_api_key)):
     """Get the rank of a specific score"""
     try:
         conn = sqlite3.connect(DB_PATH)
