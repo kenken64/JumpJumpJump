@@ -2624,6 +2624,38 @@ export default class GameScene extends Phaser.Scene {
       return
     }
 
+    // Check if player has shield - absorb damage and destroy shield
+    if (this.hasShield) {
+      // Shield absorbs the hit
+      this.hasShield = false
+      
+      // Visual feedback - shield breaking
+      if (this.shieldSprite) {
+        // Flash and destroy shield
+        this.tweens.add({
+          targets: this.shieldSprite,
+          scale: 2,
+          alpha: 0,
+          duration: 200,
+          ease: 'Power2',
+          onComplete: () => {
+            if (this.shieldSprite) {
+              this.shieldSprite.destroy()
+              this.shieldSprite = null
+            }
+          }
+        })
+      }
+      
+      // Bounce enemy away
+      const bounceDirection = enemySprite.x > playerSprite.x ? 1 : -1
+      enemySprite.setVelocityX(bounceDirection * 300)
+      enemySprite.setVelocityY(-300)
+      
+      // No damage to player
+      return
+    }
+
     // Player takes damage
     this.playerHealth -= 20
     playerSprite.setData('lastHitTime', currentTime)
