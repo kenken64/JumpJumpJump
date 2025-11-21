@@ -22,13 +22,11 @@ export default class BossGalleryScene extends Phaser.Scene {
     this.currentPage = 0
     this.bossCards = []
     
-    // Load boss spritesheet only if not already loaded
-    if (!this.textures.exists('geminiBoss')) {
-      this.load.spritesheet('geminiBoss', '/assets/gemini-boss-spritesheet.png', {
-        frameWidth: 256,
-        frameHeight: 256
-      })
-    }
+    // Always reload the spritesheet to ensure it's available
+    this.load.spritesheet('geminiBoss', '/assets/gemini-boss-spritesheet.png', {
+      frameWidth: 256,
+      frameHeight: 256
+    })
   }
 
   async create() {
