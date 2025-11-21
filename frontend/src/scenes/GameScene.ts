@@ -3950,7 +3950,7 @@ export default class GameScene extends Phaser.Scene {
       { x: 9500, y: 220, scale: 0.9, scrollFactor: 0.07 }
     ]
     
-    blackholePositions.forEach((pos, index) => {
+    blackholePositions.forEach((pos) => {
       // Create the blackhole core (event horizon)
       const core = this.add.circle(pos.x, pos.y, 40 * pos.scale, 0x000000, 1)
       core.setScrollFactor(pos.scrollFactor)
