@@ -34,8 +34,10 @@ function App() {
         },
         scene: [MenuScene, GameScene, ShopScene, LeaderboardScene, InventoryScene, BossGalleryScene],
         scale: {
-          mode: Phaser.Scale.FIT,
-          autoCenter: Phaser.Scale.CENTER_BOTH
+          mode: Phaser.Scale.RESIZE,
+          autoCenter: Phaser.Scale.CENTER_BOTH,
+          width: '100%',
+          height: '100%'
         }
       }
 
