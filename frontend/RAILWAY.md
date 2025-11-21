@@ -25,6 +25,7 @@
    - Go to your service → Variables
    - Add the `VITE_API_BASE_URL` variable
    - Set it to your backend Railway URL
+   - Railway will automatically pass this as a build arg to Docker
 
 4. **Deploy**
    - Railway will automatically build and deploy
@@ -32,13 +33,15 @@
    - Serves static files via Nginx on port 80
 
 ### Files Created
-- `Dockerfile` - Multi-stage build (Node.js builder + Nginx server)
+- `Dockerfile` - Multi-stage build (Node.js 20+ builder + Nginx server)
 - `.dockerignore` - Excludes unnecessary files from Docker image
 - `nginx.conf` - Production-ready Nginx configuration
 - `railway.json` - Railway deployment configuration
 
 ### Features
+✅ Node.js 20+ for building (alpine image)
 ✅ Multi-stage Docker build for minimal image size
+✅ Environment variables baked into build (VITE_API_BASE_URL)
 ✅ Nginx for fast static file serving
 ✅ Gzip compression enabled
 ✅ Security headers configured

@@ -14,10 +14,14 @@ COPY package.json pnpm-lock.yaml ./
 # Install dependencies
 RUN pnpm install --frozen-lockfile
 
-# Copy source code
+# Copy source code and environment files
 COPY . .
 
-# Build the application
+# Accept build-time environment variables
+ARG VITE_API_BASE_URL
+ENV VITE_API_BASE_URL=$VITE_API_BASE_URL
+
+# Build the application with environment variables
 RUN pnpm build
 
 # Stage 2: Production server with nginx

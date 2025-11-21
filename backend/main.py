@@ -9,16 +9,21 @@ import os
 app = FastAPI(title="JumpJumpJump API")
 
 # CORS middleware to allow frontend requests
+# Get allowed origins from environment variable or use defaults
+ALLOWED_ORIGINS = os.getenv("ALLOWED_ORIGINS", "http://localhost:3000,http://localhost:5173").split(",")
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000", "http://localhost:5173"],
+    allow_origins=ALLOWED_ORIGINS,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
 # Database setup
-DB_PATH = os.path.join(os.path.dirname(__file__), "game.db")
+# Use /app/data for persistent storage in Railway
+DATA_DIR = os.getenv("DATA_DIR", os.path.dirname(__file__))
+DB_PATH = os.path.join(DATA_DIR, "game.db")
 
 def init_db():
     """Initialize the database with required tables"""
