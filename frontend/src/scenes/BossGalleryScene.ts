@@ -242,7 +242,6 @@ export default class BossGalleryScene extends Phaser.Scene {
 
     // Previous button
     this.prevButton = this.add.rectangle(400, 630, 150, 50, 0x333333)
-    this.prevButton.setStrokeStyle(2, 0xffffff)
     this.prevButton.setInteractive({ useHandCursor: true })
     this.prevButton.on('pointerover', () => this.prevButton!.setFillStyle(0x555555))
     this.prevButton.on('pointerout', () => this.prevButton!.setFillStyle(0x333333))
@@ -262,7 +261,6 @@ export default class BossGalleryScene extends Phaser.Scene {
 
     // Next button
     this.nextButton = this.add.rectangle(880, 630, 150, 50, 0x333333)
-    this.nextButton.setStrokeStyle(2, 0xffffff)
     this.nextButton.setInteractive({ useHandCursor: true })
     this.nextButton.on('pointerover', () => this.nextButton!.setFillStyle(0x555555))
     this.nextButton.on('pointerout', () => this.nextButton!.setFillStyle(0x333333))
