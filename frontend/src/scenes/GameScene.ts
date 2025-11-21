@@ -553,19 +553,7 @@ export default class GameScene extends Phaser.Scene {
       repeat: -1
     })
     
-    // Boss animations
-    this.anims.create({
-      key: 'boss_idle',
-      frames: this.anims.generateFrameNumbers('geminiBoss', { start: 0, end: 3 }),
-      frameRate: 6,
-      repeat: -1
-    })
-    this.anims.create({
-      key: 'boss_attack',
-      frames: this.anims.generateFrameNumbers('geminiBoss', { start: 4, end: 7 }),
-      frameRate: 10,
-      repeat: 0
-    })
+    // Boss animations are created dynamically when boss spawns
 
     // Create enemies
     this.enemies = this.physics.add.group()
@@ -667,6 +655,19 @@ export default class GameScene extends Phaser.Scene {
       console.log('🧪 F8 TEST: Forcing game over...')
       this.playerLives = 0
       this.showGameOver()
+    })
+    
+    // Boss teleport key (F4) - cycles through boss levels
+    const bossTeleportKey = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.F4)
+    bossTeleportKey.on('down', () => {
+      if (this.gameMode === 'levels') {
+        // Find next boss level (5, 10, 15, 20, etc.)
+        const nextBossLevel = Math.floor(this.currentLevel / 5) * 5 + 5
+        console.log(`🎮 F4: Teleporting to boss level ${nextBossLevel}...`)
+        this.scene.restart({ gameMode: 'levels', level: nextBossLevel })
+      } else {
+        console.log('⚠️ F4: Boss teleport only works in level mode')
+      }
     })
     
     // Alternative debug key (Shift+D)
@@ -1673,12 +1674,44 @@ export default class GameScene extends Phaser.Scene {
     // Play boss spawn sound
     this.playBossSound()
     
+    // Calculate which boss to use based on level (0-23 different bosses in the spritesheet)
+    // Spritesheet has 4 columns and 6 rows = 24 bosses total
+    const bossIndex = ((this.currentLevel - 1) / 5) % 24
+    const bossRow = Math.floor(bossIndex / 4)
+    const bossCol = bossIndex % 4
+    const baseFrame = bossRow * 4 + bossCol // Calculate the frame index
+    
+    // Create dynamic animations for this specific boss
+    const idleKey = `boss_idle_${baseFrame}`
+    const attackKey = `boss_attack_${baseFrame}`
+    
+    // Only create animations if they don't exist
+    if (!this.anims.exists(idleKey)) {
+      this.anims.create({
+        key: idleKey,
+        frames: [{ key: 'geminiBoss', frame: baseFrame }],
+        frameRate: 1,
+        repeat: -1
+      })
+    }
+    
+    if (!this.anims.exists(attackKey)) {
+      this.anims.create({
+        key: attackKey,
+        frames: [{ key: 'geminiBoss', frame: baseFrame }],
+        frameRate: 1,
+        repeat: 0
+      })
+    }
+    
     // Create boss sprite in background (large and non-moving)
-    this.boss = this.physics.add.sprite(x, bossY, 'geminiBoss')
+    this.boss = this.physics.add.sprite(x, bossY, 'geminiBoss', baseFrame)
     this.boss.setScale(3) // Larger scale
-    this.boss.play('boss_idle')
+    this.boss.play(idleKey)
     this.boss.setDepth(-10) // Behind everything
     this.boss.setScrollFactor(0.3, 0.3) // Parallax effect
+    this.boss.setData('idleKey', idleKey) // Store for later use
+    this.boss.setData('attackKey', attackKey) // Store for later use
     
     // Set hitbox to match the entire sprite
     if (this.boss.body) {
@@ -1758,7 +1791,11 @@ export default class GameScene extends Phaser.Scene {
   private bossAttack(attackType: string = '360') {
     if (!this.boss) return
     
-    this.boss.play('boss_attack')
+    // Play attack animation
+    const attackKey = this.boss.getData('attackKey')
+    if (attackKey && this.anims.exists(attackKey)) {
+      this.boss.play(attackKey)
+    }
     
     // Play boss attack sound
     this.playBossAttackSound()
