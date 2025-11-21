@@ -26,11 +26,14 @@ ENV VITE_API_KEY=$VITE_API_KEY
 # Build the application with environment variables
 RUN pnpm build
 
-# Manually copy assets to dist (since publicDir may not work as expected)
-RUN cp -r /app/assets /app/dist/assets
+# List assets before copy to verify they exist
+RUN echo "=== Checking assets folder ===" && ls -la /app/assets
 
-# Verify assets were copied
-RUN ls -la /app/dist/assets || echo "No assets in dist"
+# Manually copy assets contents to dist/assets (note the /. to copy contents, not folder)
+RUN mkdir -p /app/dist/assets && cp -r /app/assets/. /app/dist/assets/
+
+# Verify assets were copied with folder structure
+RUN echo "=== Assets in dist ===" && ls -la /app/dist/assets && ls -la /app/dist/assets/kenney_platformer-art-requests/Tiles/ | head -20
 
 # Stage 2: Production server with nginx
 FROM nginx:alpine
@@ -39,7 +42,7 @@ FROM nginx:alpine
 COPY --from=builder /app/dist /usr/share/nginx/html
 
 # Verify assets in nginx
-RUN ls -la /usr/share/nginx/html/assets || echo "No assets in nginx"
+RUN echo "=== Assets in nginx ===" && ls -la /usr/share/nginx/html/assets
 
 # Copy nginx configuration
 COPY nginx.conf /etc/nginx/conf.d/default.conf
