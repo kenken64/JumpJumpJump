@@ -127,6 +127,12 @@ export default class InventoryScene extends Phaser.Scene {
     backButton.on('pointerdown', () => {
       this.scene.start('MenuScene')
     })
+    
+    // ESC key to return to menu
+    const escKey = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.ESC)
+    escKey.on('down', () => {
+      this.scene.start('MenuScene')
+    })
 
     // Section headers
     this.add.text(200, 130, 'WEAPONS', {

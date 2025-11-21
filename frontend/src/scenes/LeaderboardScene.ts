@@ -193,5 +193,11 @@ export default class LeaderboardScene extends Phaser.Scene {
     backBtn.on('pointerdown', () => {
       this.scene.start('MenuScene')
     })
+    
+    // ESC key to return to menu
+    const escKey = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.ESC)
+    escKey.on('down', () => {
+      this.scene.start('MenuScene')
+    })
   }
 }

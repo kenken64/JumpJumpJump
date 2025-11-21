@@ -63,6 +63,7 @@ export default class GameScene extends Phaser.Scene {
   private shownTips: Set<string> = new Set() // Track which tips have been shown
   private boss!: Phaser.Physics.Arcade.Sprite | null
   private bossActive: boolean = false
+  private defeatedBossLevels: Set<number> = new Set() // Track which boss levels have been defeated
   private bossHealthBar!: Phaser.GameObjects.Rectangle | null
   private bossHealthBarBg!: Phaser.GameObjects.Rectangle | null
   private equippedSkin: string = 'alienBeige'
@@ -196,10 +197,10 @@ export default class GameScene extends Phaser.Scene {
     this.load.image('planet04', '/assets/kenny_planets/Planets/planet04.png')
     this.load.image('planet05', '/assets/kenny_planets/Planets/planet05.png')
     
-    // Load boss spritesheet
+    // Load boss spritesheet (bosses vary in size, using larger frame to capture them)
     this.load.spritesheet('geminiBoss', '/assets/gemini-boss-spritesheet.png', {
-      frameWidth: 128,
-      frameHeight: 128
+      frameWidth: 256,
+      frameHeight: 256
     })
     
     // Load power-up sprites
@@ -332,6 +333,13 @@ export default class GameScene extends Phaser.Scene {
     this.bossActive = false
     this.bossHealthBar = null
     this.bossHealthBarBg = null
+    
+    // Load defeated boss levels from localStorage
+    const savedDefeatedLevels = localStorage.getItem('defeatedBossLevels')
+    if (savedDefeatedLevels) {
+      this.defeatedBossLevels = new Set(JSON.parse(savedDefeatedLevels))
+      console.log('📊 Loaded defeated boss levels:', Array.from(this.defeatedBossLevels))
+    }
     
     // Set world bounds (infinite to the right)
     this.physics.world.setBounds(0, 0, 100000, 1200)
@@ -670,6 +678,25 @@ export default class GameScene extends Phaser.Scene {
       }
     })
     
+    // Clear defeated bosses key (F5) - debug only
+    const clearBossesKey = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.F5)
+    clearBossesKey.on('down', () => {
+      if (this.debugMode) {
+        localStorage.removeItem('defeatedBossLevels')
+        this.defeatedBossLevels.clear()
+        console.log('🧹 F5: Cleared all defeated boss levels!')
+        console.log('💡 Bosses will respawn on levels 5, 10, 15, etc.')
+      } else {
+        console.log('⚠️ F5: Enable debug mode (F3) first to clear defeated bosses')
+      }
+    })
+    
+    // ESC key to quit game and return to menu
+    const escKey = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.ESC)
+    escKey.on('down', () => {
+      this.showQuitConfirmation()
+    })
+    
     // Alternative debug key (Shift+D)
     const shiftKey = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.SHIFT)
     this.input.keyboard!.on('keydown-D', () => {
@@ -814,47 +841,36 @@ export default class GameScene extends Phaser.Scene {
     this.levelText.setScrollFactor(0)
     this.levelText.setDepth(100)
     
-    // Create home button (bottom-left corner)
-    const homeButtonX = 50
-    const homeButtonY = 680
+    // Create home button (bottom-left corner) - prominent red circle
+    const homeButtonX = 60
+    const homeButtonY = 660
     
-    // Try to create with icon, fallback to text button
-    let homeButton: Phaser.GameObjects.Image | Phaser.GameObjects.Rectangle
-    
-    if (this.textures.exists('homeIcon')) {
-      homeButton = this.add.image(homeButtonX, homeButtonY, 'homeIcon')
-      homeButton.setScale(0.6)
-    } else {
-      // Fallback: create a rectangle button
-      homeButton = this.add.rectangle(homeButtonX, homeButtonY, 80, 40, 0x4444ff)
-      homeButton.setStrokeStyle(2, 0xffffff)
-      
-      // Add HOME text
-      const homeText = this.add.text(homeButtonX, homeButtonY, 'HOME', {
-        fontSize: '18px',
-        color: '#ffffff',
-        fontStyle: 'bold'
-      })
-      homeText.setOrigin(0.5)
-      homeText.setScrollFactor(0)
-      homeText.setDepth(1)
-    }
-    
+    // Create a red circle button (always use circle, ignore icon)
+    const homeButton = this.add.circle(homeButtonX, homeButtonY, 35, 0xff0000, 0.8)
+    homeButton.setStrokeStyle(3, 0xffffff)
+    homeButton.setDepth(1000) // High depth to be visible
     homeButton.setScrollFactor(0)
     homeButton.setInteractive({ useHandCursor: true })
+    
+    // Add HOME text inside circle
+    const homeText = this.add.text(homeButtonX, homeButtonY, 'HOME', {
+      fontSize: '16px',
+      color: '#ffffff',
+      fontStyle: 'bold'
+    })
+    homeText.setOrigin(0.5)
+    homeText.setScrollFactor(0)
+    homeText.setDepth(1001)
+    
     homeButton.on('pointerover', () => {
-      if (homeButton instanceof Phaser.GameObjects.Image) {
-        homeButton.setScale(0.7)
-      } else {
-        homeButton.setFillStyle(0x6666ff)
-      }
+      homeButton.setFillStyle(0xff3333, 1)
+      homeButton.setScale(1.1)
+      homeText.setScale(1.1)
     })
     homeButton.on('pointerout', () => {
-      if (homeButton instanceof Phaser.GameObjects.Image) {
-        homeButton.setScale(0.6)
-      } else {
-        homeButton.setFillStyle(0x4444ff)
-      }
+      homeButton.setFillStyle(0xff0000, 0.8)
+      homeButton.setScale(1)
+      homeText.setScale(1)
     })
     homeButton.on('pointerdown', () => {
       this.showQuitConfirmation()
@@ -1666,7 +1682,7 @@ export default class GameScene extends Phaser.Scene {
     if (this.bossActive || this.boss) return
     
     this.bossActive = true
-    const bossY = 400
+    const bossY = 350 // Higher position to hover above ground
     
     // Show boss warning tip
     this.showTip('boss', '⚠️ BOSS FIGHT! Shoot the boss to defeat it and earn 100 coins!')
@@ -1704,21 +1720,22 @@ export default class GameScene extends Phaser.Scene {
       })
     }
     
-    // Create boss sprite (visible in foreground, not background)
+    // Create boss sprite (same size as player, hovering)
     this.boss = this.physics.add.sprite(x, bossY, 'geminiBoss', baseFrame)
-    this.boss.setScale(2.5) // Large but not too huge
+    this.boss.setScale(1) // 1x size of player
     this.boss.play(idleKey)
     this.boss.setDepth(10) // In front of player and enemies
     this.boss.setCollideWorldBounds(true)
     this.boss.setData('idleKey', idleKey) // Store for later use
     this.boss.setData('attackKey', attackKey) // Store for later use
     
-    // Set hitbox to match the entire sprite
+    // Set hitbox for hovering boss (no gravity)
     if (this.boss.body) {
       const body = this.boss.body as Phaser.Physics.Arcade.Body
-      body.setSize(128, 128) // Full sprite size
-      body.setOffset(0, 0) // No offset, use full image
-      body.setAllowGravity(false)
+      body.setSize(128, 180) // Player-sized hitbox
+      body.setOffset(64, 38) // Center the hitbox on sprite
+      body.setAllowGravity(false) // Disable gravity - boss hovers
+      body.setImmovable(false) // Allow collisions with bullets
     }
     
     // Boss stats
@@ -1729,16 +1746,16 @@ export default class GameScene extends Phaser.Scene {
     this.boss.setData('attackCooldown', 2000)
     this.boss.setData('phase', 1)
     
-    // Create boss health bar
-    this.bossHealthBarBg = this.add.rectangle(640, 50, 500, 30, 0x000000, 0.7)
+    // Create boss health bar (moved down to avoid level text overlap)
+    this.bossHealthBarBg = this.add.rectangle(640, 80, 500, 30, 0x000000, 0.7)
     this.bossHealthBarBg.setScrollFactor(0)
     this.bossHealthBarBg.setDepth(999)
     
-    this.bossHealthBar = this.add.rectangle(640, 50, 500, 30, 0xff0000, 1)
+    this.bossHealthBar = this.add.rectangle(640, 80, 500, 30, 0xff0000, 1)
     this.bossHealthBar.setScrollFactor(0)
     this.bossHealthBar.setDepth(1000)
     
-    const bossText = this.add.text(640, 50, 'GEMINI BOSS', {
+    const bossText = this.add.text(640, 80, 'GEMINI BOSS', {
       fontSize: '20px',
       color: '#ffffff',
       fontStyle: 'bold'
@@ -1752,7 +1769,7 @@ export default class GameScene extends Phaser.Scene {
     
     // Add collision with player (damage player)
     this.physics.add.overlap(this.player, this.boss, () => {
-      if (!this.playerIsDead) {
+      if (!this.playerIsDead && !this.debugMode) {
         this.damagePlayer(10)
       }
     })
@@ -1767,26 +1784,42 @@ export default class GameScene extends Phaser.Scene {
     // Update health bar
     if (this.bossHealthBar) {
       const healthPercent = bossHealth / bossMaxHealth
-      this.bossHealthBar.width = 500 * healthPercent
+      const newWidth = 500 * healthPercent
+      this.bossHealthBar.setSize(newWidth, 30)
+      // Adjust position to keep it left-aligned
+      this.bossHealthBar.x = 640 - (500 - newWidth) / 2
+      console.log('Boss health updated:', bossHealth, '/', bossMaxHealth, 'Bar width:', newWidth)
     }
     
-    // Boss AI - hovers and moves slightly
+    // Boss AI - hovers and follows player horizontally
     const lastAttack = this.boss.getData('lastAttack')
     const attackCooldown = this.boss.getData('attackCooldown')
     
-    // Hovering motion (vertical bobbing)
-    const hoverY = 400 + Math.sin(this.time.now / 1000) * 30
-    this.boss.setVelocityY((hoverY - this.boss.y) * 2)
+    // Calculate distance to player
+    const distanceToPlayer = Phaser.Math.Distance.Between(
+      this.boss.x, this.boss.y,
+      this.player.x, this.player.y
+    )
     
-    // Slight horizontal movement toward player
-    const distanceToPlayer = this.player.x - this.boss.x
-    if (Math.abs(distanceToPlayer) > 200) {
-      const moveSpeed = 50
-      this.boss.setVelocityX(Math.sign(distanceToPlayer) * moveSpeed)
-      this.boss.setFlipX(distanceToPlayer < 0)
+    const horizontalDistance = this.player.x - this.boss.x
+    const moveSpeed = 120 // Moderate hovering speed
+    
+    // Horizontal movement toward player
+    if (Math.abs(horizontalDistance) > 150) {
+      if (horizontalDistance > 0) {
+        this.boss.setVelocityX(moveSpeed)
+        this.boss.setFlipX(false)
+      } else {
+        this.boss.setVelocityX(-moveSpeed)
+        this.boss.setFlipX(true)
+      }
     } else {
       this.boss.setVelocityX(0)
     }
+    
+    // Gentle hovering motion (vertical bobbing)
+    const hoverY = 350 + Math.sin(this.time.now / 1000) * 30
+    this.boss.setVelocityY((hoverY - this.boss.y) * 2)
     
     // Attack patterns - alternate between 360 spray and homing
     if (this.time.now - lastAttack > attackCooldown) {
@@ -1823,9 +1856,16 @@ export default class GameScene extends Phaser.Scene {
         projectile.setRotation(angle)
         projectile.setData('attackType', '360')
         
-        // Damage player on hit
+        // Disable physics body to prevent collisions with platforms
+        if (projectile.body) {
+          projectile.body.setAllowGravity(false)
+          const body = projectile.body as Phaser.Physics.Arcade.Body
+          body.setSize(0, 0) // Disable collision with world
+        }
+        
+        // Damage player on hit (disabled in debug mode)
         this.physics.add.overlap(this.player, projectile, () => {
-          if (!this.playerIsDead) {
+          if (!this.playerIsDead && !this.debugMode) {
             this.damagePlayer(15)
             projectile.destroy()
           }
@@ -1846,9 +1886,9 @@ export default class GameScene extends Phaser.Scene {
           projectile.setData('attackType', 'homing')
           projectile.setData('spawnTime', this.time.now)
           
-          // Damage player on hit
+          // Damage player on hit (disabled in debug mode)
           this.physics.add.overlap(this.player, projectile, () => {
-            if (!this.playerIsDead) {
+            if (!this.playerIsDead && !this.debugMode) {
               this.damagePlayer(20) // More damage for homing
               projectile.destroy()
             }
@@ -1888,13 +1928,14 @@ export default class GameScene extends Phaser.Scene {
     const bulletSprite = bullet as Phaser.Physics.Arcade.Sprite
     const bossSprite = boss as Phaser.Physics.Arcade.Sprite
     
+    console.log('Boss hit! Current health:', bossSprite.getData('health'))
+    
     // Destroy bullet
-    bulletSprite.setActive(false)
-    bulletSprite.setVisible(false)
+    bulletSprite.destroy()
     
     // Damage boss
     let health = bossSprite.getData('health')
-    health -= 2
+    health -= 10 // Increased damage for better feedback
     bossSprite.setData('health', health)
     
     // Flash effect
@@ -1913,6 +1954,11 @@ export default class GameScene extends Phaser.Scene {
     if (!this.boss) return
     
     this.bossActive = false
+    this.defeatedBossLevels.add(this.currentLevel) // Track this boss level as defeated
+    
+    // Save to localStorage to persist across scene restarts
+    localStorage.setItem('defeatedBossLevels', JSON.stringify(Array.from(this.defeatedBossLevels)))
+    console.log('💾 Saved defeated boss level:', this.currentLevel)
     
     // Reward coins
     const coinReward = 100
@@ -2306,8 +2352,8 @@ export default class GameScene extends Phaser.Scene {
       this.updateBoss()
     }
     
-    // Spawn boss at certain levels (levels 5, 10, 15, etc.)
-    if (this.gameMode === 'levels' && !this.bossActive && !this.boss) {
+    // Spawn boss at certain levels (levels 5, 10, 15, etc.) - only if not already defeated
+    if (this.gameMode === 'levels' && !this.bossActive && !this.boss && !this.defeatedBossLevels.has(this.currentLevel)) {
       if (this.currentLevel % 5 === 0 && this.player.x > this.levelLength - 3000 && this.player.x < this.levelLength - 2800) {
         this.spawnBoss(this.levelLength - 2500)
       }
@@ -3558,6 +3604,15 @@ export default class GameScene extends Phaser.Scene {
         }
       })
       
+      // Manual collision detection with boss
+      if (this.boss && this.boss.active && this.bossActive) {
+        const distance = Phaser.Math.Distance.Between(sprite.x, sprite.y, this.boss.x, this.boss.y)
+        
+        if (distance < 100) { // Boss is bigger, larger collision threshold
+          this.handleBulletBossCollision(sprite, this.boss)
+        }
+      }
+      
       // After 2.5 seconds, start shrinking and fading
       if (age >= fadeStartTime) {
         const fadeProgress = (age - fadeStartTime) / (bulletLifetime - fadeStartTime)
@@ -4374,8 +4429,17 @@ export default class GameScene extends Phaser.Scene {
     yesButton.on('pointerdown', () => {
       // Save coins before returning to menu
       localStorage.setItem('playerCoins', this.coinCount.toString())
-      this.physics.resume()
-      this.scene.start('MenuScene')
+      
+      // Submit score to backend before quitting
+      console.log('🚪 Player quitting - submitting score...')
+      this.submitScoreToBackend().then(() => {
+        console.log('✅ Score submitted on quit')
+      }).catch(err => {
+        console.log('⚠️ Score submission failed on quit:', err)
+      }).finally(() => {
+        this.physics.resume()
+        this.scene.start('MenuScene')
+      })
     })
     
     const yesText = this.add.text(540, 440, 'YES, QUIT', {

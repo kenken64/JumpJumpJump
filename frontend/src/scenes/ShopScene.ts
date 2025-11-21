@@ -184,6 +184,13 @@ export default class ShopScene extends Phaser.Scene {
       this.saveCoins()
       this.scene.start('MenuScene')
     })
+    
+    // ESC key to return to menu
+    const escKey = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.ESC)
+    escKey.on('down', () => {
+      this.saveCoins()
+      this.scene.start('MenuScene')
+    })
 
     // Create shop grid
     const startX = 200

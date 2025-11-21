@@ -32,6 +32,32 @@ export default class MenuScene extends Phaser.Scene {
     // Set background to black
     this.cameras.main.setBackgroundColor('#000000')
     
+    // Add player name button in top-left corner
+    const playerName = localStorage.getItem('player_name') || 'Guest'
+    const nameButton = this.add.rectangle(120, 50, 200, 50, 0x0066cc, 0.8)
+    nameButton.setStrokeStyle(2, 0xffffff)
+    nameButton.setInteractive({ useHandCursor: true })
+    nameButton.on('pointerover', () => nameButton.setFillStyle(0x0099ff, 0.9))
+    nameButton.on('pointerout', () => nameButton.setFillStyle(0x0066cc, 0.8))
+    nameButton.on('pointerdown', () => {
+      this.showNameInputDialog()
+    })
+    
+    const nameLabel = this.add.text(120, 40, 'PLAYER:', {
+      fontSize: '14px',
+      color: '#aaaaaa',
+      fontStyle: 'bold'
+    })
+    nameLabel.setOrigin(0.5)
+    
+    const nameText = this.add.text(120, 60, playerName, {
+      fontSize: '20px',
+      color: '#ffffff',
+      fontStyle: 'bold'
+    })
+    nameText.setOrigin(0.5)
+    nameText.setName('playerNameText') // Store reference for updates
+    
     // Add game title
     const title = this.add.text(640, 150, 'JUMP JUMP JUMP', {
       fontSize: '72px',
@@ -53,13 +79,13 @@ export default class MenuScene extends Phaser.Scene {
     // Get equipped skin from inventory
     const equippedSkin = localStorage.getItem('equippedSkin') || 'alienBeige'
     
-    // Add version number in bottom-left corner
-    const version = this.add.text(20, 700, 'v1.0.0', {
+    // Add version number in bottom-right corner (moved from bottom-left to avoid button overlap)
+    const version = this.add.text(1260, 700, 'v1.0.0', {
       fontSize: '16px',
       color: '#888888',
       fontStyle: 'bold'
     })
-    version.setOrigin(0, 1)
+    version.setOrigin(1, 1)
     
     // Add player character preview with equipped skin
     const playerPreview = this.add.image(640, 360, `${equippedSkin}_stand`)
@@ -252,7 +278,7 @@ export default class MenuScene extends Phaser.Scene {
       { key: 'W / Up Arrow', action: 'Jump (press twice for double jump)' },
       { key: 'S / Down Arrow', action: 'Duck / Stomp while jumping' },
       { key: 'Mouse / Click', action: 'Aim and shoot' },
-      { key: 'Home Button (in-game)', action: 'Return to main menu' }
+      { key: 'ESC / Home Button', action: 'Return to main menu' }
     ]
     
     const controlTexts: Phaser.GameObjects.Text[] = []
@@ -315,6 +341,164 @@ export default class MenuScene extends Phaser.Scene {
     })
     closeText.setOrigin(0.5)
     closeText.setDepth(102)
+  }
+
+  private showNameInputDialog() {
+    // Create dark overlay
+    const overlay = this.add.rectangle(640, 360, 1280, 720, 0x000000, 0.85)
+    overlay.setInteractive()
+    overlay.setDepth(1000)
+    
+    // Create dialog box
+    const dialogBox = this.add.rectangle(640, 360, 600, 300, 0x222222)
+    dialogBox.setStrokeStyle(4, 0x00ffff)
+    dialogBox.setDepth(1001)
+    
+    // Title
+    const title = this.add.text(640, 260, 'ENTER YOUR NAME', {
+      fontSize: '32px',
+      color: '#00ffff',
+      fontStyle: 'bold'
+    })
+    title.setOrigin(0.5)
+    title.setDepth(1002)
+    
+    // Instructions
+    const instructions = this.add.text(640, 310, 'Type your name and press ENTER', {
+      fontSize: '18px',
+      color: '#aaaaaa'
+    })
+    instructions.setOrigin(0.5)
+    instructions.setDepth(1002)
+    
+    // Input box background
+    const inputBox = this.add.rectangle(640, 370, 400, 50, 0x000000)
+    inputBox.setStrokeStyle(2, 0xffffff)
+    inputBox.setDepth(1002)
+    
+    // Current name display
+    const currentName = localStorage.getItem('player_name') || ''
+    let inputText = currentName
+    const inputDisplay = this.add.text(640, 370, inputText || '|', {
+      fontSize: '24px',
+      color: '#ffffff',
+      fontStyle: 'bold'
+    })
+    inputDisplay.setOrigin(0.5)
+    inputDisplay.setDepth(1003)
+    
+    // Blinking cursor
+    let showCursor = true
+    const cursorTimer = this.time.addEvent({
+      delay: 500,
+      callback: () => {
+        showCursor = !showCursor
+        inputDisplay.setText(inputText + (showCursor ? '|' : ''))
+      },
+      loop: true
+    })
+    
+    // Cancel button
+    const cancelButton = this.add.rectangle(540, 450, 150, 50, 0x880000)
+    cancelButton.setStrokeStyle(2, 0xff0000)
+    cancelButton.setInteractive({ useHandCursor: true })
+    cancelButton.setDepth(1002)
+    cancelButton.on('pointerover', () => cancelButton.setFillStyle(0xcc0000))
+    cancelButton.on('pointerout', () => cancelButton.setFillStyle(0x880000))
+    cancelButton.on('pointerdown', () => {
+      cursorTimer.remove()
+      overlay.destroy()
+      dialogBox.destroy()
+      title.destroy()
+      instructions.destroy()
+      inputBox.destroy()
+      inputDisplay.destroy()
+      cancelButton.destroy()
+      cancelText.destroy()
+      saveButton.destroy()
+      saveText.destroy()
+      this.input.keyboard?.off('keydown')
+    })
+    
+    const cancelText = this.add.text(540, 450, 'CANCEL', {
+      fontSize: '20px',
+      color: '#ffffff',
+      fontStyle: 'bold'
+    })
+    cancelText.setOrigin(0.5)
+    cancelText.setDepth(1003)
+    
+    // Save button
+    const saveButton = this.add.rectangle(740, 450, 150, 50, 0x008800)
+    saveButton.setStrokeStyle(2, 0x00ff00)
+    saveButton.setInteractive({ useHandCursor: true })
+    saveButton.setDepth(1002)
+    saveButton.on('pointerover', () => saveButton.setFillStyle(0x00cc00))
+    saveButton.on('pointerout', () => saveButton.setFillStyle(0x008800))
+    
+    const saveText = this.add.text(740, 450, 'SAVE', {
+      fontSize: '20px',
+      color: '#ffffff',
+      fontStyle: 'bold'
+    })
+    saveText.setOrigin(0.5)
+    saveText.setDepth(1003)
+    
+    const saveName = () => {
+      if (inputText.trim().length > 0) {
+        localStorage.setItem('player_name', inputText.trim())
+        console.log('✅ Player name saved:', inputText.trim())
+        
+        // Update name display on menu
+        const nameTextObj = this.children.getByName('playerNameText') as Phaser.GameObjects.Text
+        if (nameTextObj) {
+          nameTextObj.setText(inputText.trim())
+        }
+        
+        // Show confirmation
+        const confirm = this.add.text(640, 510, '✓ Name saved!', {
+          fontSize: '18px',
+          color: '#00ff00',
+          fontStyle: 'bold'
+        })
+        confirm.setOrigin(0.5)
+        confirm.setDepth(1003)
+        
+        this.time.delayedCall(1000, () => {
+          cursorTimer.remove()
+          overlay.destroy()
+          dialogBox.destroy()
+          title.destroy()
+          instructions.destroy()
+          inputBox.destroy()
+          inputDisplay.destroy()
+          cancelButton.destroy()
+          cancelText.destroy()
+          saveButton.destroy()
+          saveText.destroy()
+          confirm.destroy()
+          this.input.keyboard?.off('keydown')
+        })
+      }
+    }
+    
+    saveButton.on('pointerdown', saveName)
+    
+    // Handle keyboard input
+    this.input.keyboard?.on('keydown', (event: KeyboardEvent) => {
+      if (event.key === 'Enter') {
+        saveName()
+      } else if (event.key === 'Escape') {
+        cancelButton.emit('pointerdown')
+      } else if (event.key === 'Backspace') {
+        inputText = inputText.slice(0, -1)
+        inputDisplay.setText(inputText + '|')
+      } else if (event.key.length === 1 && inputText.length < 20) {
+        // Only add printable characters, max 20 chars
+        inputText += event.key
+        inputDisplay.setText(inputText + '|')
+      }
+    })
   }
 
   private async checkAPIConnection() {
