@@ -1704,12 +1704,12 @@ export default class GameScene extends Phaser.Scene {
       })
     }
     
-    // Create boss sprite in background (large and non-moving)
+    // Create boss sprite (visible in foreground, not background)
     this.boss = this.physics.add.sprite(x, bossY, 'geminiBoss', baseFrame)
-    this.boss.setScale(3) // Larger scale
+    this.boss.setScale(2.5) // Large but not too huge
     this.boss.play(idleKey)
-    this.boss.setDepth(-10) // Behind everything
-    this.boss.setScrollFactor(0.3, 0.3) // Parallax effect
+    this.boss.setDepth(10) // In front of player and enemies
+    this.boss.setCollideWorldBounds(true)
     this.boss.setData('idleKey', idleKey) // Store for later use
     this.boss.setData('attackKey', attackKey) // Store for later use
     
@@ -1770,15 +1770,23 @@ export default class GameScene extends Phaser.Scene {
       this.bossHealthBar.width = 500 * healthPercent
     }
     
-    // Boss AI - stays in background, only attacks
+    // Boss AI - hovers and moves slightly
     const lastAttack = this.boss.getData('lastAttack')
     const attackCooldown = this.boss.getData('attackCooldown')
     
-    // Boss stays stationary in background
-    this.boss.setVelocity(0, 0)
+    // Hovering motion (vertical bobbing)
+    const hoverY = 400 + Math.sin(this.time.now / 1000) * 30
+    this.boss.setVelocityY((hoverY - this.boss.y) * 2)
     
-    // Slow rotation animation
-    this.boss.rotation += 0.001
+    // Slight horizontal movement toward player
+    const distanceToPlayer = this.player.x - this.boss.x
+    if (Math.abs(distanceToPlayer) > 200) {
+      const moveSpeed = 50
+      this.boss.setVelocityX(Math.sign(distanceToPlayer) * moveSpeed)
+      this.boss.setFlipX(distanceToPlayer < 0)
+    } else {
+      this.boss.setVelocityX(0)
+    }
     
     // Attack patterns - alternate between 360 spray and homing
     if (this.time.now - lastAttack > attackCooldown) {

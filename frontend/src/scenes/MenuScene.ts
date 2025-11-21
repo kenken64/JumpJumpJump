@@ -53,6 +53,14 @@ export default class MenuScene extends Phaser.Scene {
     // Get equipped skin from inventory
     const equippedSkin = localStorage.getItem('equippedSkin') || 'alienBeige'
     
+    // Add version number in bottom-left corner
+    const version = this.add.text(20, 700, 'v1.0.0', {
+      fontSize: '16px',
+      color: '#888888',
+      fontStyle: 'bold'
+    })
+    version.setOrigin(0, 1)
+    
     // Add player character preview with equipped skin
     const playerPreview = this.add.image(640, 360, `${equippedSkin}_stand`)
     playerPreview.setScale(2)
