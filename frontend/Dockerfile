@@ -24,6 +24,9 @@ ENV VITE_API_BASE_URL=$VITE_API_BASE_URL
 # Build the application with environment variables
 RUN pnpm build
 
+# Manually copy assets to dist (since publicDir may not work as expected)
+RUN cp -r /app/assets /app/dist/assets
+
 # Verify assets were copied
 RUN ls -la /app/dist/assets || echo "No assets in dist"
 
