@@ -1,4 +1,5 @@
 import Phaser from 'phaser'
+import { GameAPI } from '../services/api'
 
 export default class GameScene extends Phaser.Scene {
   private player!: Phaser.Physics.Arcade.Sprite
@@ -34,6 +35,11 @@ export default class GameScene extends Phaser.Scene {
   private coinCount: number = 0
   private coinText!: Phaser.GameObjects.Text
   private coinIcon!: Phaser.GameObjects.Image
+  private score: number = 0
+  private highScore: number = 0
+  private scoreText!: Phaser.GameObjects.Text
+  private highScoreText!: Phaser.GameObjects.Text
+  private enemiesDefeated: number = 0
   private jumpParticles!: Phaser.GameObjects.Particles.ParticleEmitter
   private landParticles!: Phaser.GameObjects.Particles.ParticleEmitter
   private coinParticles!: Phaser.GameObjects.Particles.ParticleEmitter
@@ -53,12 +59,24 @@ export default class GameScene extends Phaser.Scene {
   private levelLength: number = 10000 // 100 meters per level
   private levelEndMarker!: Phaser.GameObjects.Rectangle | null
   private portal!: Phaser.Physics.Arcade.Sprite | null
-  private distanceText!: Phaser.GameObjects.Text
-  private gameModeText!: Phaser.GameObjects.Text
+  private shownTips: Set<string> = new Set() // Track which tips have been shown
   private boss!: Phaser.Physics.Arcade.Sprite | null
   private bossActive: boolean = false
   private bossHealthBar!: Phaser.GameObjects.Rectangle | null
   private bossHealthBarBg!: Phaser.GameObjects.Rectangle | null
+  private equippedSkin: string = 'alienBeige'
+  private equippedWeapon: string = 'raygun'
+  private powerUps!: Phaser.Physics.Arcade.Group
+  private hasSpeedBoost: boolean = false
+  private hasShield: boolean = false
+  private shieldSprite!: Phaser.GameObjects.Sprite | null
+  private audioContext!: AudioContext
+  
+  // Debug mode
+  private debugMode: boolean = false
+  private debugText: Phaser.GameObjects.Text | null = null
+  private fpsText: Phaser.GameObjects.Text | null = null
+  private coordText: Phaser.GameObjects.Text | null = null
 
   constructor() {
     super('GameScene')
@@ -72,6 +90,27 @@ export default class GameScene extends Phaser.Scene {
     this.load.image('alienBeige_jump', '/assets/kenney_platformer-art-extended-enemies/Alien sprites/alienBeige_jump.png')
     this.load.image('alienBeige_hurt', '/assets/kenney_platformer-art-extended-enemies/Alien sprites/alienBeige_hurt.png')
     this.load.image('alienBeige_duck', '/assets/kenney_platformer-art-extended-enemies/Alien sprites/alienBeige_duck.png')
+    
+    // Load purchasable skins
+    this.load.image('alienBlue_stand', '/assets/kenney_platformer-art-extended-enemies/Alien sprites/alienBlue_stand.png')
+    this.load.image('alienBlue_walk1', '/assets/kenney_platformer-art-extended-enemies/Alien sprites/alienBlue_walk1.png')
+    this.load.image('alienBlue_walk2', '/assets/kenney_platformer-art-extended-enemies/Alien sprites/alienBlue_walk2.png')
+    this.load.image('alienBlue_jump', '/assets/kenney_platformer-art-extended-enemies/Alien sprites/alienBlue_jump.png')
+    
+    this.load.image('alienGreen_stand', '/assets/kenney_platformer-art-extended-enemies/Alien sprites/alienGreen_stand.png')
+    this.load.image('alienGreen_walk1', '/assets/kenney_platformer-art-extended-enemies/Alien sprites/alienGreen_walk1.png')
+    this.load.image('alienGreen_walk2', '/assets/kenney_platformer-art-extended-enemies/Alien sprites/alienGreen_walk2.png')
+    this.load.image('alienGreen_jump', '/assets/kenney_platformer-art-extended-enemies/Alien sprites/alienGreen_jump.png')
+    
+    this.load.image('alienPink_stand', '/assets/kenney_platformer-art-extended-enemies/Alien sprites/alienPink_stand.png')
+    this.load.image('alienPink_walk1', '/assets/kenney_platformer-art-extended-enemies/Alien sprites/alienPink_walk1.png')
+    this.load.image('alienPink_walk2', '/assets/kenney_platformer-art-extended-enemies/Alien sprites/alienPink_walk2.png')
+    this.load.image('alienPink_jump', '/assets/kenney_platformer-art-extended-enemies/Alien sprites/alienPink_jump.png')
+    
+    this.load.image('alienYellow_stand', '/assets/kenney_platformer-art-extended-enemies/Alien sprites/alienYellow_stand.png')
+    this.load.image('alienYellow_walk1', '/assets/kenney_platformer-art-extended-enemies/Alien sprites/alienYellow_walk1.png')
+    this.load.image('alienYellow_walk2', '/assets/kenney_platformer-art-extended-enemies/Alien sprites/alienYellow_walk2.png')
+    this.load.image('alienYellow_jump', '/assets/kenney_platformer-art-extended-enemies/Alien sprites/alienYellow_jump.png')
 
     // Load enemy sprites - Small enemies (flies, bees)
     this.load.image('fly', '/assets/kenney_platformer-art-extended-enemies/Enemy sprites/fly.png')
@@ -167,14 +206,51 @@ export default class GameScene extends Phaser.Scene {
     this.gameMode = data?.gameMode || 'levels'
     this.currentLevel = data?.level || 1
     
+    // Create procedural textures for power-ups and items
+    this.createProceduralTextures()
+    
+    // Initialize audio context (safe initialization)
+    try {
+      this.audioContext = new AudioContext()
+      // Resume audio context on first user interaction
+      const resumeAudio = () => {
+        if (this.audioContext.state === 'suspended') {
+          this.audioContext.resume()
+        }
+      }
+      this.input.once('pointerdown', resumeAudio)
+      this.input.keyboard?.once('keydown', resumeAudio)
+    } catch (e) {
+      console.warn('AudioContext not supported:', e)
+      // Create a dummy audio context if not supported
+      this.audioContext = { state: 'running' } as AudioContext
+    }
+    
     // Reset all state variables
     this.playerIsDead = false
     this.playerHealth = 100
     this.playerLives = 3
+    this.debugMode = false  // Always reset debug mode on scene start/restart
     
     // Load coin count from localStorage
     const savedCoins = localStorage.getItem('playerCoins')
     this.coinCount = savedCoins ? parseInt(savedCoins) : 0
+    
+    // Load equipped items
+    const equipped = localStorage.getItem('equippedItems')
+    if (equipped) {
+      const items = JSON.parse(equipped)
+      this.equippedSkin = items.skin || 'alienBeige'
+      this.equippedWeapon = items.weapon || 'raygun'
+    } else {
+      this.equippedSkin = 'alienBeige'
+      this.equippedWeapon = 'raygun'
+    }
+    
+    // Initialize power-up state
+    this.hasSpeedBoost = false
+    this.hasShield = false
+    this.shieldSprite = null
     
     this.worldGenerationX = 0
     this.currentBiome = 'metal'
@@ -253,18 +329,24 @@ export default class GameScene extends Phaser.Scene {
     this.physics.world.setBounds(0, 0, 100000, 1200)
     this.cameras.main.setBounds(0, 0, 100000, 1200)
 
+    // Set world bounds
+    this.physics.world.setBounds(0, 0, 100000, 1200)
+    
     // Set world gravity (microgravity)
     this.physics.world.gravity.y = 400
 
     // Create platforms with procedural generation
     this.platforms = this.physics.add.staticGroup()
     this.spikes = this.physics.add.staticGroup()
+    console.log('Generating world...')
     this.generateWorld()
+    console.log('Platforms created:', this.platforms.getChildren().length)
 
     // Create player animations FIRST before creating the player sprite
+    // Create animations for equipped skin
     this.anims.create({
       key: 'player_idle',
-      frames: [{ key: 'alienBeige_stand' }],
+      frames: [{ key: `${this.equippedSkin}_stand` }],
       frameRate: 1,
       repeat: -1
     })
@@ -272,8 +354,8 @@ export default class GameScene extends Phaser.Scene {
     this.anims.create({
       key: 'player_walk',
       frames: [
-        { key: 'alienBeige_walk1' },
-        { key: 'alienBeige_walk2' }
+        { key: `${this.equippedSkin}_walk1` },
+        { key: `${this.equippedSkin}_walk2` }
       ],
       frameRate: 8,
       repeat: -1
@@ -281,19 +363,93 @@ export default class GameScene extends Phaser.Scene {
 
     this.anims.create({
       key: 'player_jump',
-      frames: [{ key: 'alienBeige_jump' }],
+      frames: [{ key: `${this.equippedSkin}_jump` }],
       frameRate: 1
     })
 
-    // Create player
-    this.player = this.physics.add.sprite(400, 550, 'alienBeige_stand')
+    // Create player with equipped skin
+    console.log('=== PLAYER CREATION ===')
+    this.player = this.physics.add.sprite(400, 550, `${this.equippedSkin}_stand`)
     this.player.setBounce(0.1)
     this.player.setCollideWorldBounds(true)
-    this.player.setGravityY(200)
+    this.player.setGravityY(0) // Start with no gravity
+    
+    console.log('Player created at:', this.player.x, this.player.y)
+    console.log('Floor is at Y:', 650)
+    console.log('Player is', 650 - 550, 'pixels above floor')
+    
+    // Ensure physics body is enabled and properly sized
+    if (this.player.body) {
+      const body = this.player.body as Phaser.Physics.Arcade.Body
+      body.enable = true
+      // Adjust body size to match sprite (alien sprites are about 70x90)
+      body.setSize(50, 80)
+      body.setOffset(10, 10)
+      console.log('Player body:', {
+        width: body.width,
+        height: body.height,
+        x: body.x,
+        y: body.y,
+        gravityY: body.gravity.y,
+        enable: body.enable,
+        type: 'dynamic'
+      })
+    } else {
+      console.error('ERROR: Player has no body!')
+    }
+    
     this.player.play('player_idle') // Start with idle animation
+    
+    // Enable gravity after a short delay to ensure platforms are loaded
+    this.time.delayedCall(100, () => {
+      if (this.player && this.player.body) {
+        console.log('=== ENABLING PLAYER GRAVITY ===')
+        console.log('Player position before gravity:', this.player.x, this.player.y)
+        console.log('Platforms in world:', this.platforms.getChildren().length)
+        this.player.setGravityY(200)
+        console.log('Player gravity set to:', (this.player.body as Phaser.Physics.Arcade.Body).gravity.y)
+        console.log('World gravity:', this.physics.world.gravity.y)
+        console.log('Total player gravity:', (this.player.body as Phaser.Physics.Arcade.Body).gravity.y + this.physics.world.gravity.y)
+      }
+    })
+    
+    // Give player 1 second of invincibility on spawn
+    this.player.setData('lastHitTime', this.time.now)
+    this.hasShield = true
+    this.shieldSprite = this.add.sprite(this.player.x, this.player.y, 'powerShield')
+    this.shieldSprite.setScale(1.5)
+    this.shieldSprite.setAlpha(0.6)
+    this.shieldSprite.setDepth(5)
+    
+    // Shield animation
+    this.tweens.add({
+      targets: this.shieldSprite,
+      angle: 360,
+      duration: 3000,
+      repeat: 0 // Only one rotation for spawn shield
+    })
+    
+    // Remove spawn shield after 1 second
+    this.time.delayedCall(1000, () => {
+      this.hasShield = false
+      if (this.shieldSprite) {
+        this.tweens.add({
+          targets: this.shieldSprite,
+          alpha: 0,
+          scale: 2,
+          duration: 300,
+          onComplete: () => {
+            if (this.shieldSprite) {
+              this.shieldSprite.destroy()
+              this.shieldSprite = null
+            }
+          }
+        })
+      }
+    })
 
-    // Create gun (visual representation using raygun sprite)
-    this.gun = this.add.image(0, 0, 'raygun')
+    // Create gun (visual representation using equipped weapon)
+    this.gun = this.add.image(0, 0, this.equippedWeapon)
     this.gun.setOrigin(0, 0.5) // Pivot from the base of the gun
     this.gun.setScale(1.0) // Larger gun size
     this.gun.setDepth(10)
@@ -416,14 +572,51 @@ export default class GameScene extends Phaser.Scene {
     // Create coins group
     this.coins = this.physics.add.group()
     this.spawnCoins()
+    
+    // Create power-ups group
+    this.powerUps = this.physics.add.group()
+    this.spawnPowerUps()
 
     // Setup collisions
-    this.physics.add.collider(this.player, this.platforms)
-    this.physics.add.collider(this.enemies, this.platforms)
+    console.log('=== COLLISION SETUP ===')
+    console.log('Player:', this.player)
+    console.log('Player body:', this.player.body)
+    console.log('Platforms count:', this.platforms.getChildren().length)
+    console.log('Platforms children:', this.platforms.getChildren().map((p: any) => ({
+      x: p.x,
+      y: p.y,
+      hasBody: !!p.body,
+      bodyType: p.body ? p.body.constructor.name : 'none'
+    })))
+    
+    // CRITICAL: Enable physics debugging to see collision bodies
+    console.log('=== ENABLING COLLISIONS ===')
+    console.log('Physics world running:', this.physics.world.isPaused)
+    console.log('Platforms in group:', this.platforms.getChildren().length)
+    
+    // Verify all platforms have bodies
+    const platformsWithBodies = this.platforms.getChildren().filter((p: any) => p.body !== null)
+    console.log('Platforms with bodies:', platformsWithBodies.length)
+    
+    // Create colliders with explicit active flag
+    console.log('Creating colliders...')
+    const playerCollider = this.physics.add.collider(this.player, this.platforms)
+    playerCollider.active = true
+    console.log('Player-Platform collider:', {
+      active: playerCollider.active,
+      object1: playerCollider.object1,
+      object2: playerCollider.object2
+    })
+    
+    const enemyCollider = this.physics.add.collider(this.enemies, this.platforms)
+    enemyCollider.active = true
+    console.log('Enemy-Platform collider created and activated')
+    
     this.physics.add.collider(this.enemies, this.enemies) // Enemies collide with each other
     this.physics.add.collider(this.blockFragments, this.platforms)
     this.physics.add.collider(this.bullets, this.platforms, this.handleBulletPlatformCollision, undefined, this)
     this.physics.add.collider(this.coins, this.platforms)
+    this.physics.add.collider(this.powerUps, this.platforms)
     
     // Setup player-enemy collision with overlap detection
     this.physics.add.overlap(this.player, this.enemies, this.handlePlayerEnemyCollision, undefined, this)
@@ -433,6 +626,9 @@ export default class GameScene extends Phaser.Scene {
     
     // Setup coin collection
     this.physics.add.overlap(this.player, this.coins, this.collectCoin as any, undefined, this)
+    
+    // Setup power-up collection
+    this.physics.add.overlap(this.player, this.powerUps, this.collectPowerUp as any, undefined, this)
     
     // No collider with spikes - we'll handle manually in update
 
@@ -444,39 +640,55 @@ export default class GameScene extends Phaser.Scene {
       s: this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.S),
       d: this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.D)
     }
+    
+    // Add debug toggle key
+    const debugKey = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.F3)
+    debugKey.on('down', () => {
+      console.log('F3 pressed!')
+      this.toggleDebugMode()
+    })
+    
+    // Test key to trigger game over (F8)
+    const gameOverTestKey = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.F8)
+    gameOverTestKey.on('down', () => {
+      console.log('🧪 F8 TEST: Forcing game over...')
+      this.playerLives = 0
+      this.showGameOver()
+    })
+    
+    // Alternative debug key (Shift+D)
+    const shiftKey = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.SHIFT)
+    this.input.keyboard!.on('keydown-D', () => {
+      if (shiftKey.isDown) {
+        console.log('Shift+D pressed!')
+        this.toggleDebugMode()
+      }
+    })
 
     // Camera follows player
     this.cameras.main.startFollow(this.player, true, 0.1, 0.1)
     
     // Create UI elements
     this.createUI()
+    
+    // Create debug UI (hidden by default)
+    this.createDebugUI()
+    
+    // Show tutorial tips after a delay
+    this.time.delayedCall(2000, () => {
+      this.showTip('welcome', 'Use WASD or Arrow Keys to move. Press W/Up to jump!')
+    })
+    
+    this.time.delayedCall(8000, () => {
+      this.showTip('shooting', 'Click to aim and shoot enemies. Different weapons have different speeds!')
+    })
   }
 
   private createUI() {
     const startX = this.cameras.main.width - 20
     const startY = 20
     
-    // Create game mode indicator (top left)
-    this.gameModeText = this.add.text(20, 20, this.gameMode === 'endless' ? 'MODE: ENDLESS' : `LEVEL ${this.currentLevel}`, {
-      fontSize: '28px',
-      color: this.gameMode === 'endless' ? '#00ffff' : '#00ff00',
-      fontStyle: 'bold',
-      stroke: '#000000',
-      strokeThickness: 4
-    })
-    this.gameModeText.setScrollFactor(0)
-    
-    // Create distance tracker (below mode)
-    this.distanceText = this.add.text(20, 55, 'Distance: 0m', {
-      fontSize: '20px',
-      color: '#ffffff',
-      fontStyle: 'bold',
-      stroke: '#000000',
-      strokeThickness: 3
-    })
-    this.distanceText.setScrollFactor(0)
-    
-    // Create lives counter (top right)
+    // Top-right: Lives and Health
     this.livesText = this.add.text(startX, startY, `Lives: ${this.playerLives}`, {
       fontSize: '24px',
       color: '#ffffff',
@@ -541,31 +753,84 @@ export default class GameScene extends Phaser.Scene {
     this.reloadBarFill.setScrollFactor(0)
     this.reloadBarFill.setOrigin(0, 0)
     
-    // Create coin counter UI (top-left)
-    this.coinIcon = this.add.image(30, 20, 'coin')
+    // Top-left: Coins and Score (compact)
+    this.coinIcon = this.add.image(25, 20, 'coin')
     this.coinIcon.setScrollFactor(0)
-    this.coinIcon.setScale(0.4)
+    this.coinIcon.setScale(0.35)
     
-    this.coinText = this.add.text(55, 10, '0', {
-      fontSize: '32px',
+    this.coinText = this.add.text(50, 12, '0', {
+      fontSize: '24px',
       color: '#FFD700',
       fontStyle: 'bold',
       stroke: '#000000',
-      strokeThickness: 4
+      strokeThickness: 3
     })
     this.coinText.setScrollFactor(0)
     
-    // Create home button (top-right)
-    const homeButton = this.add.image(1230, 30, 'homeIcon')
+    this.scoreText = this.add.text(20, 40, 'Score: 0', {
+      fontSize: '22px',
+      color: '#00ff00',
+      fontStyle: 'bold',
+      stroke: '#000000',
+      strokeThickness: 3
+    })
+    this.scoreText.setScrollFactor(0)
+    
+    // High score (compact, below score)
+    this.highScore = parseInt(localStorage.getItem('jumpjump_highscore') || '0')
+    this.highScoreText = this.add.text(20, 65, `Best: ${this.highScore}`, {
+      fontSize: '18px',
+      color: '#ffaa00',
+      fontStyle: 'bold',
+      stroke: '#000000',
+      strokeThickness: 2
+    })
+    this.highScoreText.setScrollFactor(0)
+    
+    // Create home button (bottom-left corner)
+    const homeButtonX = 50
+    const homeButtonY = 680
+    
+    // Try to create with icon, fallback to text button
+    let homeButton: Phaser.GameObjects.Image | Phaser.GameObjects.Rectangle
+    
+    if (this.textures.exists('homeIcon')) {
+      homeButton = this.add.image(homeButtonX, homeButtonY, 'homeIcon')
+      homeButton.setScale(0.6)
+    } else {
+      // Fallback: create a rectangle button
+      homeButton = this.add.rectangle(homeButtonX, homeButtonY, 80, 40, 0x4444ff)
+      homeButton.setStrokeStyle(2, 0xffffff)
+      
+      // Add HOME text
+      const homeText = this.add.text(homeButtonX, homeButtonY, 'HOME', {
+        fontSize: '18px',
+        color: '#ffffff',
+        fontStyle: 'bold'
+      })
+      homeText.setOrigin(0.5)
+      homeText.setScrollFactor(0)
+      homeText.setDepth(1)
+    }
+    
     homeButton.setScrollFactor(0)
-    homeButton.setScale(0.8)
     homeButton.setInteractive({ useHandCursor: true })
-    homeButton.on('pointerover', () => homeButton.setScale(0.9))
-    homeButton.on('pointerout', () => homeButton.setScale(0.8))
+    homeButton.on('pointerover', () => {
+      if (homeButton instanceof Phaser.GameObjects.Image) {
+        homeButton.setScale(0.7)
+      } else {
+        homeButton.setFillStyle(0x6666ff)
+      }
+    })
+    homeButton.on('pointerout', () => {
+      if (homeButton instanceof Phaser.GameObjects.Image) {
+        homeButton.setScale(0.6)
+      } else {
+        homeButton.setFillStyle(0x4444ff)
+      }
+    })
     homeButton.on('pointerdown', () => {
-      // Save coins before returning to menu
-      localStorage.setItem('playerCoins', this.coinCount.toString())
-      this.scene.start('MenuScene')
+      this.showQuitConfirmation()
     })
     
     // Create particle emitters
@@ -604,23 +869,23 @@ export default class GameScene extends Phaser.Scene {
   }
 
   private spawnCoins() {
-    // Spawn coins at various positions throughout the world
+    // Spawn coins at various positions throughout the world (Y values are above floor at 650)
     const coinPositions = [
-      { x: 600, y: 800 },
-      { x: 1000, y: 600 },
-      { x: 1400, y: 500 },
-      { x: 1800, y: 700 },
-      { x: 2200, y: 600 },
-      { x: 2600, y: 800 },
-      { x: 3000, y: 500 },
-      { x: 800, y: 400 },
-      { x: 1200, y: 900 },
-      { x: 1600, y: 400 },
-      { x: 2000, y: 800 },
-      { x: 2400, y: 500 },
-      { x: 2800, y: 700 },
-      { x: 500, y: 600 },
-      { x: 1100, y: 450 }
+      { x: 600, y: 450 },
+      { x: 1000, y: 400 },
+      { x: 1400, y: 350 },
+      { x: 1800, y: 500 },
+      { x: 2200, y: 400 },
+      { x: 2600, y: 450 },
+      { x: 3000, y: 350 },
+      { x: 800, y: 300 },
+      { x: 1200, y: 550 },
+      { x: 1600, y: 300 },
+      { x: 2000, y: 500 },
+      { x: 2400, y: 350 },
+      { x: 2800, y: 500 },
+      { x: 500, y: 400 },
+      { x: 1100, y: 350 }
     ]
 
     coinPositions.forEach(pos => {
@@ -658,8 +923,19 @@ export default class GameScene extends Phaser.Scene {
     this.coinCount++
     this.coinText.setText(this.coinCount.toString())
     
+    // Update score (coins are worth 10 points each)
+    this.updateScore(10)
+    
     // Save coins to localStorage
     localStorage.setItem('playerCoins', this.coinCount.toString())
+    
+    // Show shop tip when player reaches 50 coins for the first time
+    if (this.coinCount === 50) {
+      this.showTip('shop', 'You have 50 coins! Visit the Shop from the menu to buy weapons and skins!')
+    }
+    
+    // Play coin sound
+    this.playCoinSound()
     
     // Play collection particle effect
     this.coinParticles.emitParticleAt(coin.x, coin.y)
@@ -674,6 +950,202 @@ export default class GameScene extends Phaser.Scene {
     })
   }
 
+  private spawnPowerUps() {
+    // Spawn power-ups at random positions on platforms
+    const powerUpTypes = ['powerSpeed', 'powerShield', 'powerLife']
+    const numPowerUps = 8
+    
+    for (let i = 0; i < numPowerUps; i++) {
+      const x = Phaser.Math.Between(1000, 8000)
+      const y = 500
+      const type = Phaser.Math.RND.pick(powerUpTypes)
+      
+      const powerUp = this.powerUps.create(x, y, type)
+      powerUp.setScale(0.6)
+      powerUp.setBounce(0.2)
+      powerUp.setCollideWorldBounds(true)
+      powerUp.setData('type', type)
+      
+      // Add floating animation
+      this.tweens.add({
+        targets: powerUp,
+        y: y - 15,
+        duration: 1200,
+        yoyo: true,
+        repeat: -1,
+        ease: 'Sine.easeInOut'
+      })
+      
+      // Add glow effect
+      this.tweens.add({
+        targets: powerUp,
+        alpha: 0.7,
+        duration: 800,
+        yoyo: true,
+        repeat: -1,
+        ease: 'Sine.easeInOut'
+      })
+    }
+  }
+
+  private collectPowerUp(_player: Phaser.Physics.Arcade.Sprite, powerUp: Phaser.Physics.Arcade.Sprite) {
+    const type = powerUp.getData('type')
+    
+    // Remove power-up
+    powerUp.destroy()
+    
+    // Show tip on first power-up
+    if (this.shownTips.size < 5) {
+      this.showTip('powerups', 'Power-ups: Yellow=Speed, Blue=Shield, Green=Extra Life')
+    }
+    
+    // Apply power-up effect
+    if (type === 'powerSpeed') {
+      this.hasSpeedBoost = true
+      
+      // Show notification
+      const text = this.add.text(this.player.x, this.player.y - 50, 'SPEED BOOST!', {
+        fontSize: '24px',
+        color: '#ffff00'
+      })
+      text.setOrigin(0.5)
+      
+      this.tweens.add({
+        targets: text,
+        y: text.y - 50,
+        alpha: 0,
+        duration: 2000,
+        onComplete: () => text.destroy()
+      })
+      
+      // Remove after 10 seconds
+      this.time.delayedCall(10000, () => {
+        this.hasSpeedBoost = false
+      })
+    } else if (type === 'powerShield') {
+      this.hasShield = true
+      
+      // Create shield sprite that follows player
+      this.shieldSprite = this.add.sprite(this.player.x, this.player.y, 'powerShield')
+      this.shieldSprite.setScale(1.5)
+      this.shieldSprite.setAlpha(0.6)
+      this.shieldSprite.setDepth(5)
+      
+      // Shield animation
+      this.tweens.add({
+        targets: this.shieldSprite,
+        angle: 360,
+        duration: 3000,
+        repeat: -1,
+        ease: 'Linear'
+      })
+      
+      // Show notification
+      const text = this.add.text(this.player.x, this.player.y - 50, 'SHIELD ACTIVE!', {
+        fontSize: '24px',
+        color: '#00ffff'
+      })
+      text.setOrigin(0.5)
+      
+      this.tweens.add({
+        targets: text,
+        y: text.y - 50,
+        alpha: 0,
+        duration: 2000,
+        onComplete: () => text.destroy()
+      })
+      
+      // Remove after 15 seconds
+      this.time.delayedCall(15000, () => {
+        this.hasShield = false
+        if (this.shieldSprite) {
+          this.shieldSprite.destroy()
+          this.shieldSprite = null
+        }
+      })
+    } else if (type === 'powerLife') {
+      // Add extra life
+      this.playerLives++
+      
+      // Update lives display
+      this.livesText.setText(`Lives: ${this.playerLives}`)
+      
+      // Show notification
+      const text = this.add.text(this.player.x, this.player.y - 50, '+1 LIFE!', {
+        fontSize: '24px',
+        color: '#00ff00'
+      })
+      text.setOrigin(0.5)
+      
+      this.tweens.add({
+        targets: text,
+        y: text.y - 50,
+        alpha: 0,
+        duration: 2000,
+        onComplete: () => text.destroy()
+      })
+    }
+  }
+
+  private showTip(tipId: string, message: string) {
+    // Only show each tip once
+    if (this.shownTips.has(tipId)) return
+    this.shownTips.add(tipId)
+    
+    // Create tip banner at top of screen
+    const banner = this.add.rectangle(640, 100, 700, 80, 0x000000, 0.8)
+    banner.setScrollFactor(0)
+    banner.setDepth(200)
+    banner.setStrokeStyle(2, 0xffff00)
+    
+    const tipText = this.add.text(640, 85, '💡 TIP', {
+      fontSize: '18px',
+      color: '#ffff00',
+      fontStyle: 'bold'
+    })
+    tipText.setOrigin(0.5)
+    tipText.setScrollFactor(0)
+    tipText.setDepth(201)
+    
+    const messageText = this.add.text(640, 115, message, {
+      fontSize: '16px',
+      color: '#ffffff',
+      align: 'center',
+      wordWrap: { width: 650 }
+    })
+    messageText.setOrigin(0.5)
+    messageText.setScrollFactor(0)
+    messageText.setDepth(201)
+    
+    // Slide in animation
+    banner.setY(50)
+    tipText.setY(35)
+    messageText.setY(65)
+    
+    this.tweens.add({
+      targets: [banner, tipText, messageText],
+      y: '+=50',
+      duration: 300,
+      ease: 'Back.easeOut'
+    })
+    
+    // Auto-dismiss after 5 seconds
+    this.time.delayedCall(5000, () => {
+      this.tweens.add({
+        targets: [banner, tipText, messageText],
+        y: '-=50',
+        alpha: 0,
+        duration: 300,
+        ease: 'Cubic.easeIn',
+        onComplete: () => {
+          banner.destroy()
+          tipText.destroy()
+          messageText.destroy()
+        }
+      })
+    })
+  }
+
   private dropCoins(x: number, y: number, count: number) {
     // Drop coins at the enemy's position
     for (let i = 0; i < count; i++) {
@@ -681,7 +1153,7 @@ export default class GameScene extends Phaser.Scene {
       this.time.delayedCall(i * 50, () => {
         const offsetX = Phaser.Math.Between(-30, 30)
         const offsetY = Phaser.Math.Between(-20, 0)
-        const coin = this.coins.create(x + offsetX, y + offsetY, 'coinGold')
+        const coin = this.coins.create(x + offsetX, y + offsetY, 'coin')
         coin.setBounce(0.7)
         coin.setVelocity(
           Phaser.Math.Between(-100, 100),
@@ -707,23 +1179,50 @@ export default class GameScene extends Phaser.Scene {
     const tileSize = 70
     const floorY = 650
     
+    console.log('=== Generating World ===')
+    console.log('Floor Y:', floorY, 'Tile size:', tileSize)
+    
     // Create safe spawn platform (500 pixels wide, no enemies)
     const spawnPlatformWidth = 500
     for (let x = 0; x < spawnPlatformWidth; x += tileSize) {
-      const tile = this.platforms.create(x, floorY, 'metalMid')
-      tile.setOrigin(0, 0.5)
-      tile.refreshBody()
+      const posX = x + tileSize/2
+      
+      // Create sprite first
+      const tile = this.add.sprite(posX, floorY, 'metalMid')
+      tile.setOrigin(0.5, 0.5)
+      
+      // Add static physics body
+      this.physics.add.existing(tile, true)
+      
+      // Get the body and configure it to match texture dimensions
+      const body = tile.body as Phaser.Physics.Arcade.StaticBody
+      // Use 95% of texture size for more accurate hitbox
+      const hitboxSize = tileSize * 0.95
+      body.setSize(hitboxSize, hitboxSize)
+      body.setOffset((tile.width - hitboxSize) / 2, (tile.height - hitboxSize) / 2)
+      body.updateFromGameObject()
+      
+      // Add to platforms group AFTER physics is set up
+      this.platforms.add(tile)
     }
     
     // Add decorative pillars on spawn platform edges
     for (let i = 0; i < 3; i++) {
-      const leftPillar = this.platforms.create(0, floorY - (i + 1) * tileSize, 'metalCenter')
-      leftPillar.setOrigin(0, 0.5)
-      leftPillar.refreshBody()
+      const pillar1 = this.add.sprite(tileSize/2, floorY - (i + 1) * tileSize, 'metalCenter')
+      pillar1.setOrigin(0.5, 0.5)
+      this.physics.add.existing(pillar1, true)
+      const body1 = pillar1.body as Phaser.Physics.Arcade.StaticBody
+      body1.setSize(tileSize, tileSize)
+      body1.updateFromGameObject()
+      this.platforms.add(pillar1)
       
-      const rightPillar = this.platforms.create(spawnPlatformWidth - tileSize, floorY - (i + 1) * tileSize, 'metalCenter')
-      rightPillar.setOrigin(0, 0.5)
-      rightPillar.refreshBody()
+      const pillar2 = this.add.sprite(spawnPlatformWidth - tileSize/2, floorY - (i + 1) * tileSize, 'metalCenter')
+      pillar2.setOrigin(0.5, 0.5)
+      this.physics.add.existing(pillar2, true)
+      const body2 = pillar2.body as Phaser.Physics.Arcade.StaticBody
+      body2.setSize(tileSize, tileSize)
+      body2.updateFromGameObject()
+      this.platforms.add(pillar2)
     }
     
     // Choose initial biome for rest of world
@@ -753,15 +1252,29 @@ export default class GameScene extends Phaser.Scene {
     
     // Create floor for this chunk
     for (let x = startX; x < startX + chunkWidth; x += tileSize) {
-      const tile = this.platforms.create(x, floorY, floorTile)
-      tile.setOrigin(0, 0.5)
-      tile.refreshBody()
+      const floor = this.add.sprite(x + tileSize/2, floorY, floorTile)
+      floor.setOrigin(0.5, 0.5)
+      this.physics.add.existing(floor, true)
+      const body = floor.body as Phaser.Physics.Arcade.StaticBody
+      // Use 95% of texture for tighter, more accurate hitbox
+      const hitboxSize = tileSize * 0.95
+      body.setSize(hitboxSize, hitboxSize)
+      body.setOffset((floor.width - hitboxSize) / 2, (floor.height - hitboxSize) / 2)
+      body.updateFromGameObject()
+      this.platforms.add(floor)
       
       // Check if we need to switch biome
       if (x - (this.worldGenerationX - this.lastGeneratedX) >= this.biomeLength) {
         this.switchBiome()
       }
     }
+    
+    // Define 7 fixed Y levels for platform spawning (from top to ground)
+    const yLevels = [300, 370, 440, 510, 580, 650] // 6 levels above ground + ground at 650
+    
+    // Track occupied grid cells to prevent overlap
+    const occupiedCells = new Set<string>()
+    const minSpacing = 200 // Minimum X distance between structures
     
     // Generate structures within chunk
     let currentX = startX + 100
@@ -773,58 +1286,168 @@ export default class GameScene extends Phaser.Scene {
       if (structureType < 0.3) {
         // Floating platform
         const platformWidth = Phaser.Math.Between(2, 4)
-        const platformY = Phaser.Math.Between(400, 550)
-        for (let i = 0; i < platformWidth; i++) {
-          const platform = this.platforms.create(currentX + i * tileSize, platformY, platformTile)
-          platform.setOrigin(0, 0.5)
-          platform.refreshBody()
+        const levelIndex = Phaser.Math.Between(0, yLevels.length - 2) // Don't use ground level
+        const platformY = yLevels[levelIndex]
+        
+        // Check if this position is occupied
+        const cellKey = `${Math.floor(currentX / tileSize)}-${levelIndex}`
+        if (!occupiedCells.has(cellKey)) {
+          for (let i = 0; i < platformWidth; i++) {
+            const plat = this.add.sprite(currentX + i * tileSize + tileSize/2, platformY, platformTile)
+            plat.setOrigin(0.5, 0.5)
+            this.physics.add.existing(plat, true)
+            const body = plat.body as Phaser.Physics.Arcade.StaticBody
+            // Thin platform hitbox - match visual size (70 wide x 18 tall approximately)
+            const hitboxWidth = plat.width * 0.95
+            const hitboxHeight = plat.height * 0.8  // Use actual height, not square
+            body.setSize(hitboxWidth, hitboxHeight)
+            body.setOffset((plat.width - hitboxWidth) / 2, (plat.height - hitboxHeight) / 2)
+            body.updateFromGameObject()
+            this.platforms.add(plat)
+            
+            // Mark cells as occupied
+            occupiedCells.add(`${Math.floor((currentX + i * tileSize) / tileSize)}-${levelIndex}`)
+          }
         }
-        currentX += Phaser.Math.Between(150, 300)
+        currentX += minSpacing
       } else if (structureType < 0.5) {
-        // Staircase
+        // Staircase - uses multiple levels
         const steps = Phaser.Math.Between(4, 7)
-        let stepY = 580
+        const startLevelIndex = Phaser.Math.Between(2, yLevels.length - steps - 1)
+        
+        let canPlace = true
+        // Check if any step position is occupied
         for (let i = 0; i < steps; i++) {
-          const step = this.platforms.create(currentX + i * tileSize, stepY, platformTile)
-          step.setOrigin(0, 0.5)
-          step.refreshBody()
-          stepY -= tileSize
+          const cellKey = `${Math.floor((currentX + i * tileSize) / tileSize)}-${startLevelIndex + i}`
+          if (occupiedCells.has(cellKey)) {
+            canPlace = false
+            break
+          }
         }
-        currentX += Phaser.Math.Between(300, 500)
+        
+        if (canPlace) {
+          for (let i = 0; i < steps; i++) {
+            const levelIndex = startLevelIndex + i
+            const stepY = yLevels[levelIndex]
+            const step = this.add.sprite(currentX + i * tileSize + tileSize/2, stepY, platformTile)
+            step.setOrigin(0.5, 0.5)
+            this.physics.add.existing(step, true)
+            const body = step.body as Phaser.Physics.Arcade.StaticBody
+            // Thin platform hitbox - match visual size
+            const hitboxWidth = step.width * 0.95
+            const hitboxHeight = step.height * 0.8
+            body.setSize(hitboxWidth, hitboxHeight)
+            body.setOffset((step.width - hitboxWidth) / 2, (step.height - hitboxHeight) / 2)
+            body.updateFromGameObject()
+            this.platforms.add(step)
+            
+            // Mark cell as occupied
+            occupiedCells.add(`${Math.floor((currentX + i * tileSize) / tileSize)}-${levelIndex}`)
+          }
+        }
+        currentX += minSpacing + 100
       } else if (structureType < 0.7) {
-        // Pillar
+        // Pillar with platform on top
         const pillarHeight = Phaser.Math.Between(3, 6)
-        const pillarTopY = Phaser.Math.Between(400, 550)
-        for (let i = 0; i < pillarHeight; i++) {
-          const block = this.platforms.create(currentX, pillarTopY + i * tileSize, wallTile)
-          block.setOrigin(0, 0.5)
-          block.refreshBody()
+        const topLevelIndex = Phaser.Math.Between(0, yLevels.length - pillarHeight - 1)
+        const pillarTopY = yLevels[topLevelIndex]
+        
+        const cellKey = `${Math.floor(currentX / tileSize)}-${topLevelIndex}`
+        if (!occupiedCells.has(cellKey)) {
+          // Create pillar blocks
+          for (let i = 0; i < pillarHeight; i++) {
+            const levelIndex = topLevelIndex + i
+            const pillar = this.add.sprite(currentX + tileSize/2, yLevels[levelIndex], wallTile)
+            pillar.setOrigin(0.5, 0.5)
+            this.physics.add.existing(pillar, true)
+            const bodyP = pillar.body as Phaser.Physics.Arcade.StaticBody
+            const hitboxSize = tileSize * 0.95
+            bodyP.setSize(hitboxSize, hitboxSize)
+            bodyP.setOffset((pillar.width - hitboxSize) / 2, (pillar.height - hitboxSize) / 2)
+            bodyP.updateFromGameObject()
+            this.platforms.add(pillar)
+            
+            // Mark cell as occupied
+            occupiedCells.add(`${Math.floor(currentX / tileSize)}-${levelIndex}`)
+          }
+          
+          // Platform on top (3 tiles wide)
+          for (let i = 0; i < 3; i++) {
+            const top = this.add.sprite(currentX + (i - 1) * tileSize + tileSize/2, pillarTopY, platformTile)
+            top.setOrigin(0.5, 0.5)
+            this.physics.add.existing(top, true)
+            const bodyT = top.body as Phaser.Physics.Arcade.StaticBody
+            const hitboxWidth = top.width * 0.95
+            const hitboxHeight = top.height * 0.8
+            bodyT.setSize(hitboxWidth, hitboxHeight)
+            bodyT.setOffset((top.width - hitboxWidth) / 2, (top.height - hitboxHeight) / 2)
+            bodyT.updateFromGameObject()
+            this.platforms.add(top)
+            
+            // Mark cells as occupied
+            occupiedCells.add(`${Math.floor((currentX + (i - 1) * tileSize) / tileSize)}-${topLevelIndex}`)
+          }
         }
-        // Platform on top
-        for (let i = 0; i < 3; i++) {
-          const platform = this.platforms.create(currentX + (i - 1) * tileSize, pillarTopY, platformTile)
-          platform.setOrigin(0, 0.5)
-          platform.refreshBody()
-        }
-        currentX += Phaser.Math.Between(200, 350)
+        currentX += minSpacing + 50
       } else if (structureType < 0.85) {
         // Gap (no structure)
         currentX += Phaser.Math.Between(150, 250)
       } else {
-        // Spike trap on floor
+        // Spike trap on ground level (always at Y=650)
         const spikeWidth = Phaser.Math.Between(2, 4)
+        const groundLevelIndex = yLevels.length - 1
+        console.log(`Creating spike trap at X:${currentX}, width:${spikeWidth}`)
+        
+        let canPlace = true
+        // Check if ground position is occupied
         for (let i = 0; i < spikeWidth; i++) {
-          const spike = this.spikes.create(currentX + i * tileSize, floorY - tileSize, 'spikes')
-          spike.setOrigin(0, 0.5)
-          spike.refreshBody()
+          const cellKey = `${Math.floor((currentX + i * tileSize) / tileSize)}-${groundLevelIndex}`
+          if (occupiedCells.has(cellKey)) {
+            canPlace = false
+            break
+          }
         }
-        // Track spike position for coin spawn prevention
-        this.spikePositions.push({
-          x: currentX,
-          y: floorY - tileSize,
-          width: spikeWidth * tileSize
-        })
-        currentX += Phaser.Math.Between(150, 300)
+        
+        if (canPlace) {
+          for (let i = 0; i < spikeWidth; i++) {
+            // Create platform block underneath
+            const block = this.add.sprite(currentX + i * tileSize + tileSize/2, floorY, floorTile)
+            block.setOrigin(0.5, 0.5)
+            this.physics.add.existing(block, true)
+            const blockBody = block.body as Phaser.Physics.Arcade.StaticBody
+            const hitboxSize = tileSize * 0.95
+            blockBody.setSize(hitboxSize, hitboxSize)
+            blockBody.setOffset((block.width - hitboxSize) / 2, (block.height - hitboxSize) / 2)
+            blockBody.updateFromGameObject()
+            this.platforms.add(block)
+            
+            // Place spikes on top of the block
+            const spikeX = currentX + i * tileSize + tileSize/2
+            const spikeY = floorY - tileSize/2
+            console.log(`  Spike ${i} at X:${spikeX}, Y:${spikeY}`)
+            
+            if (!this.textures.exists('spikes')) {
+              console.error('Spikes texture does not exist!')
+            }
+            
+            const spike = this.spikes.create(spikeX, spikeY, 'spikes')
+            spike.setOrigin(0.5, 1) // Bottom-center origin
+            spike.setSize(68, 28) // Hitbox for spike tips only
+            spike.setOffset(2, 4) // Offset to hit only the pointy parts
+            spike.refreshBody()
+            
+            // Mark cell as occupied
+            occupiedCells.add(`${Math.floor((currentX + i * tileSize) / tileSize)}-${groundLevelIndex}`)
+          }
+          
+          // Track spike position for coin spawn prevention
+          this.spikePositions.push({
+            x: currentX,
+            y: floorY - tileSize/2,
+            width: spikeWidth * tileSize
+          })
+        }
+        currentX += minSpacing
       }
     }
   }
@@ -987,6 +1610,12 @@ export default class GameScene extends Phaser.Scene {
     this.bossActive = true
     const bossY = 400
     
+    // Show boss warning tip
+    this.showTip('boss', '⚠️ BOSS FIGHT! Shoot the boss to defeat it and earn 100 coins!')
+    
+    // Play boss spawn sound
+    this.playBossSound()
+    
     // Create boss sprite
     this.boss = this.physics.add.sprite(x, bossY, 'geminiBoss')
     this.boss.setScale(2)
@@ -1085,6 +1714,9 @@ export default class GameScene extends Phaser.Scene {
     
     this.boss.play('boss_attack')
     
+    // Play boss attack sound
+    this.playBossAttackSound()
+    
     // Fire 3 projectiles in spread pattern
     const angles = [-20, 0, 20]
     angles.forEach(angleOffset => {
@@ -1150,6 +1782,9 @@ export default class GameScene extends Phaser.Scene {
     // Reward coins
     const coinReward = 100
     this.dropCoins(this.boss.x, this.boss.y, coinReward)
+    
+    // Award huge score bonus for defeating boss
+    this.updateScore(1000)
     
     // Death animation
     this.tweens.add({
@@ -1444,8 +2079,19 @@ export default class GameScene extends Phaser.Scene {
   }
 
   update() {
+    // CONTINUOUS DEBUGGING - log every 60 frames (about once per second)
+    if (this.time.now % 1000 < 20) {  // Log roughly once per second
+      const body = this.player.body as Phaser.Physics.Arcade.Body
+      console.log('Player Y:', Math.round(this.player.y), 'VelocityY:', Math.round(body.velocity.y), 'Touching.down:', body.touching.down, 'Blocked.down:', body.blocked.down)
+    }
+    
     // Player movement
     this.handlePlayerMovement()
+    
+    // Update shield sprite position if active
+    if (this.hasShield && this.shieldSprite) {
+      this.shieldSprite.setPosition(this.player.x, this.player.y)
+    }
     
     // Generate new world chunks as player moves forward
     if (this.player.x > this.lastGeneratedX - 1600) {
@@ -1514,12 +2160,20 @@ export default class GameScene extends Phaser.Scene {
     
     // Update UI
     this.updateUI()
+    
+    // Update debug UI
+    if (this.debugMode) {
+      this.updateDebugUI()
+    }
   }
 
   private updateUI() {
-    // Update distance
-    const distanceMeters = Math.floor(this.player.x / 100)
-    this.distanceText.setText(`Distance: ${distanceMeters}m`)
+    // Award 1 point per meter traveled (throttled to avoid spam)
+    const currentMeter = Math.floor(this.player.x / 100)
+    const lastMeter = Math.floor((this.player.x - (this.player.body as Phaser.Physics.Arcade.Body).velocity.x * 0.016) / 100)
+    if (currentMeter > lastMeter) {
+      this.updateScore(1) // 1 point per meter
+    }
     
     // Update health bar
     const healthPercent = this.playerHealth / this.maxHealth
@@ -1541,7 +2195,14 @@ export default class GameScene extends Phaser.Scene {
     // Update reload bar
     const currentTime = this.time.now
     const timeSinceLastShot = currentTime - this.lastShotTime
-    const shootCooldown = 1000 // Same as shooting cooldown
+    
+    // Get weapon-specific cooldown
+    let shootCooldown = 1000 // Default raygun
+    if (this.equippedWeapon === 'laserGun') {
+      shootCooldown = 300
+    } else if (this.equippedWeapon === 'sword') {
+      shootCooldown = 500
+    }
     
     // Calculate reload progress (0 to 1)
     const reloadProgress = Math.min(timeSinceLastShot / shootCooldown, 1)
@@ -1555,8 +2216,13 @@ export default class GameScene extends Phaser.Scene {
     // Skip if player is dead
     if (this.playerIsDead) return
     
-    const speed = 200
+    let speed = 200
     const jumpVelocity = -500 // Higher jump due to microgravity
+    
+    // Apply speed boost if active
+    if (this.hasSpeedBoost) {
+      speed = speed * 1.5 // 50% faster
+    }
 
     // Check if player is on ground - simplified check
     const onGround = this.player.body!.touching.down
@@ -1575,14 +2241,15 @@ export default class GameScene extends Phaser.Scene {
     }
 
     // Horizontal movement (A/D or Arrow keys)
+    const moveSpeed = this.debugMode ? speed * 2 : speed  // 2x speed in debug mode
     if (this.wasd.a.isDown || this.cursors.left!.isDown) {
-      this.player.setVelocityX(-speed)
+      this.player.setVelocityX(-moveSpeed)
       this.player.setFlipX(true)
       if (onGround) {
         this.player.play('player_walk', true)
       }
     } else if (this.wasd.d.isDown || this.cursors.right!.isDown) {
-      this.player.setVelocityX(speed)
+      this.player.setVelocityX(moveSpeed)
       this.player.setFlipX(false)
       if (onGround) {
         this.player.play('player_walk', true)
@@ -1594,8 +2261,11 @@ export default class GameScene extends Phaser.Scene {
       }
     }
 
-    // Jump (W or Up arrow)
-    if (Phaser.Input.Keyboard.JustDown(this.wasd.w) || Phaser.Input.Keyboard.JustDown(this.cursors.up!)) {
+    // Jump (W or Up arrow) - or fly up in debug mode
+    if (this.debugMode && this.wasd.w.isDown) {
+      // Debug flight mode - fly up
+      this.player.setVelocityY(-400)
+    } else if (Phaser.Input.Keyboard.JustDown(this.wasd.w) || Phaser.Input.Keyboard.JustDown(this.cursors.up!)) {
       console.log('Jump pressed! onGround:', onGround, 'canDoubleJump:', this.canDoubleJump, 'hasDoubleJumped:', this.hasDoubleJumped)
       
       if (onGround) {
@@ -1603,6 +2273,7 @@ export default class GameScene extends Phaser.Scene {
         console.log('Ground jump!')
         this.player.setVelocityY(jumpVelocity)
         this.player.play('player_jump', true)
+        this.playJumpSound()
         this.jumpParticles.emitParticleAt(this.player.x, this.player.y + 30)
         this.stompStartY = this.player.y
         this.canDoubleJump = true // Enable double jump after first jump
@@ -1612,6 +2283,7 @@ export default class GameScene extends Phaser.Scene {
         console.log('Double jump!')
         this.player.setVelocityY(jumpVelocity)
         this.player.play('player_jump', true)
+        this.playJumpSound(true)
         this.jumpParticles.emitParticleAt(this.player.x, this.player.y + 30)
         this.hasDoubleJumped = true
         this.stompStartY = this.player.y
@@ -1629,8 +2301,12 @@ export default class GameScene extends Phaser.Scene {
       }
     }
 
+    // Debug mode: fly down with S key
+    if (this.debugMode && this.wasd.s.isDown) {
+      this.player.setVelocityY(400)
+    }
     // Stomp (S key - Easter egg)
-    if (Phaser.Input.Keyboard.JustDown(this.wasd.s) && !onGround && !this.isStomping) {
+    else if (Phaser.Input.Keyboard.JustDown(this.wasd.s) && !onGround && !this.isStomping) {
       const jumpHeight = this.stompStartY - this.player.y
       const doubleJumpHeight = Math.abs(jumpVelocity * 2) / this.physics.world.gravity.y * Math.abs(jumpVelocity)
       
@@ -1855,6 +2531,51 @@ export default class GameScene extends Phaser.Scene {
       return // Still invincible
     }
     
+    // Check for shield - if active, don't take damage and deactivate shield
+    if (this.hasShield) {
+      this.hasShield = false
+      if (this.shieldSprite) {
+        // Shield break effect
+        this.tweens.add({
+          targets: this.shieldSprite,
+          alpha: 0,
+          scale: 2,
+          duration: 300,
+          onComplete: () => {
+            if (this.shieldSprite) {
+              this.shieldSprite.destroy()
+              this.shieldSprite = null
+            }
+          }
+        })
+      }
+      
+      // Show shield break text
+      const text = this.add.text(this.player.x, this.player.y - 50, 'SHIELD BROKEN!', {
+        fontSize: '20px',
+        color: '#ff0000'
+      })
+      text.setOrigin(0.5)
+      
+      this.tweens.add({
+        targets: text,
+        y: text.y - 30,
+        alpha: 0,
+        duration: 1500,
+        onComplete: () => text.destroy()
+      })
+      
+      return // Shield absorbed the damage
+    }
+    
+    // Debug mode god mode - no damage
+    if (this.debugMode) {
+      return
+    }
+    
+    // Play damage sound
+    this.playDamageSound()
+    
     this.player.setData('lastHitTime', currentTime)
     this.playerHealth -= damage
     
@@ -1888,6 +2609,11 @@ export default class GameScene extends Phaser.Scene {
 
     if (currentTime - lastHitTime < invincibilityDuration) {
       return // Player is still invincible
+    }
+    
+    // Debug mode god mode - no damage
+    if (this.debugMode) {
+      return
     }
 
     // Player takes damage
@@ -1951,32 +2677,69 @@ export default class GameScene extends Phaser.Scene {
     this.player.setGravityY(0)
     this.player.body!.enable = false
     
-    // Hide gun
+    // Hide gun and shield if active
     this.gun.setVisible(false)
+    if (this.hasShield && this.shieldSprite) {
+      this.shieldSprite.destroy()
+      this.shieldSprite = null
+      this.hasShield = false
+    }
     
     // Change to duck/sit sprite (sad pose)
-    this.player.setTexture('alienBeige_duck')
+    this.player.setTexture(`${this.equippedSkin}_duck`)
     
     // Turn player red
     this.player.setTint(0xff0000)
     
-    // Fade out player
+    // Play death sound
+    this.playDeathSound()
+    
+    // Create particle burst
+    const particleCount = 25
+    for (let i = 0; i < particleCount; i++) {
+      const angle = (Math.PI * 2 / particleCount) * i
+      const speed = Phaser.Math.Between(100, 300)
+      const particle = this.add.circle(this.player.x, this.player.y, 4, 0xff0000)
+      particle.setDepth(20)
+      
+      this.tweens.add({
+        targets: particle,
+        x: this.player.x + Math.cos(angle) * speed,
+        y: this.player.y + Math.sin(angle) * speed,
+        alpha: 0,
+        scale: 0,
+        duration: 800,
+        ease: 'Cubic.easeOut',
+        onComplete: () => particle.destroy()
+      })
+    }
+    
+    // Fade out player with spin
     this.tweens.add({
       targets: this.player,
       alpha: 0,
+      angle: 360,
+      scaleX: 0.5,
+      scaleY: 0.5,
+      y: this.player.y - 50,
       duration: 1500,
-      ease: 'Linear',
+      ease: 'Cubic.easeOut',
       onComplete: () => {
-        // Lose a life
-        this.playerLives--
+        // Fade to black
+        this.cameras.main.fadeOut(500, 0, 0, 0)
         
-        if (this.playerLives <= 0) {
-          // Game Over
-          this.showGameOver()
-        } else {
-          // Respawn with full health
-          this.respawnPlayer()
-        }
+        this.time.delayedCall(500, () => {
+          // Lose a life
+          this.playerLives--
+          
+          if (this.playerLives <= 0) {
+            // Game Over
+            this.showGameOver()
+          } else {
+            // Respawn with full health
+            this.respawnPlayer()
+          }
+        })
       }
     })
   }
@@ -1985,12 +2748,49 @@ export default class GameScene extends Phaser.Scene {
     // Reset player position to last checkpoint
     const checkpointX = this.checkpoints[this.currentCheckpoint]?.x || this.playerSpawnX
     this.player.setPosition(checkpointX, this.playerSpawnY)
-    this.player.setAlpha(1)
-    this.player.setTexture('alienBeige_stand')
+    
+    // Fade in from black
+    this.cameras.main.fadeIn(500, 0, 0, 0)
+    
+    // Start with player invisible and small
+    this.player.setAlpha(0)
+    this.player.setScale(0)
+    this.player.setTexture(`${this.equippedSkin}_stand`)
     this.player.setGravityY(200)
     this.player.body!.enable = true
-    this.player.play('player_idle')
+    this.player.angle = 0
     this.player.clearTint()
+    
+    // Checkpoint glow effect
+    if (this.checkpoints[this.currentCheckpoint]) {
+      const checkpoint = this.checkpoints[this.currentCheckpoint]
+      
+      // Create glow ring at checkpoint position
+      const glowRing = this.add.circle(checkpoint.x, 600, 50, 0x00ff00, 0.3)
+      glowRing.setDepth(1)
+      
+      this.tweens.add({
+        targets: glowRing,
+        scale: 2,
+        alpha: 0,
+        duration: 1000,
+        ease: 'Cubic.easeOut',
+        onComplete: () => glowRing.destroy()
+      })
+    }
+    
+    // Scale up spawn animation
+    this.tweens.add({
+      targets: this.player,
+      alpha: 1,
+      scaleX: 1,
+      scaleY: 1,
+      duration: 500,
+      ease: 'Back.easeOut',
+      onComplete: () => {
+        this.player.play('player_idle')
+      }
+    })
     
     // Reset health to full
     this.playerHealth = this.maxHealth
@@ -1998,14 +2798,77 @@ export default class GameScene extends Phaser.Scene {
     this.gun.setVisible(true)
     this.lastShotTime = 0
     
-    // Flash camera
+    // Give player 1 second of invincibility on respawn
+    this.player.setData('lastHitTime', this.time.now)
+    this.hasShield = true
+    this.shieldSprite = this.add.sprite(this.player.x, this.player.y, 'powerShield')
+    this.shieldSprite.setScale(1.5)
+    this.shieldSprite.setAlpha(0.6)
+    this.shieldSprite.setDepth(5)
+    
+    // Shield animation
+    this.tweens.add({
+      targets: this.shieldSprite,
+      angle: 360,
+      duration: 3000,
+      repeat: 0
+    })
+    
+    // Remove spawn shield after 1 second
+    this.time.delayedCall(1000, () => {
+      this.hasShield = false
+      if (this.shieldSprite) {
+        this.tweens.add({
+          targets: this.shieldSprite,
+          alpha: 0,
+          scale: 2,
+          duration: 300,
+          onComplete: () => {
+            if (this.shieldSprite) {
+              this.shieldSprite.destroy()
+              this.shieldSprite = null
+            }
+          }
+        })
+      }
+    })
+    
+    // Update lives display
+    this.livesText.setText(`Lives: ${this.playerLives}`)
+    
+    // Flash camera white
     this.cameras.main.flash(500, 255, 255, 255)
   }
 
   private showGameOver() {
-    // Create game over text
-    const gameOverText = this.add.text(640, 300, 'GAME OVER', {
-      fontSize: '72px',
+    console.log('🎮🎮🎮 GAME OVER TRIGGERED 🎮🎮🎮')
+    console.log('Current Score:', this.score)
+    console.log('Current Coins:', this.coinCount)
+    console.log('Enemies Defeated:', this.enemiesDefeated)
+    
+    this.physics.pause()
+    
+    // Submit score to backend (non-blocking)
+    this.submitScoreToBackend().catch(err => {
+      console.log('Score submission failed (backend may be offline):', err)
+    })
+    
+    // Dark overlay background
+    const overlay = this.add.rectangle(640, 360, 1280, 720, 0x000000, 0.85)
+    overlay.setScrollFactor(0)
+    overlay.setDepth(2000)
+    
+    // Game over panel
+    const panelWidth = 600
+    const panelHeight = 500
+    const panel = this.add.rectangle(640, 360, panelWidth, panelHeight, 0x1a1a2e)
+    panel.setStrokeStyle(4, 0xff0000)
+    panel.setScrollFactor(0)
+    panel.setDepth(2001)
+    
+    // Game over title
+    const gameOverText = this.add.text(640, 180, 'GAME OVER', {
+      fontSize: '64px',
       color: '#ff0000',
       fontStyle: 'bold',
       stroke: '#000000',
@@ -2013,42 +2876,104 @@ export default class GameScene extends Phaser.Scene {
     })
     gameOverText.setOrigin(0.5)
     gameOverText.setScrollFactor(0)
+    gameOverText.setDepth(2002)
     
-    // Show final score
-    const scoreText = this.add.text(640, 400, `Coins Collected: ${this.coinCount}`, {
-      fontSize: '32px',
-      color: '#FFD700',
+    // Stats
+    const statsText = this.add.text(640, 280, 
+      `Level: ${this.currentLevel}\nScore: ${this.score}\nCoins: ${this.coinCount}\nEnemies: ${this.enemiesDefeated}\nDistance: ${Math.floor(this.player.x / 70)}m`, {
+      fontSize: '28px',
+      color: '#ffffff',
       fontStyle: 'bold',
       stroke: '#000000',
-      strokeThickness: 4
+      strokeThickness: 4,
+      align: 'center',
+      lineSpacing: 10
     })
-    scoreText.setOrigin(0.5)
-    scoreText.setScrollFactor(0)
+    statsText.setOrigin(0.5)
+    statsText.setScrollFactor(0)
+    statsText.setDepth(2002)
     
-    // Restart prompt
-    const restartText = this.add.text(640, 500, 'Press SPACE to Restart', {
-      fontSize: '24px',
+    // Restart Button
+    const restartBtn = this.add.rectangle(540, 420, 200, 60, 0x00aa00)
+    restartBtn.setStrokeStyle(3, 0x00ff00)
+    restartBtn.setScrollFactor(0)
+    restartBtn.setDepth(2002)
+    restartBtn.setInteractive({ useHandCursor: true })
+    
+    const restartText = this.add.text(540, 420, 'RESTART', {
+      fontSize: '28px',
       color: '#ffffff',
-      stroke: '#000000',
-      strokeThickness: 4
+      fontStyle: 'bold'
     })
     restartText.setOrigin(0.5)
     restartText.setScrollFactor(0)
+    restartText.setDepth(2003)
     
-    // Blinking animation
-    this.tweens.add({
-      targets: restartText,
-      alpha: 0.3,
-      duration: 800,
-      yoyo: true,
-      repeat: -1
+    // Home Button
+    const homeBtn = this.add.rectangle(740, 420, 200, 60, 0x0066cc)
+    homeBtn.setStrokeStyle(3, 0x0099ff)
+    homeBtn.setScrollFactor(0)
+    homeBtn.setDepth(2002)
+    homeBtn.setInteractive({ useHandCursor: true })
+    
+    const homeText = this.add.text(740, 420, 'MENU', {
+      fontSize: '28px',
+      color: '#ffffff',
+      fontStyle: 'bold'
+    })
+    homeText.setOrigin(0.5)
+    homeText.setScrollFactor(0)
+    homeText.setDepth(2003)
+    
+    // Button hover effects
+    restartBtn.on('pointerover', () => {
+      restartBtn.setFillStyle(0x00ff00)
+      restartBtn.setScale(1.05)
+    })
+    restartBtn.on('pointerout', () => {
+      restartBtn.setFillStyle(0x00aa00)
+      restartBtn.setScale(1)
     })
     
-    // Restart on space
-    this.input.keyboard!.once('keydown-SPACE', () => {
-      // Clear all tweens before restart
+    homeBtn.on('pointerover', () => {
+      homeBtn.setFillStyle(0x0099ff)
+      homeBtn.setScale(1.05)
+    })
+    homeBtn.on('pointerout', () => {
+      homeBtn.setFillStyle(0x0066cc)
+      homeBtn.setScale(1)
+    })
+    
+    // Button click handlers
+    restartBtn.on('pointerdown', () => {
       this.tweens.killAll()
       this.scene.restart()
+    })
+    
+    homeBtn.on('pointerdown', () => {
+      this.tweens.killAll()
+      this.scene.start('MenuScene')
+    })
+    
+    // Keyboard shortcuts
+    this.input.keyboard!.once('keydown-SPACE', () => {
+      this.tweens.killAll()
+      this.scene.restart()
+    })
+    
+    this.input.keyboard!.once('keydown-M', () => {
+      this.tweens.killAll()
+      this.scene.start('MenuScene')
+    })
+    
+    // Pulsing animation on title
+    this.tweens.add({
+      targets: gameOverText,
+      scale: 1.1,
+      duration: 1000,
+      yoyo: true,
+      repeat: -1,
+      ease: 'Sine.easeInOut'
     })
   }
 
@@ -2091,38 +3016,141 @@ export default class GameScene extends Phaser.Scene {
     
     const pointer = this.input.activePointer
     const currentTime = this.time.now
-    const shootCooldown = 1000 // 1000ms (1 second) between shots
+    
+    // Weapon-specific cooldowns and behavior
+    let shootCooldown = 1000 // Default raygun cooldown
+    let bulletSpeed = 600
+    
+    if (this.equippedWeapon === 'laserGun') {
+      shootCooldown = 300 // Laser gun fires 3x faster
+      bulletSpeed = 800 // Faster bullets too
+    } else if (this.equippedWeapon === 'sword') {
+      shootCooldown = 500 // Sword swings moderately fast
+      // Sword will use melee attack instead of bullets
+    }
     
     // Check for mouse button press (not held down)
     if (pointer.isDown && currentTime - this.lastShotTime > shootCooldown) {
       this.lastShotTime = currentTime
       
-      // Calculate gun tip position at the moment of firing
-      const gunLength = 40 // Length from gun origin to tip
-      const gunAngle = this.gun.rotation
-      const bulletStartX = this.gun.x + Math.cos(gunAngle) * gunLength
-      const bulletStartY = this.gun.y + Math.sin(gunAngle) * gunLength
-      
-      // Create bullet at gun mouth
-      const bullet = this.bullets.get(bulletStartX, bulletStartY, 'laserBlue')
-      
-      if (bullet) {
-        bullet.setActive(true)
-        bullet.setVisible(true)
-        bullet.setScale(0.5, 0.5)
-        bullet.setRotation(gunAngle)
-        bullet.setAlpha(1)
+      if (this.equippedWeapon === 'sword') {
+        // Melee attack: damage enemies in front of player
+        const meleeRange = 80
+        const meleeDirection = this.player.flipX ? -1 : 1
+        const meleeX = this.player.x + (meleeDirection * meleeRange)
+        const meleeY = this.player.y
         
-        // Disable physics for this bullet - use data to track movement
-        bullet.body!.setEnable(false)
+        // Check if any enemies are in melee range
+        this.enemies.children.entries.forEach((enemy: any) => {
+          const enemySprite = enemy as Phaser.Physics.Arcade.Sprite
+          const distance = Phaser.Math.Distance.Between(meleeX, meleeY, enemySprite.x, enemySprite.y)
+          
+          if (distance < meleeRange) {
+            // Damage enemy (5 damage, same as bullet)
+            let enemyHealth = enemySprite.getData('health') || 1
+            enemyHealth -= 5
+            enemySprite.setData('health', enemyHealth)
+            
+            // Visual feedback: flash and knockback
+            enemySprite.setTint(0xff0000)
+            this.time.delayedCall(100, () => {
+              enemySprite.clearTint()
+            })
+            
+            // Knockback
+            const knockbackForce = 300
+            enemySprite.setVelocityX(meleeDirection * knockbackForce)
+            
+            // Check if enemy died
+            if (enemyHealth <= 0) {
+              const spawnX = enemySprite.getData('spawnX')
+              const spawnY = enemySprite.getData('spawnY')
+              const enemyType = enemySprite.getData('enemyType')
+              const coinReward = enemySprite.getData('coinReward')
+              const scale = enemySprite.scaleX
+              
+              // Drop coins
+              this.dropCoins(enemySprite.x, enemySprite.y, coinReward)
+              
+              // Award score for defeating enemy
+              this.enemiesDefeated++
+              const enemySize = enemySprite.getData('enemySize')
+              let scoreReward = 50 // small
+              if (enemySize === 'medium') scoreReward = 100
+              if (enemySize === 'large') scoreReward = 200
+              this.updateScore(scoreReward)
+              
+              // Death animation
+              enemySprite.setVelocity(0, 0)
+              const deadTexture = `${enemyType}_dead`
+              if (this.textures.exists(deadTexture)) {
+                enemySprite.setTexture(deadTexture)
+              }
+              enemySprite.setTint(0xff0000)
+              
+              // Fade out and sink down
+              this.tweens.add({
+                targets: enemySprite,
+                alpha: 0,
+                y: enemySprite.y + 20,
+                scaleX: scale * 1.2,
+                scaleY: scale * 0.8,
+                duration: 500,
+                onComplete: () => {
+                  enemySprite.destroy()
+                }
+              })
+              
+              // Respawn after 5 seconds
+              this.time.delayedCall(5000, () => {
+                const difficultyMultiplier = this.gameMode === 'endless' 
+                  ? 1 + Math.floor(this.player.x / 5000) * 0.2 
+                  : 1 + (this.currentLevel - 1) * 0.3
+                this.spawnRandomEnemy(spawnX, spawnY, difficultyMultiplier)
+              })
+            }
+          }
+        })
         
-        // Store bullet direction and speed locked at time of firing
-        const bulletSpeed = 600
-        bullet.setData('velocityX', Math.cos(gunAngle) * bulletSpeed)
-        bullet.setData('velocityY', Math.sin(gunAngle) * bulletSpeed)
-        bullet.setData('createdTime', currentTime)
-        bullet.setData('initialScaleX', 0.5)
-        bullet.setData('angle', gunAngle)
+        // Flash gun sprite for visual feedback
+        this.gun.setTint(0xffffff)
+        this.time.delayedCall(100, () => {
+          this.gun.clearTint()
+        })
+        
+        // Play melee sound
+        this.playMeleeSound()
+      } else {
+        // Ranged weapons: shoot bullets
+        // Play shoot sound
+        this.playShootSound()
+        
+        // Calculate gun tip position at the moment of firing
+        const gunLength = 40 // Length from gun origin to tip
+        const gunAngle = this.gun.rotation
+        const bulletStartX = this.gun.x + Math.cos(gunAngle) * gunLength
+        const bulletStartY = this.gun.y + Math.sin(gunAngle) * gunLength
+        
+        // Create bullet at gun mouth
+        const bullet = this.bullets.get(bulletStartX, bulletStartY, 'laserBlue')
+        
+        if (bullet) {
+          bullet.setActive(true)
+          bullet.setVisible(true)
+          bullet.setScale(0.5, 0.5)
+          bullet.setRotation(gunAngle)
+          bullet.setAlpha(1)
+          
+          // Disable physics for this bullet - use data to track movement
+          bullet.body!.setEnable(false)
+          
+          // Store bullet direction and speed locked at time of firing
+          bullet.setData('velocityX', Math.cos(gunAngle) * bulletSpeed)
+          bullet.setData('velocityY', Math.sin(gunAngle) * bulletSpeed)
+          bullet.setData('createdTime', currentTime)
+          bullet.setData('initialScaleX', 0.5)
+          bullet.setData('angle', gunAngle)
+        }
       }
     }
   }
@@ -2163,6 +3191,11 @@ export default class GameScene extends Phaser.Scene {
       // Check if player's feet overlap with spike tips
       if (playerBottom >= spikeTop && playerBottom <= spikeTop + 20 &&
           playerRight >= spikeLeft && playerLeft <= spikeRight) {
+        
+        // Debug mode god mode - no damage
+        if (this.debugMode) {
+          return
+        }
         
         // Player takes damage
         this.playerHealth -= 15
@@ -2280,6 +3313,14 @@ export default class GameScene extends Phaser.Scene {
       // Drop coins
       this.dropCoins(enemySprite.x, enemySprite.y, coinReward)
       
+      // Award score for defeating enemy
+      this.enemiesDefeated++
+      const enemySize = enemySprite.getData('enemySize')
+      let scoreReward = 50 // small
+      if (enemySize === 'medium') scoreReward = 100
+      if (enemySize === 'large') scoreReward = 200
+      this.updateScore(scoreReward)
+      
       // Death animation
       enemySprite.setVelocity(0, 0)
       const deadTexture = `${enemyType}_dead`
@@ -2309,5 +3350,732 @@ export default class GameScene extends Phaser.Scene {
         this.spawnRandomEnemy(spawnX, spawnY, difficultyMultiplier)
       })
     }
+  }
+  
+  // ========== SOUND EFFECTS ==========
+  
+  private playJumpSound(doubleJump: boolean = false) {
+    if (!this.audioContext?.createOscillator) return
+    
+    const oscillator = this.audioContext.createOscillator()
+    const gainNode = this.audioContext.createGain()
+    
+    oscillator.connect(gainNode)
+    gainNode.connect(this.audioContext.destination)
+    
+    oscillator.type = 'square'
+    oscillator.frequency.value = doubleJump ? 600 : 400
+    
+    gainNode.gain.setValueAtTime(0.1, this.audioContext.currentTime)
+    gainNode.gain.exponentialRampToValueAtTime(0.01, this.audioContext.currentTime + 0.1)
+    
+    oscillator.start(this.audioContext.currentTime)
+    oscillator.stop(this.audioContext.currentTime + 0.1)
+  }
+  
+  private playShootSound() {
+    if (!this.audioContext?.createOscillator) return
+    
+    const oscillator = this.audioContext.createOscillator()
+    const gainNode = this.audioContext.createGain()
+    
+    oscillator.connect(gainNode)
+    gainNode.connect(this.audioContext.destination)
+    
+    oscillator.type = 'sawtooth'
+    oscillator.frequency.setValueAtTime(800, this.audioContext.currentTime)
+    oscillator.frequency.exponentialRampToValueAtTime(200, this.audioContext.currentTime + 0.05)
+    
+    gainNode.gain.setValueAtTime(0.15, this.audioContext.currentTime)
+    gainNode.gain.exponentialRampToValueAtTime(0.01, this.audioContext.currentTime + 0.05)
+    
+    oscillator.start(this.audioContext.currentTime)
+    oscillator.stop(this.audioContext.currentTime + 0.05)
+  }
+  
+  private playMeleeSound() {
+    if (!this.audioContext?.createOscillator) return
+    
+    const oscillator = this.audioContext.createOscillator()
+    const gainNode = this.audioContext.createGain()
+    const noiseNode = this.audioContext.createBufferSource()
+    
+    // Create white noise buffer
+    const bufferSize = this.audioContext.sampleRate * 0.1
+    const buffer = this.audioContext.createBuffer(1, bufferSize, this.audioContext.sampleRate)
+    const data = buffer.getChannelData(0)
+    for (let i = 0; i < bufferSize; i++) {
+      data[i] = Math.random() * 2 - 1
+    }
+    noiseNode.buffer = buffer
+    
+    oscillator.connect(gainNode)
+    noiseNode.connect(gainNode)
+    gainNode.connect(this.audioContext.destination)
+    
+    oscillator.type = 'square'
+    oscillator.frequency.value = 150
+    
+    gainNode.gain.setValueAtTime(0.2, this.audioContext.currentTime)
+    gainNode.gain.exponentialRampToValueAtTime(0.01, this.audioContext.currentTime + 0.1)
+    
+    oscillator.start(this.audioContext.currentTime)
+    noiseNode.start(this.audioContext.currentTime)
+    oscillator.stop(this.audioContext.currentTime + 0.1)
+    noiseNode.stop(this.audioContext.currentTime + 0.1)
+  }
+  
+  private playCoinSound() {
+    if (!this.audioContext?.createOscillator) return
+    
+    const oscillator = this.audioContext.createOscillator()
+    const gainNode = this.audioContext.createGain()
+    
+    oscillator.connect(gainNode)
+    gainNode.connect(this.audioContext.destination)
+    
+    oscillator.type = 'sine'
+    oscillator.frequency.setValueAtTime(800, this.audioContext.currentTime)
+    oscillator.frequency.setValueAtTime(1000, this.audioContext.currentTime + 0.05)
+    
+    gainNode.gain.setValueAtTime(0.15, this.audioContext.currentTime)
+    gainNode.gain.exponentialRampToValueAtTime(0.01, this.audioContext.currentTime + 0.15)
+    
+    oscillator.start(this.audioContext.currentTime)
+    oscillator.stop(this.audioContext.currentTime + 0.15)
+  }
+  
+  private playDamageSound() {
+    if (!this.audioContext?.createOscillator) return
+    
+    const oscillator = this.audioContext.createOscillator()
+    const gainNode = this.audioContext.createGain()
+    
+    oscillator.connect(gainNode)
+    gainNode.connect(this.audioContext.destination)
+    
+    oscillator.type = 'sawtooth'
+    oscillator.frequency.setValueAtTime(200, this.audioContext.currentTime)
+    oscillator.frequency.exponentialRampToValueAtTime(50, this.audioContext.currentTime + 0.2)
+    
+    gainNode.gain.setValueAtTime(0.2, this.audioContext.currentTime)
+    gainNode.gain.exponentialRampToValueAtTime(0.01, this.audioContext.currentTime + 0.2)
+    
+    oscillator.start(this.audioContext.currentTime)
+    oscillator.stop(this.audioContext.currentTime + 0.2)
+  }
+  
+  private playDeathSound() {
+    if (!this.audioContext?.createOscillator) return
+    
+    const oscillator = this.audioContext.createOscillator()
+    const gainNode = this.audioContext.createGain()
+    
+    oscillator.connect(gainNode)
+    gainNode.connect(this.audioContext.destination)
+    
+    oscillator.type = 'sawtooth'
+    oscillator.frequency.setValueAtTime(400, this.audioContext.currentTime)
+    oscillator.frequency.exponentialRampToValueAtTime(50, this.audioContext.currentTime + 0.5)
+    
+    gainNode.gain.setValueAtTime(0.3, this.audioContext.currentTime)
+    gainNode.gain.exponentialRampToValueAtTime(0.01, this.audioContext.currentTime + 0.5)
+    
+    oscillator.start(this.audioContext.currentTime)
+    oscillator.stop(this.audioContext.currentTime + 0.5)
+  }
+  
+  private playBossSound() {
+    if (!this.audioContext?.createOscillator) return
+    
+    // Deep rumble for boss spawn
+    const oscillator1 = this.audioContext.createOscillator()
+    const oscillator2 = this.audioContext.createOscillator()
+    const gainNode = this.audioContext.createGain()
+    
+    oscillator1.connect(gainNode)
+    oscillator2.connect(gainNode)
+    gainNode.connect(this.audioContext.destination)
+    
+    oscillator1.type = 'sine'
+    oscillator2.type = 'sawtooth'
+    oscillator1.frequency.value = 80
+    oscillator2.frequency.value = 120
+    
+    gainNode.gain.setValueAtTime(0.3, this.audioContext.currentTime)
+    gainNode.gain.exponentialRampToValueAtTime(0.01, this.audioContext.currentTime + 1.0)
+    
+    oscillator1.start(this.audioContext.currentTime)
+    oscillator2.start(this.audioContext.currentTime)
+    oscillator1.stop(this.audioContext.currentTime + 1.0)
+    oscillator2.stop(this.audioContext.currentTime + 1.0)
+  }
+  
+  private playBossAttackSound() {
+    if (!this.audioContext?.createOscillator) return
+    
+    const oscillator = this.audioContext.createOscillator()
+    const gainNode = this.audioContext.createGain()
+    
+    oscillator.connect(gainNode)
+    gainNode.connect(this.audioContext.destination)
+    
+    oscillator.type = 'triangle'
+    oscillator.frequency.setValueAtTime(300, this.audioContext.currentTime)
+    oscillator.frequency.setValueAtTime(150, this.audioContext.currentTime + 0.1)
+    
+    gainNode.gain.setValueAtTime(0.2, this.audioContext.currentTime)
+    gainNode.gain.exponentialRampToValueAtTime(0.01, this.audioContext.currentTime + 0.15)
+    
+    oscillator.start(this.audioContext.currentTime)
+    oscillator.stop(this.audioContext.currentTime + 0.15)
+  }
+  
+  private createProceduralTextures() {
+    // Create Speed Power-up (Yellow Lightning Bolt)
+    const speedGraphics = this.make.graphics({ x: 0, y: 0 })
+    speedGraphics.fillStyle(0xffff00, 1)
+    speedGraphics.fillCircle(32, 32, 28)
+    speedGraphics.fillStyle(0xffaa00, 1)
+    speedGraphics.fillCircle(32, 32, 22)
+    // Lightning bolt shape
+    speedGraphics.fillStyle(0xffffff, 1)
+    speedGraphics.beginPath()
+    speedGraphics.moveTo(32, 12)
+    speedGraphics.lineTo(28, 32)
+    speedGraphics.lineTo(36, 32)
+    speedGraphics.lineTo(32, 52)
+    speedGraphics.lineTo(36, 32)
+    speedGraphics.lineTo(28, 32)
+    speedGraphics.closePath()
+    speedGraphics.fillPath()
+    speedGraphics.generateTexture('powerSpeed', 64, 64)
+    speedGraphics.destroy()
+    
+    // Create Shield Power-up (Blue Shield)
+    const shieldGraphics = this.make.graphics({ x: 0, y: 0 })
+    shieldGraphics.fillStyle(0x00aaff, 1)
+    shieldGraphics.fillCircle(32, 32, 28)
+    shieldGraphics.fillStyle(0x0088dd, 1)
+    shieldGraphics.fillCircle(32, 32, 22)
+    // Shield emblem
+    shieldGraphics.lineStyle(4, 0xffffff, 1)
+    shieldGraphics.strokeCircle(32, 32, 14)
+    shieldGraphics.beginPath()
+    shieldGraphics.moveTo(32, 20)
+    shieldGraphics.lineTo(32, 44)
+    shieldGraphics.moveTo(20, 32)
+    shieldGraphics.lineTo(44, 32)
+    shieldGraphics.strokePath()
+    shieldGraphics.generateTexture('powerShield', 64, 64)
+    shieldGraphics.destroy()
+    
+    // Create Life Power-up (Green Heart)
+    const lifeGraphics = this.make.graphics({ x: 0, y: 0 })
+    lifeGraphics.fillStyle(0x00ff00, 1)
+    lifeGraphics.fillCircle(32, 32, 28)
+    lifeGraphics.fillStyle(0x00cc00, 1)
+    lifeGraphics.fillCircle(32, 32, 22)
+    // Heart shape using circles
+    lifeGraphics.fillStyle(0xff0066, 1)
+    lifeGraphics.fillCircle(26, 26, 6)
+    lifeGraphics.fillCircle(38, 26, 6)
+    lifeGraphics.beginPath()
+    lifeGraphics.moveTo(20, 28)
+    lifeGraphics.lineTo(32, 42)
+    lifeGraphics.lineTo(44, 28)
+    lifeGraphics.lineTo(38, 22)
+    lifeGraphics.lineTo(32, 22)
+    lifeGraphics.lineTo(26, 22)
+    lifeGraphics.lineTo(20, 28)
+    lifeGraphics.closePath()
+    lifeGraphics.fillPath()
+    lifeGraphics.generateTexture('powerLife', 64, 64)
+    lifeGraphics.destroy()
+    
+    // Create Coin (Gold Circle with shine)
+    const coinGraphics = this.make.graphics({ x: 0, y: 0 })
+    coinGraphics.fillStyle(0xffd700, 1)
+    coinGraphics.fillCircle(32, 32, 24)
+    coinGraphics.fillStyle(0xffaa00, 1)
+    coinGraphics.fillCircle(32, 32, 20)
+    coinGraphics.fillStyle(0xffd700, 1)
+    coinGraphics.fillCircle(32, 32, 16)
+    // Shine effect
+    coinGraphics.fillStyle(0xffff00, 0.8)
+    coinGraphics.fillCircle(26, 26, 6)
+    coinGraphics.generateTexture('coin', 64, 64)
+    coinGraphics.destroy()
+    
+    // Create Particle (Small star burst)
+    const particleGraphics = this.make.graphics({ x: 0, y: 0 })
+    particleGraphics.fillStyle(0xffffff, 1)
+    particleGraphics.beginPath()
+    particleGraphics.moveTo(8, 4)
+    particleGraphics.lineTo(10, 8)
+    particleGraphics.lineTo(12, 4)
+    particleGraphics.lineTo(10, 10)
+    particleGraphics.lineTo(12, 12)
+    particleGraphics.lineTo(8, 10)
+    particleGraphics.lineTo(4, 12)
+    particleGraphics.lineTo(6, 8)
+    particleGraphics.lineTo(4, 4)
+    particleGraphics.lineTo(8, 6)
+    particleGraphics.closePath()
+    particleGraphics.fillPath()
+    particleGraphics.generateTexture('particle', 16, 16)
+    particleGraphics.destroy()
+    
+    // Create Laser Bullet (Blue beam)
+    const laserGraphics = this.make.graphics({ x: 0, y: 0 })
+    laserGraphics.fillStyle(0x00aaff, 1)
+    laserGraphics.fillRect(0, 6, 32, 4)
+    laserGraphics.fillStyle(0x00ffff, 1)
+    laserGraphics.fillRect(2, 7, 28, 2)
+    laserGraphics.generateTexture('laserBlue', 32, 16)
+    laserGraphics.destroy()
+    
+    // Create Raygun (Blue pistol shape)
+    const raygunGraphics = this.make.graphics({ x: 0, y: 0 })
+    raygunGraphics.fillStyle(0x0088dd, 1)
+    raygunGraphics.fillRect(8, 14, 24, 8)
+    raygunGraphics.fillRect(28, 10, 12, 16)
+    raygunGraphics.fillStyle(0x00aaff, 1)
+    raygunGraphics.fillRect(10, 16, 20, 4)
+    raygunGraphics.fillRect(30, 12, 8, 12)
+    raygunGraphics.fillStyle(0x00ffff, 1)
+    raygunGraphics.fillCircle(38, 18, 3)
+    raygunGraphics.generateTexture('raygun', 48, 36)
+    raygunGraphics.destroy()
+    
+    // Create Laser Gun (Green rapid-fire weapon)
+    const laserGunGraphics = this.make.graphics({ x: 0, y: 0 })
+    laserGunGraphics.fillStyle(0x00aa00, 1)
+    laserGunGraphics.fillRect(8, 14, 28, 8)
+    laserGunGraphics.fillRect(32, 10, 14, 16)
+    laserGunGraphics.fillStyle(0x00ff00, 1)
+    laserGunGraphics.fillRect(10, 16, 24, 4)
+    laserGunGraphics.fillRect(34, 12, 10, 12)
+    // Barrel vents
+    laserGunGraphics.lineStyle(2, 0x00ffaa, 1)
+    laserGunGraphics.beginPath()
+    laserGunGraphics.moveTo(36, 14)
+    laserGunGraphics.lineTo(42, 14)
+    laserGunGraphics.moveTo(36, 18)
+    laserGunGraphics.lineTo(42, 18)
+    laserGunGraphics.moveTo(36, 22)
+    laserGunGraphics.lineTo(42, 22)
+    laserGunGraphics.strokePath()
+    laserGunGraphics.generateTexture('laserGun', 48, 36)
+    laserGunGraphics.destroy()
+    
+    // Create Sword (Silver blade)
+    const swordGraphics = this.make.graphics({ x: 0, y: 0 })
+    swordGraphics.fillStyle(0x888888, 1)
+    swordGraphics.fillRect(8, 16, 32, 4)
+    swordGraphics.fillStyle(0xcccccc, 1)
+    swordGraphics.fillRect(10, 17, 28, 2)
+    // Blade tip
+    swordGraphics.fillStyle(0x888888, 1)
+    swordGraphics.beginPath()
+    swordGraphics.moveTo(38, 14)
+    swordGraphics.lineTo(46, 18)
+    swordGraphics.lineTo(38, 22)
+    swordGraphics.closePath()
+    swordGraphics.fillPath()
+    // Handle
+    swordGraphics.fillStyle(0x8b4513, 1)
+    swordGraphics.fillRect(4, 14, 8, 8)
+    swordGraphics.fillStyle(0xffd700, 1)
+    swordGraphics.fillRect(10, 12, 4, 12)
+    swordGraphics.generateTexture('sword', 48, 36)
+    swordGraphics.destroy()
+    
+    // Create Spikes (Red triangular spikes)
+    const spikesGraphics = this.make.graphics({ x: 0, y: 0 })
+    spikesGraphics.fillStyle(0xff0000, 1)
+    for (let i = 0; i < 4; i++) {
+      const x = i * 18
+      spikesGraphics.beginPath()
+      spikesGraphics.moveTo(x, 32)
+      spikesGraphics.lineTo(x + 9, 0)
+      spikesGraphics.lineTo(x + 18, 32)
+      spikesGraphics.closePath()
+      spikesGraphics.fillPath()
+    }
+    spikesGraphics.fillStyle(0xcc0000, 1)
+    for (let i = 0; i < 4; i++) {
+      const x = i * 18
+      spikesGraphics.beginPath()
+      spikesGraphics.moveTo(x + 4, 32)
+      spikesGraphics.lineTo(x + 9, 8)
+      spikesGraphics.lineTo(x + 14, 32)
+      spikesGraphics.closePath()
+      spikesGraphics.fillPath()
+    }
+    spikesGraphics.generateTexture('spikes', 72, 32)
+    spikesGraphics.destroy()
+    
+    // Generate enemy textures
+    this.generateEnemyTextures()
+  }
+  
+  private generateEnemyTextures() {
+    // Fly (small flying enemy)
+    const flyG = this.add.graphics()
+    flyG.fillStyle(0x000000, 1)
+    flyG.fillCircle(16, 16, 8)
+    flyG.fillStyle(0xaaaaaa, 0.5)
+    flyG.fillEllipse(10, 16, 6, 3)
+    flyG.fillEllipse(22, 16, 6, 3)
+    flyG.generateTexture('fly', 32, 32)
+    flyG.clear()
+    flyG.fillStyle(0x000000, 1)
+    flyG.fillCircle(16, 16, 8)
+    flyG.fillStyle(0xaaaaaa, 0.5)
+    flyG.fillEllipse(8, 12, 8, 4)
+    flyG.fillEllipse(24, 12, 8, 4)
+    flyG.generateTexture('fly_fly', 32, 32)
+    flyG.destroy()
+    
+    // Bee (small flying enemy)
+    const beeG = this.add.graphics()
+    beeG.fillStyle(0xffcc00, 1)
+    beeG.fillEllipse(16, 16, 12, 16)
+    beeG.fillStyle(0x000000, 1)
+    for (let i = 0; i < 3; i++) {
+      beeG.fillRect(10, 10 + i * 6, 12, 2)
+    }
+    beeG.generateTexture('bee', 32, 32)
+    beeG.clear()
+    beeG.fillStyle(0xffcc00, 1)
+    beeG.fillEllipse(16, 16, 12, 16)
+    beeG.fillStyle(0x000000, 1)
+    for (let i = 0; i < 3; i++) {
+      beeG.fillRect(10, 10 + i * 6, 12, 2)
+    }
+    beeG.fillStyle(0xaaaaaa, 0.6)
+    beeG.fillEllipse(8, 16, 10, 4)
+    beeG.fillEllipse(24, 16, 10, 4)
+    beeG.generateTexture('bee_fly', 32, 32)
+    beeG.destroy()
+    
+    // Slime Green
+    const slimeGreenG = this.add.graphics()
+    slimeGreenG.fillStyle(0x00ff00, 1)
+    slimeGreenG.fillEllipse(24, 28, 40, 24)
+    slimeGreenG.fillStyle(0x88ff88, 0.7)
+    slimeGreenG.fillCircle(18, 24, 6)
+    slimeGreenG.fillCircle(30, 24, 6)
+    slimeGreenG.generateTexture('slimeGreen', 48, 48)
+    slimeGreenG.clear()
+    slimeGreenG.fillStyle(0x00ff00, 1)
+    slimeGreenG.fillEllipse(24, 30, 44, 20)
+    slimeGreenG.fillStyle(0x88ff88, 0.7)
+    slimeGreenG.fillCircle(16, 26, 6)
+    slimeGreenG.fillCircle(32, 26, 6)
+    slimeGreenG.generateTexture('slimeGreen_walk', 48, 48)
+    slimeGreenG.destroy()
+    
+    // Slime Blue
+    const slimeBlueG = this.add.graphics()
+    slimeBlueG.fillStyle(0x0066ff, 1)
+    slimeBlueG.fillEllipse(24, 28, 40, 24)
+    slimeBlueG.fillStyle(0x6699ff, 0.7)
+    slimeBlueG.fillCircle(18, 24, 6)
+    slimeBlueG.fillCircle(30, 24, 6)
+    slimeBlueG.generateTexture('slimeBlue', 48, 48)
+    slimeBlueG.clear()
+    slimeBlueG.fillStyle(0x0066ff, 1)
+    slimeBlueG.fillEllipse(24, 30, 44, 20)
+    slimeBlueG.fillStyle(0x6699ff, 0.7)
+    slimeBlueG.fillCircle(16, 26, 6)
+    slimeBlueG.fillCircle(32, 26, 6)
+    slimeBlueG.generateTexture('slimeBlue_walk', 48, 48)
+    slimeBlueG.destroy()
+    
+    // Worm Green
+    const wormGreenG = this.add.graphics()
+    wormGreenG.fillStyle(0x44ff44, 1)
+    for (let i = 0; i < 5; i++) {
+      const x = 12 + i * 12
+      const y = 32 + Math.sin(i * 0.8) * 4
+      wormGreenG.fillCircle(x, y, 10)
+    }
+    wormGreenG.fillStyle(0x000000, 1)
+    wormGreenG.fillCircle(12, 28, 2)
+    wormGreenG.fillCircle(16, 28, 2)
+    wormGreenG.generateTexture('wormGreen', 64, 64)
+    wormGreenG.clear()
+    wormGreenG.fillStyle(0x44ff44, 1)
+    for (let i = 0; i < 5; i++) {
+      const x = 12 + i * 12
+      const y = 32 + Math.sin(i * 0.8 + 0.5) * 6
+      wormGreenG.fillCircle(x, y, 10)
+    }
+    wormGreenG.fillStyle(0x000000, 1)
+    wormGreenG.fillCircle(12, 26, 2)
+    wormGreenG.fillCircle(16, 26, 2)
+    wormGreenG.generateTexture('wormGreen_walk', 64, 64)
+    wormGreenG.destroy()
+    
+    // Worm Pink
+    const wormPinkG = this.add.graphics()
+    wormPinkG.fillStyle(0xff66cc, 1)
+    for (let i = 0; i < 5; i++) {
+      const x = 12 + i * 12
+      const y = 32 + Math.sin(i * 0.8) * 4
+      wormPinkG.fillCircle(x, y, 10)
+    }
+    wormPinkG.fillStyle(0x000000, 1)
+    wormPinkG.fillCircle(12, 28, 2)
+    wormPinkG.fillCircle(16, 28, 2)
+    wormPinkG.generateTexture('wormPink', 64, 64)
+    wormPinkG.clear()
+    wormPinkG.fillStyle(0xff66cc, 1)
+    for (let i = 0; i < 5; i++) {
+      const x = 12 + i * 12
+      const y = 32 + Math.sin(i * 0.8 + 0.5) * 6
+      wormPinkG.fillCircle(x, y, 10)
+    }
+    wormPinkG.fillStyle(0x000000, 1)
+    wormPinkG.fillCircle(12, 26, 2)
+    wormPinkG.fillCircle(16, 26, 2)
+    wormPinkG.generateTexture('wormPink_walk', 64, 64)
+    wormPinkG.destroy()
+  }
+  
+  private async submitScoreToBackend() {
+    console.log('\n========================================')
+    console.log('🎯 STARTING SCORE SUBMISSION')
+    console.log('========================================')
+    
+    try {
+      // Get player name from localStorage or use default
+      const playerName = localStorage.getItem('player_name') || 'Player'
+      console.log('Player Name:', playerName)
+      
+      const scoreData = {
+        player_name: playerName,
+        score: this.score,
+        coins: this.coinCount,
+        enemies_defeated: this.enemiesDefeated,
+        distance: Math.floor(this.player.x / 70),
+        level: this.currentLevel,
+        game_mode: this.gameMode
+      }
+      
+      console.log('📊 Score Data to Submit:')
+      console.log(JSON.stringify(scoreData, null, 2))
+      console.log('Backend URL: http://localhost:8000')
+      console.log('\n⏳ Calling GameAPI.submitScore()...')
+      
+      const response = await GameAPI.submitScore(scoreData)
+      
+      console.log('✅ Score submitted successfully!')
+      console.log('Response:', response)
+      
+      // Get rank
+      console.log('\n⏳ Getting rank...')
+      const rankData = await GameAPI.getScoreRank(this.score, this.gameMode)
+      console.log('🏆 Your rank:', rankData.rank)
+      console.log('========================================\n')
+      
+      return { success: true, rank: rankData.rank }
+    } catch (error) {
+      console.log('\n========================================')
+      console.error('❌ FAILED TO SUBMIT SCORE')
+      console.error('Error:', error)
+      console.error('Error message:', (error as Error).message)
+      console.error('Error stack:', (error as Error).stack)
+      console.log('Note: Make sure backend is running at http://localhost:8000')
+      console.log('Score saved locally in localStorage instead.')
+      console.log('========================================\n')
+      return { success: false, rank: null }
+    }
+  }
+  
+  private updateScore(points: number) {
+    this.score += points
+    this.scoreText.setText(`Score: ${this.score}`)
+    
+    // Update high score
+    if (this.score > this.highScore) {
+      this.highScore = this.score
+      this.highScoreText.setText(`Best: ${this.highScore}`)
+      localStorage.setItem('jumpjump_highscore', this.highScore.toString())
+      
+      // Flash effect when breaking high score
+      this.tweens.add({
+        targets: this.highScoreText,
+        scale: 1.15,
+        duration: 200,
+        yoyo: true,
+        ease: 'Quad.easeOut'
+      })
+    }
+  }
+  
+  private createDebugUI() {
+    // Debug mode indicator
+    this.debugText = this.add.text(16, 16, 'DEBUG MODE [F3]', {
+      fontSize: '20px',
+      color: '#00ff00',
+      backgroundColor: '#000000',
+      padding: { x: 8, y: 4 }
+    })
+    this.debugText.setScrollFactor(0)
+    this.debugText.setDepth(10000)
+    this.debugText.setVisible(false)
+    
+    // FPS counter
+    this.fpsText = this.add.text(16, 46, 'FPS: 60', {
+      fontSize: '16px',
+      color: '#00ff00',
+      backgroundColor: '#000000',
+      padding: { x: 8, y: 4 }
+    })
+    this.fpsText.setScrollFactor(0)
+    this.fpsText.setDepth(10000)
+    this.fpsText.setVisible(false)
+    
+    // Coordinates
+    this.coordText = this.add.text(16, 76, 'X: 0, Y: 0', {
+      fontSize: '16px',
+      color: '#00ff00',
+      backgroundColor: '#000000',
+      padding: { x: 8, y: 4 }
+    })
+    this.coordText.setScrollFactor(0)
+    this.coordText.setDepth(10000)
+    this.coordText.setVisible(false)
+  }
+  
+  private toggleDebugMode() {
+    this.debugMode = !this.debugMode
+    console.log('Debug mode toggled:', this.debugMode)
+    
+    // Toggle debug graphics
+    if (this.debugMode) {
+      this.physics.world.createDebugGraphic()
+      this.debugText?.setVisible(true)
+      this.fpsText?.setVisible(true)
+      this.coordText?.setVisible(true)
+      console.log('Debug mode enabled - showing physics bodies')
+    } else {
+      this.physics.world.debugGraphic?.clear()
+      this.physics.world.debugGraphic?.destroy()
+      this.debugText?.setVisible(false)
+      this.fpsText?.setVisible(false)
+      this.coordText?.setVisible(false)
+      console.log('Debug mode disabled')
+    }
+  }
+  
+  private updateDebugUI() {
+    if (!this.debugMode) return
+    
+    // Update FPS
+    const fps = Math.round(this.game.loop.actualFps)
+    this.fpsText?.setText(`FPS: ${fps}`)
+    
+    // Update coordinates
+    const x = Math.round(this.player.x)
+    const y = Math.round(this.player.y)
+    this.coordText?.setText(`X: ${x}, Y: ${y}`)
+  }
+  
+  private showQuitConfirmation() {
+    // Pause game physics
+    this.physics.pause()
+    
+    // Create overlay
+    const overlay = this.add.rectangle(640, 360, 1280, 720, 0x000000, 0.7)
+    overlay.setScrollFactor(0)
+    overlay.setDepth(10000)
+    
+    // Create dialog box
+    const dialog = this.add.rectangle(640, 360, 600, 300, 0x222222, 1)
+    dialog.setScrollFactor(0)
+    dialog.setDepth(10001)
+    dialog.setStrokeStyle(4, 0xff0000)
+    
+    // Warning title
+    const title = this.add.text(640, 260, '⚠️ WARNING ⚠️', {
+      fontSize: '36px',
+      color: '#ff0000',
+      fontStyle: 'bold'
+    })
+    title.setOrigin(0.5)
+    title.setScrollFactor(0)
+    title.setDepth(10002)
+    
+    // Warning message
+    const message = this.add.text(640, 330, 
+      this.gameMode === 'endless' 
+        ? 'Your endless run progress will be lost!\nAre you sure you want to quit?'
+        : `You will have to restart Level ${this.currentLevel}!\nAre you sure you want to quit?`,
+      {
+        fontSize: '20px',
+        color: '#ffffff',
+        align: 'center',
+        lineSpacing: 8
+      }
+    )
+    message.setOrigin(0.5)
+    message.setScrollFactor(0)
+    message.setDepth(10002)
+    
+    // Yes button (quit)
+    const yesButton = this.add.rectangle(540, 440, 150, 50, 0xff0000)
+    yesButton.setScrollFactor(0)
+    yesButton.setDepth(10002)
+    yesButton.setInteractive({ useHandCursor: true })
+    yesButton.on('pointerover', () => yesButton.setFillStyle(0xff3333))
+    yesButton.on('pointerout', () => yesButton.setFillStyle(0xff0000))
+    yesButton.on('pointerdown', () => {
+      // Save coins before returning to menu
+      localStorage.setItem('playerCoins', this.coinCount.toString())
+      this.physics.resume()
+      this.scene.start('MenuScene')
+    })
+    
+    const yesText = this.add.text(540, 440, 'YES, QUIT', {
+      fontSize: '20px',
+      color: '#ffffff',
+      fontStyle: 'bold'
+    })
+    yesText.setOrigin(0.5)
+    yesText.setScrollFactor(0)
+    yesText.setDepth(10003)
+    
+    // No button (continue)
+    const noButton = this.add.rectangle(740, 440, 150, 50, 0x00aa00)
+    noButton.setScrollFactor(0)
+    noButton.setDepth(10002)
+    noButton.setInteractive({ useHandCursor: true })
+    noButton.on('pointerover', () => noButton.setFillStyle(0x00ff00))
+    noButton.on('pointerout', () => noButton.setFillStyle(0x00aa00))
+    noButton.on('pointerdown', () => {
+      // Resume game
+      this.physics.resume()
+      overlay.destroy()
+      dialog.destroy()
+      title.destroy()
+      message.destroy()
+      yesButton.destroy()
+      yesText.destroy()
+      noButton.destroy()
+      noText.destroy()
+    })
+    
+    const noText = this.add.text(740, 440, 'NO, CONTINUE', {
+      fontSize: '20px',
+      color: '#ffffff',
+      fontStyle: 'bold'
+    })
+    noText.setOrigin(0.5)
+    noText.setScrollFactor(0)
+    noText.setDepth(10003)
   }
 }

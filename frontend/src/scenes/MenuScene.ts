@@ -101,7 +101,7 @@ export default class MenuScene extends Phaser.Scene {
     endlessText.setOrigin(0.5)
     
     // Create Shop Button
-    const shopButton = this.add.rectangle(640, 630, 300, 60, 0xaa00aa)
+    const shopButton = this.add.rectangle(480, 630, 260, 60, 0xaa00aa)
     shopButton.setInteractive({ useHandCursor: true })
     shopButton.on('pointerover', () => shopButton.setFillStyle(0xff00ff))
     shopButton.on('pointerout', () => shopButton.setFillStyle(0xaa00aa))
@@ -109,12 +109,54 @@ export default class MenuScene extends Phaser.Scene {
       this.scene.start('ShopScene', { coins: this.coinCount })
     })
     
-    const shopText = this.add.text(640, 630, 'SHOP', {
+    const shopText = this.add.text(480, 630, 'SHOP', {
       fontSize: '32px',
       color: '#ffffff',
       fontStyle: 'bold'
     })
     shopText.setOrigin(0.5)
+    
+    // Create Leaderboard Button
+    const leaderboardButton = this.add.rectangle(800, 630, 260, 60, 0x0066cc)
+    leaderboardButton.setInteractive({ useHandCursor: true })
+    leaderboardButton.on('pointerover', () => leaderboardButton.setFillStyle(0x0099ff))
+    leaderboardButton.on('pointerout', () => leaderboardButton.setFillStyle(0x0066cc))
+    leaderboardButton.on('pointerdown', () => {
+      this.scene.start('LeaderboardScene')
+    })
+    
+    const leaderboardText = this.add.text(800, 630, 'LEADERBOARD', {
+      fontSize: '28px',
+      color: '#ffffff',
+      fontStyle: 'bold'
+    })
+    leaderboardText.setOrigin(0.5)
+    
+    // Create Tutorial Button (small button in bottom left)
+    const tutorialButton = this.add.rectangle(120, 680, 180, 40, 0x444444)
+    tutorialButton.setInteractive({ useHandCursor: true })
+    tutorialButton.on('pointerover', () => tutorialButton.setFillStyle(0x666666))
+    tutorialButton.on('pointerout', () => tutorialButton.setFillStyle(0x444444))
+    tutorialButton.on('pointerdown', () => {
+      this.showTutorial()
+    })
+    
+    const tutorialText = this.add.text(120, 680, 'HOW TO PLAY', {
+      fontSize: '18px',
+      color: '#ffffff',
+      fontStyle: 'bold'
+    })
+    tutorialText.setOrigin(0.5)
+    
+    // Check if this is the first time playing
+    const hasSeenTutorial = localStorage.getItem('hasSeenTutorial')
+    if (!hasSeenTutorial) {
+      // Show tutorial automatically on first launch
+      this.time.delayedCall(500, () => {
+        this.showTutorial()
+        localStorage.setItem('hasSeenTutorial', 'true')
+      })
+    }
     
     // Add coin display in top right
     this.add.image(1150, 50, 'coin').setScale(0.5)
@@ -140,4 +182,101 @@ export default class MenuScene extends Phaser.Scene {
     })
     credits.setOrigin(0.5)
   }
+  
+  private showTutorial() {
+    // Create dark overlay
+    const overlay = this.add.rectangle(640, 360, 1280, 720, 0x000000, 0.85)
+    overlay.setDepth(100)
+    overlay.setInteractive() // Block clicks to menu
+    
+    // Create tutorial panel
+    const panel = this.add.rectangle(640, 360, 900, 550, 0x222222, 1)
+    panel.setDepth(101)
+    panel.setStrokeStyle(4, 0x00ff00)
+    
+    // Tutorial title
+    const title = this.add.text(640, 140, 'HOW TO PLAY', {
+      fontSize: '48px',
+      color: '#00ff00',
+      fontStyle: 'bold',
+      stroke: '#000000',
+      strokeThickness: 6
+    })
+    title.setOrigin(0.5)
+    title.setDepth(102)
+    
+    // Controls section
+    const controlsY = 220
+    const lineHeight = 40
+    
+    const controls = [
+      { key: 'WASD / Arrow Keys', action: 'Move left and right' },
+      { key: 'W / Up Arrow', action: 'Jump (press twice for double jump)' },
+      { key: 'S / Down Arrow', action: 'Duck / Stomp while jumping' },
+      { key: 'Mouse / Click', action: 'Aim and shoot' },
+      { key: 'Home Button (in-game)', action: 'Return to main menu' }
+    ]
+    
+    const controlTexts: Phaser.GameObjects.Text[] = []
+    
+    controls.forEach((control, index) => {
+      const y = controlsY + (index * lineHeight)
+      
+      const keyText = this.add.text(300, y, control.key, {
+        fontSize: '20px',
+        color: '#ffff00',
+        fontStyle: 'bold'
+      })
+      keyText.setOrigin(0, 0.5)
+      keyText.setDepth(102)
+      controlTexts.push(keyText)
+      
+      const actionText = this.add.text(600, y, control.action, {
+        fontSize: '20px',
+        color: '#ffffff'
+      })
+      actionText.setOrigin(0, 0.5)
+      actionText.setDepth(102)
+      controlTexts.push(actionText)
+    })
+    
+    // Tips section
+    const tipsY = 470
+    const tips = this.add.text(640, tipsY, 'TIPS:\n• Collect coins to buy weapons and skins in the shop\n• Power-ups: Speed (yellow), Shield (blue), Extra Life (green)\n• Boss fights appear every 5 levels\n• Use checkpoints to save your progress', {
+      fontSize: '18px',
+      color: '#aaaaaa',
+      align: 'center',
+      lineSpacing: 8
+    })
+    tips.setOrigin(0.5)
+    tips.setDepth(102)
+    
+    // Close button
+    const closeButton = this.add.rectangle(640, 600, 200, 50, 0x00aa00)
+    closeButton.setDepth(102)
+    closeButton.setInteractive({ useHandCursor: true })
+    closeButton.on('pointerover', () => closeButton.setFillStyle(0x00ff00))
+    closeButton.on('pointerout', () => closeButton.setFillStyle(0x00aa00))
+    closeButton.on('pointerdown', () => {
+      // Remove all tutorial elements
+      overlay.destroy()
+      panel.destroy()
+      title.destroy()
+      tips.destroy()
+      closeButton.destroy()
+      closeText.destroy()
+      
+      // Destroy all control texts
+      controlTexts.forEach(text => text.destroy())
+    })
+    
+    const closeText = this.add.text(640, 600, 'GOT IT!', {
+      fontSize: '24px',
+      color: '#ffffff',
+      fontStyle: 'bold'
+    })
+    closeText.setOrigin(0.5)
+    closeText.setDepth(102)
+  }
 }
+
