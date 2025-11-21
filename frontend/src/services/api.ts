@@ -1,5 +1,5 @@
 // API Service for communicating with the backend
-const API_BASE_URL = 'http://localhost:8000'
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000'
 
 export interface ScoreData {
   player_name: string
