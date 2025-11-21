@@ -129,7 +129,6 @@ export default class LeaderboardScene extends Phaser.Scene {
     }
 
     // Calculate pagination
-    const totalPages = Math.ceil(this.leaderboardData.length / this.itemsPerPage)
     const startIndex = (this.currentPage - 1) * this.itemsPerPage
     const endIndex = startIndex + this.itemsPerPage
     const pageData = this.leaderboardData.slice(startIndex, endIndex)

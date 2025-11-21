@@ -1819,12 +1819,6 @@ export default class GameScene extends Phaser.Scene {
     const lastAttack = this.boss.getData('lastAttack')
     const attackCooldown = this.boss.getData('attackCooldown')
     
-    // Calculate distance to player
-    const distanceToPlayer = Phaser.Math.Distance.Between(
-      this.boss.x, this.boss.y,
-      this.player.x, this.player.y
-    )
-    
     const horizontalDistance = this.player.x - this.boss.x
     const moveSpeed = 120 // Moderate hovering speed
     
