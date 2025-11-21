@@ -5,11 +5,14 @@ A web-based platformer game built with React, Phaser, and FastAPI featuring onli
 ## ✨ Features
 
 - 🎮 **Two Game Modes**: Level progression or endless mode
-- 🏆 **Online Leaderboards**: Compete with players worldwide
+- 🏆 **Online Leaderboards**: Compete with players worldwide (paginated - 6 records per page)
 - 💰 **Shop System**: Buy weapons and character skins
 - 👾 **Enemy AI**: Multiple enemy types with difficulty scaling
 - 🎯 **Combat System**: Multiple weapons (raygun, laser, sword)
 - 💎 **Power-ups**: Speed boost, shield, extra lives
+- 🐲 **Boss System**: 24 unique bosses on every 5th level with intelligent rotation
+- 🖼️ **Boss Gallery**: View all 24 notorious bosses with pagination (8 per page)
+- 👤 **Player Names**: Custom player name system for personalized tracking
 - 📊 **Score Tracking**: Comprehensive scoring system (coins, enemies, distance)
 - 🎨 **Procedural Generation**: Grid-based platform spawning with 7 Y-levels
 - 🔧 **Debug Mode**: F3 toggle with god mode, flight, and FPS display
@@ -21,14 +24,14 @@ A web-based platformer game built with React, Phaser, and FastAPI featuring onli
 JumpJumpJump/
 ├── frontend/           # React + Phaser game client
 │   ├── src/
-│   │   ├── scenes/    # Game, Menu, Leaderboard, Shop scenes
+│   │   ├── scenes/    # Game, Menu, Leaderboard, Shop, Inventory, BossGallery scenes
 │   │   └── services/  # API communication layer
 │   ├── assets/        # Kenney asset packs
 │   ├── Dockerfile     # Multi-stage Docker build
 │   ├── nginx.conf     # Production Nginx config
 │   └── railway.json   # Railway deployment config
 ├── backend/           # FastAPI + SQLite backend
-│   ├── main.py       # API endpoints
+│   ├── main.py       # API endpoints (scores + bosses)
 │   ├── game.db       # SQLite database
 │   └── requirements.txt
 ├── scripts/          # Start/stop automation scripts
@@ -136,8 +139,11 @@ See `frontend/RAILWAY.md` for detailed deployment guide.
 | **Jump** | Space or W |
 | **Shoot** | Mouse Click |
 | **Aim** | Mouse Position |
+| **Teleport to Level** | F4 (debug) |
+| **Clear Defeated Bosses** | F5 (debug) |
 | **Debug Mode** | F3 or Shift+D |
 | **Test Game Over** | F8 (debug) |
+| **Exit to Menu** | ESC (saves score) |
 
 ### Debug Mode Features
 - 🛡️ God mode (no damage)
@@ -150,10 +156,14 @@ See `frontend/RAILWAY.md` for detailed deployment guide.
 
 The backend provides RESTful API endpoints:
 
+### Scores
 - `POST /api/scores` - Submit new score
-- `GET /api/scores/leaderboard` - Get top scores (with filtering)
+- `GET /api/scores/leaderboard` - Get top scores (with mode filtering & pagination support)
 - `GET /api/scores/player/{name}` - Player high score
 - `GET /api/scores/rank/{score}` - Get rank for score
+
+### Bosses
+- `GET /api/bosses` - Get all 24 boss data (names, titles, frame positions)
 
 See `backend/README.md` for detailed API documentation.
 
@@ -168,6 +178,26 @@ See `backend/README.md` for detailed API documentation.
 | Boss Enemy | 1000 pts |
 | Distance | 1 pt/meter |
 
+## 🐲 Boss System
+
+### Boss Mechanics
+- **24 Unique Bosses**: Each with notorious names and titles stored in database
+- **Boss Spawning**: Appears on every 5th level (5, 10, 15, 20, etc.)
+- **Boss Scaling**: 1x player size, hovers above ground without gravity
+- **Boss Health**: 50 + (level × 20) HP, takes 10 damage per bullet
+- **Smart Rotation**: If a boss is defeated, the next undefeated boss spawns instead
+- **Player-Specific Tracking**: Boss defeats tracked per player using localStorage
+- **Gallery View**: Boss gallery scene displays all 24 bosses with pagination (8 per page)
+
+### Boss Names Examples
+- "Vortex Reaper - The Dimensional Destroyer"
+- "Shadow Tyrant - The Eclipse Bringer"
+- "Inferno Warlord - The Scorched Earth Commander"
+
+### Debug Features
+- **F4**: Teleport to specific level (useful for testing boss spawns)
+- **F5**: Clear all defeated bosses for current player
+
 ## 🔧 Development Notes
 
 - **Package Manager**: Use `pnpm` for frontend (not npm due to cache issues)
@@ -176,6 +206,13 @@ See `backend/README.md` for detailed API documentation.
 - **Debug Mode**: Press F3 to toggle, automatically resets on level completion
 - **Platform Spawning**: 7 Y-levels (300, 370, 440, 510, 580, 650, ground)
 - **Hitboxes**: Solid blocks use 95% size, thin platforms use 80% height
+- **Boss Spritesheet**: 1024x1024 PNG with 256x256 frames (4×6 grid = 24 bosses)
+- **Boss Index Calculation**: `Math.floor((level / 5) - 1) % 24`
+- **localStorage Keys**:
+  - `player_name` - Current player name
+  - `{playerName}_boss_{bossIndex}` - Boss defeat tracking
+  - `playerCoins` - Coin balance
+  - `defeatedBossLevels` - Session-based tracking
 
 ## 📝 License
 
