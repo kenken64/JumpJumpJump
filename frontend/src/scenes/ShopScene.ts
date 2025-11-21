@@ -37,7 +37,7 @@ export default class ShopScene extends Phaser.Scene {
     
     // Load coin icon
     this.load.image('coin', '/assets/kenney_platformer-art-requests/Tiles/coinGold.png')
-    this.load.image('backArrow', '/assets/kenney_ui-pack-space-expansion/PNG/Blue/Default/button_back.png')
+    this.load.image('backArrow', '/assets/kenney_ui-pack-space-expansion/PNG/Blue/Default/button_square_header_large_square.png')
   }
 
   create() {
