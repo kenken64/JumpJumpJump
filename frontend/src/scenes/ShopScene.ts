@@ -25,6 +25,9 @@ export default class ShopScene extends Phaser.Scene {
   }
 
   preload() {
+    // Create procedural back arrow instead of loading image
+    this.createBackArrow()
+    
     // Load shop item icons
     this.load.image('laserGun', '/assets/kenney_sci-fi-rts/PNG/Default size/Unit/gun01.png')
     this.load.image('sword', '/assets/kenney_sci-fi-rts/PNG/Default size/Unit/weapon05.png')
@@ -37,7 +40,30 @@ export default class ShopScene extends Phaser.Scene {
     
     // Load coin icon
     this.load.image('coin', '/assets/kenney_platformer-art-requests/Tiles/coinGold.png')
-    this.load.image('backArrow', '/assets/kenney_ui-pack-space-expansion/PNG/Blue/Default/button_square_header_large_square.png')
+  }
+
+  private createBackArrow() {
+    const graphics = this.make.graphics({ x: 0, y: 0 })
+    
+    // Blue background circle
+    graphics.fillStyle(0x0066ff, 1)
+    graphics.fillCircle(50, 50, 45)
+    
+    // White arrow pointing left
+    graphics.fillStyle(0xffffff, 1)
+    graphics.beginPath()
+    graphics.moveTo(30, 50) // Arrow point
+    graphics.lineTo(50, 35) // Top
+    graphics.lineTo(50, 45) // Top inner
+    graphics.lineTo(65, 45) // Top right
+    graphics.lineTo(65, 55) // Bottom right
+    graphics.lineTo(50, 55) // Bottom inner
+    graphics.lineTo(50, 65) // Bottom
+    graphics.closePath()
+    graphics.fillPath()
+    
+    graphics.generateTexture('backArrow', 100, 100)
+    graphics.destroy()
   }
 
   create() {
