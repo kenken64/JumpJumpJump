@@ -277,8 +277,9 @@ export default class GameScene extends Phaser.Scene {
     this.levelEndMarker = null
     this.portal = null
     
-    // Create space background
+    // Create space background with blackhole effect
     this.cameras.main.setBackgroundColor('#0a0a1a')
+    this.createBlackholeBackground()
     
     // Add planet backgrounds with parallax scrolling
     const planet1 = this.add.image(200, 150, 'planet00')
@@ -3938,6 +3939,121 @@ export default class GameScene extends Phaser.Scene {
     
     oscillator.start(this.audioContext.currentTime)
     oscillator.stop(this.audioContext.currentTime + 0.15)
+  }
+  
+  private createBlackholeBackground() {
+    // Create multiple blackholes in the background with parallax effect
+    const blackholePositions = [
+      { x: 400, y: 200, scale: 1.0, scrollFactor: 0.05 },
+      { x: 2800, y: 250, scale: 0.8, scrollFactor: 0.08 },
+      { x: 6000, y: 180, scale: 1.2, scrollFactor: 0.06 },
+      { x: 9500, y: 220, scale: 0.9, scrollFactor: 0.07 }
+    ]
+    
+    blackholePositions.forEach((pos, index) => {
+      // Create the blackhole core (event horizon)
+      const core = this.add.circle(pos.x, pos.y, 40 * pos.scale, 0x000000, 1)
+      core.setScrollFactor(pos.scrollFactor)
+      core.setDepth(-100)
+      
+      // Create the inner shadow/gradient ring
+      const innerRing = this.add.circle(pos.x, pos.y, 60 * pos.scale, 0x1a0a2e, 0.9)
+      innerRing.setScrollFactor(pos.scrollFactor)
+      innerRing.setDepth(-99)
+      
+      // Create accretion disk rings (multiple layers for depth)
+      const diskLayers = [
+        { radius: 80, color: 0x8b2ff4, alpha: 0.6 },
+        { radius: 100, color: 0x6b1fd4, alpha: 0.5 },
+        { radius: 120, color: 0x4a0fb4, alpha: 0.4 },
+        { radius: 140, color: 0x2a0594, alpha: 0.3 },
+        { radius: 160, color: 0x1a0474, alpha: 0.2 }
+      ]
+      
+      diskLayers.forEach(layer => {
+        const ring = this.add.circle(pos.x, pos.y, layer.radius * pos.scale, layer.color, layer.alpha)
+        ring.setScrollFactor(pos.scrollFactor)
+        ring.setDepth(-98)
+        
+        // Add rotation animation to disk
+        this.tweens.add({
+          targets: ring,
+          angle: 360,
+          duration: 20000 - (layer.radius * 50), // Inner rings rotate faster
+          repeat: -1,
+          ease: 'Linear'
+        })
+      })
+      
+      // Create gravitational lensing effect using graphics
+      const graphics = this.add.graphics()
+      graphics.setScrollFactor(pos.scrollFactor)
+      graphics.setDepth(-97)
+      
+      // Draw light distortion rings
+      for (let i = 0; i < 5; i++) {
+        const radius = 180 + (i * 30)
+        graphics.lineStyle(2 - (i * 0.3), 0xff6b2f, 0.15 - (i * 0.02))
+        graphics.strokeCircle(pos.x, pos.y, radius * pos.scale)
+      }
+      
+      // Create particle emitter for matter being pulled in
+      const particles = this.add.particles(pos.x, pos.y, 'particle', {
+        speed: { min: 20, max: 50 },
+        scale: { start: 0.8, end: 0 },
+        alpha: { start: 0.8, end: 0 },
+        lifespan: 3000,
+        frequency: 100,
+        angle: { min: 0, max: 360 },
+        tint: [0x8b2ff4, 0x6b1fd4, 0xff6b2f, 0xffa500],
+        emitZone: {
+          type: 'edge',
+          source: new Phaser.Geom.Circle(0, 0, 200 * pos.scale),
+          quantity: 48
+        },
+        moveToX: pos.x,
+        moveToY: pos.y
+      })
+      particles.setScrollFactor(pos.scrollFactor)
+      particles.setDepth(-96)
+      
+      // Add pulsing glow effect to core
+      this.tweens.add({
+        targets: [core, innerRing],
+        alpha: 0.7,
+        duration: 2000,
+        yoyo: true,
+        repeat: -1,
+        ease: 'Sine.easeInOut'
+      })
+      
+      // Add some energy jets shooting out from poles (like a real blackhole)
+      const jetGraphics = this.add.graphics()
+      jetGraphics.setScrollFactor(pos.scrollFactor)
+      jetGraphics.setDepth(-95)
+      
+      // Top jet
+      jetGraphics.fillStyle(0x4a88ff, 0.3)
+      jetGraphics.fillRect(pos.x - 10 * pos.scale, pos.y - 200 * pos.scale, 20 * pos.scale, 160 * pos.scale)
+      jetGraphics.fillStyle(0x88bbff, 0.4)
+      jetGraphics.fillRect(pos.x - 6 * pos.scale, pos.y - 200 * pos.scale, 12 * pos.scale, 160 * pos.scale)
+      
+      // Bottom jet
+      jetGraphics.fillStyle(0x4a88ff, 0.3)
+      jetGraphics.fillRect(pos.x - 10 * pos.scale, pos.y + 40 * pos.scale, 20 * pos.scale, 160 * pos.scale)
+      jetGraphics.fillStyle(0x88bbff, 0.4)
+      jetGraphics.fillRect(pos.x - 6 * pos.scale, pos.y + 40 * pos.scale, 12 * pos.scale, 160 * pos.scale)
+      
+      // Animate jet intensity
+      this.tweens.add({
+        targets: jetGraphics,
+        alpha: 0.5,
+        duration: 1500,
+        yoyo: true,
+        repeat: -1,
+        ease: 'Sine.easeInOut'
+      })
+    })
   }
   
   private createFallbackTextures() {
