@@ -101,20 +101,34 @@ export class MLAIPlayer {
     // Convert prediction to action (4 outputs: moveLeft, moveRight, jump, shoot)
     const [left, right, jump, shoot] = Array.from(actionData)
     
-    // Very low thresholds - be aggressive with actions
-    const decision = {
-      moveLeft: left > 0.15 && left > right,  // Move if any slight preference
-      moveRight: right > 0.15 && right > left,
-      jump: jump > 0.2,  // Jump more easily - critical for gameplay!
-      shoot: shoot > 0.25,
+    // Ultra-low thresholds (0.05) - if model outputs near-zero, at least try to move
+    // Use competitive logic: pick the higher value between left/right
+    const moveThreshold = 0.05
+    const jumpThreshold = 0.1
+    const shootThreshold = 0.15
+    
+    let decision = {
+      moveLeft: left > moveThreshold && left > right,
+      moveRight: right > moveThreshold && right > left,
+      jump: jump > jumpThreshold,
+      shoot: shoot > shootThreshold,
       aimX: 0,
       aimY: 0
+    }
+    
+    // Fallback: If model outputs all zeros (not trained well), at least move right
+    const maxPrediction = Math.max(left, right, jump, shoot)
+    if (maxPrediction < 0.01) {
+      console.warn('⚠️ ML AI predictions are all near-zero! Model may need more/better training data.')
+      console.warn('💡 Fallback: Moving right by default')
+      decision.moveRight = true
     }
     
     // Always log predictions to see what's happening
     console.log('ML AI prediction:', {
       raw: `L:${left.toFixed(3)} R:${right.toFixed(3)} J:${jump.toFixed(3)} S:${shoot.toFixed(3)}`,
-      decision: `L:${decision.moveLeft} R:${decision.moveRight} J:${decision.jump} S:${decision.shoot}`
+      decision: `L:${decision.moveLeft} R:${decision.moveRight} J:${decision.jump} S:${decision.shoot}`,
+      maxValue: maxPrediction.toFixed(3)
     })
     
     return decision
