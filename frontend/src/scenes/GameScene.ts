@@ -1943,14 +1943,22 @@ export default class GameScene extends Phaser.Scene {
     const bulletSprite = bullet as Phaser.Physics.Arcade.Sprite
     const bossSprite = boss as Phaser.Physics.Arcade.Sprite
     
+    const isRocket = bulletSprite.getData('isRocket')
+    
+    // If it's a rocket, create explosion
+    if (isRocket) {
+      this.createExplosion(bulletSprite.x, bulletSprite.y)
+    }
+    
     console.log('Boss hit! Current health:', bossSprite.getData('health'))
     
     // Destroy bullet
     bulletSprite.destroy()
     
-    // Damage boss
+    // Damage boss (rockets do 3x damage: 30 instead of 10)
+    const damage = isRocket ? 30 : 10
     let health = bossSprite.getData('health')
-    health -= 10 // Increased damage for better feedback
+    health -= damage
     bossSprite.setData('health', health)
     
     // Flash effect
@@ -1963,6 +1971,86 @@ export default class GameScene extends Phaser.Scene {
     if (health <= 0) {
       this.defeatBoss()
     }
+  }
+
+  private createExplosion(x: number, y: number) {
+    // Create explosion visual effect
+    const explosionRadius = 80
+    
+    // Orange flash circle
+    const flash = this.add.circle(x, y, explosionRadius, 0xff6600, 1)
+    flash.setDepth(1000)
+    
+    // Explosion particles
+    for (let i = 0; i < 12; i++) {
+      const angle = (Math.PI * 2 / 12) * i
+      const particle = this.add.circle(x, y, 8, 0xff4400, 1)
+      particle.setDepth(1000)
+      
+      this.tweens.add({
+        targets: particle,
+        x: x + Math.cos(angle) * explosionRadius * 1.5,
+        y: y + Math.sin(angle) * explosionRadius * 1.5,
+        alpha: 0,
+        scale: 0,
+        duration: 400,
+        ease: 'Power2',
+        onComplete: () => particle.destroy()
+      })
+    }
+    
+    // Flash animation
+    this.tweens.add({
+      targets: flash,
+      scale: 1.5,
+      alpha: 0,
+      duration: 300,
+      ease: 'Power2',
+      onComplete: () => flash.destroy()
+    })
+    
+    // Damage nearby enemies with splash damage
+    const splashRadius = explosionRadius * 1.2
+    this.enemies.children.entries.forEach((enemy: any) => {
+      if (!enemy.active) return
+      const enemySprite = enemy as Phaser.Physics.Arcade.Sprite
+      const distance = Phaser.Math.Distance.Between(x, y, enemySprite.x, enemySprite.y)
+      
+      if (distance < splashRadius) {
+        // Splash damage (reduced damage, 2 instead of 3)
+        let health = enemySprite.getData('health')
+        health -= 2
+        enemySprite.setData('health', health)
+        
+        // Visual feedback
+        enemySprite.setTint(0xff6600)
+        this.time.delayedCall(100, () => {
+          if (enemySprite && enemySprite.active) {
+            enemySprite.clearTint()
+          }
+        })
+        
+        // Knockback
+        const knockbackAngle = Phaser.Math.Angle.Between(x, y, enemySprite.x, enemySprite.y)
+        enemySprite.setVelocity(
+          Math.cos(knockbackAngle) * 300,
+          Math.sin(knockbackAngle) * 300
+        )
+        
+        // Check if enemy died from splash
+        if (health <= 0) {
+          const coinReward = enemySprite.getData('coinReward')
+          this.dropCoins(enemySprite.x, enemySprite.y, coinReward)
+          const enemySize = enemySprite.getData('enemySize')
+          let scoreReward = 50
+          if (enemySize === 'medium') scoreReward = 100
+          if (enemySize === 'large') scoreReward = 200
+          this.updateScore(scoreReward)
+          this.enemiesDefeated++
+          enemySprite.destroy()
+        }
+      }
+    })
   }
 
   private defeatBoss() {
@@ -2463,6 +2551,8 @@ export default class GameScene extends Phaser.Scene {
       shootCooldown = 300
     } else if (this.equippedWeapon === 'sword') {
       shootCooldown = 500
+    } else if (this.equippedWeapon === 'bazooka') {
+      shootCooldown = 2000 // Slow but powerful
     }
     
     // Calculate reload progress (0 to 1)
@@ -3336,6 +3426,9 @@ export default class GameScene extends Phaser.Scene {
     } else if (this.equippedWeapon === 'sword') {
       shootCooldown = 500 // Sword swings moderately fast
       // Sword will use melee attack instead of bullets
+    } else if (this.equippedWeapon === 'bazooka') {
+      shootCooldown = 2000 // Very slow fire rate
+      bulletSpeed = 400 // Slower rockets
     }
     
     // Check for mouse button press (not held down)
@@ -3519,8 +3612,18 @@ export default class GameScene extends Phaser.Scene {
         const bulletStartX = this.gun.x + Math.cos(gunAngle) * gunLength
         const bulletStartY = this.gun.y + Math.sin(gunAngle) * gunLength
         
+        // Choose bullet texture based on weapon
+        let bulletTexture = 'laserBlue'
+        let isRocket = false
+        if (this.equippedWeapon === 'laserGun') {
+          bulletTexture = 'laserGreen'
+        } else if (this.equippedWeapon === 'bazooka') {
+          bulletTexture = 'rocket'
+          isRocket = true
+        }
+        
         // Create bullet at gun mouth
-        const bullet = this.bullets.get(bulletStartX, bulletStartY, 'laserBlue')
+        const bullet = this.bullets.get(bulletStartX, bulletStartY, bulletTexture)
         
         if (bullet) {
           bullet.setActive(true)
@@ -3528,6 +3631,7 @@ export default class GameScene extends Phaser.Scene {
           bullet.setScale(0.5, 0.5)
           bullet.setRotation(gunAngle)
           bullet.setAlpha(1)
+          bullet.setData('isRocket', isRocket)
           
           // Disable physics for this bullet - use data to track movement
           bullet.body!.setEnable(false)
@@ -3684,13 +3788,21 @@ export default class GameScene extends Phaser.Scene {
     const bulletSprite = bullet as Phaser.Physics.Arcade.Sprite
     const enemySprite = enemy as Phaser.Physics.Arcade.Sprite
     
+    const isRocket = bulletSprite.getData('isRocket')
+    
+    // If it's a rocket, create explosion
+    if (isRocket) {
+      this.createExplosion(bulletSprite.x, bulletSprite.y)
+    }
+    
     // Destroy bullet
     bulletSprite.setActive(false)
     bulletSprite.setVisible(false)
     
-    // Damage enemy
+    // Damage enemy (rockets do 3x damage)
+    const damage = isRocket ? 3 : 1
     let health = enemySprite.getData('health')
-    health -= 1
+    health -= damage
     enemySprite.setData('health', health)
     
     // Flash red to show damage
@@ -4218,6 +4330,46 @@ export default class GameScene extends Phaser.Scene {
     laserGunGraphics.strokePath()
     laserGunGraphics.generateTexture('laserGun', 48, 36)
     laserGunGraphics.destroy()
+    
+    // Create Bazooka (Large orange/red rocket launcher)
+    const bazookaGraphics = this.make.graphics({ x: 0, y: 0 })
+    // Main tube
+    bazookaGraphics.fillStyle(0x884400, 1)
+    bazookaGraphics.fillRect(8, 12, 36, 12)
+    // Front muzzle
+    bazookaGraphics.fillStyle(0xaa5500, 1)
+    bazookaGraphics.fillRect(4, 10, 8, 16)
+    // Handle
+    bazookaGraphics.fillStyle(0x663300, 1)
+    bazookaGraphics.fillRect(32, 20, 8, 10)
+    // Barrel detail
+    bazookaGraphics.fillStyle(0xff6600, 1)
+    bazookaGraphics.fillRect(10, 14, 30, 8)
+    // Scope
+    bazookaGraphics.fillStyle(0x00ffff, 1)
+    bazookaGraphics.fillCircle(25, 10, 3)
+    bazookaGraphics.generateTexture('bazooka', 48, 36)
+    bazookaGraphics.destroy()
+    
+    // Create Rocket projectile (for bazooka)
+    const rocketGraphics = this.make.graphics({ x: 0, y: 0 })
+    rocketGraphics.fillStyle(0xff4400, 1)
+    rocketGraphics.fillRect(0, 4, 20, 8)
+    rocketGraphics.fillStyle(0xff6600, 1)
+    rocketGraphics.beginPath()
+    rocketGraphics.moveTo(20, 8)
+    rocketGraphics.lineTo(26, 8)
+    rocketGraphics.lineTo(23, 4)
+    rocketGraphics.closePath()
+    rocketGraphics.fillPath()
+    rocketGraphics.beginPath()
+    rocketGraphics.moveTo(20, 8)
+    rocketGraphics.lineTo(26, 8)
+    rocketGraphics.lineTo(23, 12)
+    rocketGraphics.closePath()
+    rocketGraphics.fillPath()
+    rocketGraphics.generateTexture('rocket', 28, 16)
+    rocketGraphics.destroy()
     
     // Create Sword (Purple energy blade - matching shop style)
     const swordGraphics = this.make.graphics({ x: 0, y: 0 })

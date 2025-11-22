@@ -101,6 +101,32 @@ export default class ShopScene extends Phaser.Scene {
     
     swordGraphics.generateTexture('sword', 40, 80)
     swordGraphics.destroy()
+    
+    // Create bazooka icon
+    const bazookaGraphics = this.make.graphics({ x: 0, y: 0 })
+    
+    // Brown/orange bazooka body
+    bazookaGraphics.fillStyle(0x884400, 1)
+    bazookaGraphics.fillRect(10, 25, 55, 18) // Main tube
+    
+    // Barrel opening
+    bazookaGraphics.fillStyle(0x663300, 1)
+    bazookaGraphics.fillCircle(10, 34, 10)
+    
+    // Handle
+    bazookaGraphics.fillStyle(0x663300, 1)
+    bazookaGraphics.fillRect(50, 40, 10, 18)
+    
+    // Details
+    bazookaGraphics.fillStyle(0xff6600, 1)
+    bazookaGraphics.fillRect(15, 28, 45, 12)
+    
+    // Scope
+    bazookaGraphics.fillStyle(0x00ffff, 1)
+    bazookaGraphics.fillCircle(35, 22, 4)
+    
+    bazookaGraphics.generateTexture('bazooka', 80, 80)
+    bazookaGraphics.destroy()
   }
 
   create() {
@@ -121,6 +147,14 @@ export default class ShopScene extends Phaser.Scene {
         price: 50,
         icon: 'sword',
         description: 'Melee weapon for close combat'
+      },
+      {
+        id: 'bazooka',
+        name: 'Bazooka',
+        type: 'weapon',
+        price: 100,
+        icon: 'bazooka',
+        description: 'Explosive rocket launcher with splash damage'
       },
       {
         id: 'skinBlue',
