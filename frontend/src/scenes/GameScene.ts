@@ -1721,13 +1721,11 @@ export default class GameScene extends Phaser.Scene {
     
     // Fetch boss data from backend
     let bossName = 'BOSS'
-    let bossTitle = ''
     try {
       const bosses = await GameAPI.getAllBosses()
       const bossData = bosses.find(b => b.boss_index === bossIndex)
       if (bossData) {
         bossName = bossData.boss_name.toUpperCase()
-        bossTitle = bossData.notorious_title
       }
     } catch (error) {
       console.error('Failed to fetch boss data:', error)
