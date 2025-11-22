@@ -39,27 +39,60 @@ export class MLAIPlayer {
       }
     }
 
+    // Check model compatibility BEFORE creating tensors
+    const inputShape = this.model.inputs[0].shape
+    const modelExpectedFeatures = inputShape[1] as number
+    const currentFeatures = 17 // We now have 17 features
+    
+    if (modelExpectedFeatures !== currentFeatures) {
+      console.error(`❌ ML AI MODEL INCOMPATIBLE!`)
+      console.error(`   Model expects ${modelExpectedFeatures} features, but game now uses ${currentFeatures}`)
+      console.error(`🔄 Auto-clearing old model and training data...`)
+      
+      // Clear the incompatible model
+      this.model = null
+      await tf.io.removeModel('localstorage://ml-ai-model')
+      localStorage.removeItem('ml-model-metadata')
+      localStorage.removeItem('ml_training_data')
+      
+      console.error(`✅ Cleared! Please:`)
+      console.error(`   1. Record NEW gameplay (R key) - need 100+ frames`)
+      console.error(`   2. Train in menu`)
+      console.error(`   3. Press O to disable ML AI for now`)
+      
+      // Return safe default
+      return {
+        moveLeft: false,
+        moveRight: false,
+        jump: false,
+        shoot: false,
+        aimX: 0,
+        aimY: 0
+      }
+    }
+
     // Convert state to tensor
     const stateTensor = this.stateToTensor(state)
     
-    // Verify tensor shape matches model (should be 17 features)
-    const inputShape = this.model.inputs[0].shape
-    const expectedFeatures = inputShape[1] as number
-    const actualFeatures = stateTensor.shape[1]
-    
-    if (actualFeatures !== expectedFeatures) {
-      console.error(`❌ ML AI MODEL MISMATCH! Expected ${expectedFeatures} features, got ${actualFeatures}`)
-      console.error('🔄 Please retrain the model with new data!')
-      console.error('   1. Clear old data: localStorage.removeItem("ml_training_data"); localStorage.removeItem("ml_model")')
-      console.error('   2. Record new gameplay (R key)')
-      console.error('   3. Train in menu (needs 100+ frames)')
-      stateTensor.dispose()
-      throw new Error('Model feature mismatch - retrain required')
-    }
-    
     // Predict action
-    const prediction = this.model.predict(stateTensor) as tf.Tensor
-    const actionData = await prediction.data()
+    let prediction: tf.Tensor
+    let actionData: Float32Array | Int32Array | Uint8Array
+    
+    try {
+      prediction = this.model.predict(stateTensor) as tf.Tensor
+      actionData = await prediction.data()
+    } catch (error) {
+      console.error('ML AI prediction error:', error)
+      stateTensor.dispose()
+      return {
+        moveLeft: false,
+        moveRight: false,
+        jump: false,
+        shoot: false,
+        aimX: 0,
+        aimY: 0
+      }
+    }
     
     // Clean up tensors
     stateTensor.dispose()
