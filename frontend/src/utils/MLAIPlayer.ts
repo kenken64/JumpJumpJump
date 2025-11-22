@@ -417,7 +417,13 @@ export class MLAIPlayer {
     })
 
     for (const frame of frames) {
-      // Convert state to array
+      // Check if frame has new features - if not, skip it
+      if (!('platformAbove' in frame.state) || !('platformAboveHeight' in frame.state)) {
+        console.warn('⚠️ Skipping frame with old format (missing platformAbove features)')
+        continue
+      }
+      
+      // Convert state to array (17 features)
       const stateArray = [
         frame.state.playerX,
         frame.state.playerY,
@@ -432,6 +438,8 @@ export class MLAIPlayer {
         frame.state.nearestSpikeDistance,
         frame.state.hasGroundAhead ? 1 : 0,
         frame.state.hasGroundBehind ? 1 : 0,
+        frame.state.platformAbove ? 1 : 0,
+        frame.state.platformAboveHeight,
         frame.state.score,
         frame.state.coins
       ]
@@ -455,6 +463,17 @@ export class MLAIPlayer {
         actions.push(actionArray)
       }
     }
+
+    // Check if we have enough valid frames after filtering
+    if (states.length < 100) {
+      console.error(`❌ Only ${states.length} valid frames found (need 100+)`)
+      console.error(`   ${frames.length - states.length} frames were in old format and skipped`)
+      console.error(`🔄 Please clear old data and record NEW gameplay:`)
+      console.error(`   localStorage.removeItem('ml_training_data')`)
+      throw new Error(`Insufficient valid training data: ${states.length} frames`)
+    }
+    
+    console.log(`✅ Prepared ${states.length} valid training examples (filtered ${frames.length - states.length} old frames)`)
 
     return {
       inputs: tf.tensor2d(states),
