@@ -288,6 +288,22 @@ export class MLAIPlayer {
       return
     }
 
+    // Check if training data has correct feature count (should be 17)
+    if (trainingData.length > 0) {
+      const firstFrame = trainingData[0]
+      const stateKeys = Object.keys(firstFrame.state).length
+      const expectedFeatures = 17 // playerX, playerY, velocityX, velocityY, health, onGround, nearestEnemyDistance, nearestEnemyAngle, nearestCoinDistance, nearestCoinAngle, nearestSpikeDistance, hasGroundAhead, hasGroundBehind, platformAbove, platformAboveHeight, score, coins
+      
+      if (stateKeys !== expectedFeatures) {
+        console.error(`❌ TRAINING DATA INCOMPATIBLE!`)
+        console.error(`   Data has ${stateKeys} features, but model needs ${expectedFeatures}`)
+        console.error(`🔄 Clearing old training data...`)
+        localStorage.removeItem('ml_training_data')
+        console.error(`✅ Cleared! Please record NEW gameplay (R key) and try again.`)
+        throw new Error(`Training data feature mismatch: ${stateKeys} vs ${expectedFeatures}`)
+      }
+    }
+
     console.log('🧠 Starting ML training with', trainingData.length, 'frames...')
     this.isTraining = true
     this.trainingProgress = 0
