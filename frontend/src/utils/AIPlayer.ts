@@ -59,22 +59,30 @@ export class AIPlayer {
     const playerX = player.x
     const playerY = player.y
 
-    // 1. Assess threats (enemies, spikes)
+    // 1. Check for portal (highest priority - win condition!)
+    const portal = this.findPortal()
+    
+    // 2. Assess threats (enemies, spikes)
     const nearestThreat = this.findNearestThreat(playerX, playerY)
     
-    // 2. Find opportunities (coins, power-ups)
+    // 3. Find opportunities (coins, power-ups)
     const nearestCoin = this.findNearestCoin(playerX, playerY)
     
-    // 3. Check for nearest enemy to attack
+    // 4. Check for nearest enemy to attack
     const nearestEnemy = this.findNearestEnemy(playerX, playerY)
 
     // Decision priority:
-    // 1. Avoid immediate danger
-    // 2. Attack nearby enemies
-    // 3. Collect coins/power-ups
-    // 4. Move forward to progress
+    // 1. Enter portal to win level (TOP PRIORITY)
+    // 2. Avoid immediate danger
+    // 3. Attack nearby enemies
+    // 4. Collect coins/power-ups
+    // 5. Move forward to progress
 
-    if (nearestThreat && nearestThreat.distance < this.dangerRange) {
+    if (portal && portal.distance < 800) {
+      // Portal is nearby - go straight to it!
+      this.moveToward(playerX, playerY, portal.x, portal.y)
+      console.log('🤖 AI: Moving to portal at', portal.x, portal.y)
+    } else if (nearestThreat && nearestThreat.distance < this.dangerRange) {
       this.handleDanger(playerX, playerY, nearestThreat)
     } else if (nearestEnemy && nearestEnemy.distance < this.combatRange) {
       this.handleCombat(playerX, playerY, nearestEnemy)
@@ -85,7 +93,7 @@ export class AIPlayer {
       this.currentDecision.moveRight = true
     }
 
-    // Always check for jumps needed
+    // Always check for jumps needed (including double jumps)
     this.checkJumpNeeded(playerX, playerY)
   }
 
@@ -149,16 +157,43 @@ export class AIPlayer {
     const player = this.getPlayer()
     if (!player || !player.body) return
 
-    const onGround = (player.body as Phaser.Physics.Arcade.Body).touching.down
+    const body = player.body as Phaser.Physics.Arcade.Body
+    const onGround = body.touching.down
+    const velocityX = Math.abs(body.velocity.x)
 
-    // Jump if there's a gap ahead or platform above
+    // Jump if there's a gap ahead or obstacle
     if (onGround) {
-      const lookAheadDistance = this.currentDecision.moveRight ? 100 : -100
+      const lookAheadDistance = this.currentDecision.moveRight ? 120 : -120
       const hasGroundAhead = this.checkGroundAhead(playerX + lookAheadDistance, playerY)
       
       if (!hasGroundAhead) {
         // Gap ahead, jump over it
         this.currentDecision.jump = true
+        console.log('🤖 AI: Jumping over gap')
+      }
+    } 
+    // Use double jump if stuck in air or need extra height
+    else {
+      // If moving horizontally but going nowhere (stuck on wall/obstacle)
+      const isStuck = (this.currentDecision.moveLeft || this.currentDecision.moveRight) && velocityX < 10
+      
+      // Check if we can still double jump
+      const canDoubleJump = (this.scene as any).canDoubleJump && !(this.scene as any).hasDoubleJumped
+      
+      if (isStuck && canDoubleJump) {
+        this.currentDecision.jump = true
+        console.log('🤖 AI: Double jump to overcome obstacle')
+      }
+      
+      // Also jump if falling and need to reach a platform ahead
+      if (body.velocity.y > 0 && canDoubleJump) {
+        const lookAheadDistance = this.currentDecision.moveRight ? 150 : -150
+        const hasPlatformAhead = this.checkGroundAhead(playerX + lookAheadDistance, playerY - 100)
+        
+        if (hasPlatformAhead) {
+          this.currentDecision.jump = true
+          console.log('🤖 AI: Double jump to reach platform')
+        }
       }
     }
   }
@@ -223,6 +258,17 @@ export class AIPlayer {
     }
 
     return nearest
+  }
+
+  private findPortal(): { x: number, y: number, distance: number } | null {
+    const portal = (this.scene as any).portal
+    if (!portal || !portal.active) return null
+    
+    const player = this.getPlayer()
+    if (!player) return null
+    
+    const distance = Phaser.Math.Distance.Between(player.x, player.y, portal.x, portal.y)
+    return { x: portal.x, y: portal.y, distance }
   }
 
   private findNearestCoin(playerX: number, playerY: number): { x: number, y: number, distance: number } | null {
