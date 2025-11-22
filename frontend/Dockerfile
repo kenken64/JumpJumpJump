@@ -26,6 +26,9 @@ ENV VITE_API_KEY=$VITE_API_KEY
 # Build the application with environment variables
 RUN pnpm build
 
+# Verify build output exists
+RUN echo "=== Build output ===" && ls -la /app/dist && echo "=== index.html exists? ===" && ls -la /app/dist/index.html
+
 # List assets before copy to verify they exist
 RUN echo "=== Checking assets folder ===" && ls -la /app/assets
 
@@ -41,8 +44,8 @@ FROM nginx:alpine
 # Copy built files from builder stage
 COPY --from=builder /app/dist /usr/share/nginx/html
 
-# Verify assets in nginx
-RUN echo "=== Assets in nginx ===" && ls -la /usr/share/nginx/html/assets
+# Verify files in nginx (most important check!)
+RUN echo "=== Files in nginx root ===" && ls -la /usr/share/nginx/html && echo "=== index.html ===" && ls -la /usr/share/nginx/html/index.html
 
 # Copy nginx configuration template
 COPY nginx.conf /etc/nginx/templates/default.conf.template
