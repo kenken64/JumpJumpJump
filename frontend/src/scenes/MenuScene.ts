@@ -245,6 +245,22 @@ export default class MenuScene extends Phaser.Scene {
     })
     creditsText.setOrigin(0.5)
     
+    // Create Train ML AI Button (above Settings)
+    const mlButton = this.add.rectangle(1150, 550, 180, 40, 0x00aa00)
+    mlButton.setInteractive({ useHandCursor: true })
+    mlButton.on('pointerover', () => mlButton.setFillStyle(0x00cc00))
+    mlButton.on('pointerout', () => mlButton.setFillStyle(0x00aa00))
+    mlButton.on('pointerdown', () => {
+      this.showMLTraining()
+    })
+    
+    const mlText = this.add.text(1150, 550, '🧠 TRAIN ML AI', {
+      fontSize: '16px',
+      color: '#ffffff',
+      fontStyle: 'bold'
+    })
+    mlText.setOrigin(0.5)
+    
     // Create Settings Button (bottom right, above API status)
     const settingsButton = this.add.rectangle(1150, 650, 150, 40, 0x444444)
     settingsButton.setInteractive({ useHandCursor: true })
@@ -937,6 +953,216 @@ export default class MenuScene extends Phaser.Scene {
 
     const closeText = this.add.text(640, 520, 'CLOSE', {
       fontSize: '24px',
+      color: '#ffffff',
+      fontStyle: 'bold'
+    })
+    closeText.setOrigin(0.5)
+    closeText.setDepth(102)
+  }
+
+  private async showMLTraining() {
+    // Get training data info
+    const trainingDataStr = localStorage.getItem('ml_training_data')
+    const frameCount = trainingDataStr ? JSON.parse(trainingDataStr).length : 0
+
+    // Create dark overlay
+    const overlay = this.add.rectangle(640, 360, 1280, 720, 0x000000, 0.85)
+    overlay.setDepth(100)
+    overlay.setInteractive() // Block clicks to menu
+
+    // Create panel
+    const panel = this.add.rectangle(640, 360, 800, 600, 0x222222, 1)
+    panel.setDepth(101)
+    panel.setStrokeStyle(4, 0x00aaff)
+
+    // Title
+    const title = this.add.text(640, 120, '🧠 ML AI TRAINING', {
+      fontSize: '42px',
+      color: '#00aaff',
+      fontStyle: 'bold',
+      stroke: '#000000',
+      strokeThickness: 6
+    })
+    title.setOrigin(0.5)
+    title.setDepth(102)
+
+    // Frame count info
+    const frameInfo = this.add.text(640, 200, `Training Data: ${frameCount} frames`, {
+      fontSize: '24px',
+      color: frameCount >= 100 ? '#00ff00' : '#ff9900',
+      fontStyle: 'bold'
+    })
+    frameInfo.setOrigin(0.5)
+    frameInfo.setDepth(102)
+
+    const statusText = this.add.text(640, 240, frameCount >= 100 ? 'Ready to train!' : 'Record at least 100 frames (press R in game)', {
+      fontSize: '18px',
+      color: '#ffffff'
+    })
+    statusText.setOrigin(0.5)
+    statusText.setDepth(102)
+
+    // Instructions
+    const instructions = this.add.text(640, 290, 
+      'How to train:\n' +
+      '1. Play the game normally\n' +
+      '2. Press R to start/stop recording\n' +
+      '3. Record 200+ frames for best results\n' +
+      '4. Come back here and click Train\n' +
+      '5. Use O key in game to enable ML AI',
+      {
+        fontSize: '16px',
+        color: '#aaaaaa',
+        align: 'center',
+        lineSpacing: 8
+      }
+    )
+    instructions.setOrigin(0.5)
+    instructions.setDepth(102)
+
+    // Progress bar background
+    const progressBg = this.add.rectangle(640, 460, 600, 40, 0x444444)
+    progressBg.setDepth(102)
+    progressBg.setVisible(false)
+
+    // Progress bar fill
+    const progressFill = this.add.rectangle(340, 460, 0, 40, 0x00aa00)
+    progressFill.setOrigin(0, 0.5)
+    progressFill.setDepth(102)
+    progressFill.setVisible(false)
+
+    // Progress text
+    const progressText = this.add.text(640, 460, 'Epoch 0/50 - Loss: 0.000', {
+      fontSize: '18px',
+      color: '#ffffff',
+      fontStyle: 'bold'
+    })
+    progressText.setOrigin(0.5)
+    progressText.setDepth(103)
+    progressText.setVisible(false)
+
+    // Train button
+    const trainButton = this.add.rectangle(640, 510, 200, 50, frameCount >= 100 ? 0x00aa00 : 0x666666)
+    trainButton.setDepth(102)
+    if (frameCount >= 100) {
+      trainButton.setInteractive({ useHandCursor: true })
+      trainButton.on('pointerover', () => trainButton.setFillStyle(0x00cc00))
+      trainButton.on('pointerout', () => trainButton.setFillStyle(0x00aa00))
+      trainButton.on('pointerdown', async () => {
+        trainButton.disableInteractive()
+        trainButton.setFillStyle(0x666666)
+        trainButtonText.setText('TRAINING...')
+
+        // Show progress bar
+        progressBg.setVisible(true)
+        progressFill.setVisible(true)
+        progressText.setVisible(true)
+
+        try {
+          // Get the GameScene and its ML AI player
+          const gameScene = this.scene.get('GameScene') as any
+          if (gameScene && gameScene.getMLAIPlayer) {
+            const mlAI = gameScene.getMLAIPlayer()
+            
+            // Train with progress callbacks
+            await mlAI.train((epoch: number, logs: any) => {
+              progressFill.width = (600 * epoch) / 50
+              const loss = logs?.loss || logs?.['loss'] || 0
+              progressText.setText(`Epoch ${epoch}/50 - Loss: ${loss.toFixed(4)}`)
+            })
+
+            trainButtonText.setText('TRAINING COMPLETE!')
+            trainButton.setFillStyle(0x00aa00)
+            progressText.setText('Training complete! Use O key to enable ML AI')
+            
+            // Auto-close after 3 seconds
+            this.time.delayedCall(3000, () => {
+              overlay.destroy()
+              panel.destroy()
+              title.destroy()
+              frameInfo.destroy()
+              statusText.destroy()
+              instructions.destroy()
+              progressBg.destroy()
+              progressFill.destroy()
+              progressText.destroy()
+              trainButton.destroy()
+              trainButtonText.destroy()
+              clearButton.destroy()
+              clearButtonText.destroy()
+              closeButton.destroy()
+              closeText.destroy()
+            })
+          } else {
+            throw new Error('Could not access ML AI player')
+          }
+        } catch (error) {
+          console.error('Training failed:', error)
+          trainButtonText.setText('TRAINING FAILED')
+          trainButton.setFillStyle(0xaa0000)
+          progressText.setText('Error: ' + (error as Error).message)
+        }
+      })
+    }
+
+    const trainButtonText = this.add.text(640, 510, frameCount >= 100 ? 'TRAIN MODEL' : 'NEED MORE DATA', {
+      fontSize: '20px',
+      color: '#ffffff',
+      fontStyle: 'bold'
+    })
+    trainButtonText.setOrigin(0.5)
+    trainButtonText.setDepth(102)
+
+    // Clear data button
+    const clearButton = this.add.rectangle(640, 575, 200, 40, 0xaa0000)
+    clearButton.setDepth(102)
+    clearButton.setInteractive({ useHandCursor: true })
+    clearButton.on('pointerover', () => clearButton.setFillStyle(0xcc0000))
+    clearButton.on('pointerout', () => clearButton.setFillStyle(0xaa0000))
+    clearButton.on('pointerdown', () => {
+      localStorage.removeItem('ml_training_data')
+      frameInfo.setText('Training Data: 0 frames')
+      statusText.setText('Record at least 100 frames (press R in game)')
+      statusText.setColor('#ff9900')
+      trainButton.disableInteractive()
+      trainButton.setFillStyle(0x666666)
+      trainButtonText.setText('NEED MORE DATA')
+    })
+
+    const clearButtonText = this.add.text(640, 575, 'CLEAR DATA', {
+      fontSize: '18px',
+      color: '#ffffff',
+      fontStyle: 'bold'
+    })
+    clearButtonText.setOrigin(0.5)
+    clearButtonText.setDepth(102)
+
+    // Close button
+    const closeButton = this.add.rectangle(740, 90, 80, 40, 0xaa0000)
+    closeButton.setDepth(102)
+    closeButton.setInteractive({ useHandCursor: true })
+    closeButton.on('pointerover', () => closeButton.setFillStyle(0xcc0000))
+    closeButton.on('pointerout', () => closeButton.setFillStyle(0xaa0000))
+    closeButton.on('pointerdown', () => {
+      overlay.destroy()
+      panel.destroy()
+      title.destroy()
+      frameInfo.destroy()
+      statusText.destroy()
+      instructions.destroy()
+      progressBg.destroy()
+      progressFill.destroy()
+      progressText.destroy()
+      trainButton.destroy()
+      trainButtonText.destroy()
+      clearButton.destroy()
+      clearButtonText.destroy()
+      closeButton.destroy()
+      closeText.destroy()
+    })
+
+    const closeText = this.add.text(740, 90, 'CLOSE', {
+      fontSize: '18px',
       color: '#ffffff',
       fontStyle: 'bold'
     })

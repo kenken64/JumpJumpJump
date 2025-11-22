@@ -2213,14 +2213,15 @@ export default class GameScene extends Phaser.Scene {
       const controlSettings = ControlManager.getControlSettings()
       const useGamepad = controlSettings.inputMethod === 'gamepad'
       const pointer = this.input.activePointer
+      const worldPoint = this.cameras.main.getWorldPoint(pointer.x, pointer.y)
       
       this.gameplayRecorder.recordFrame(this.time.now, {
         moveLeft: this.wasd.a.isDown || this.cursors.left!.isDown,
         moveRight: this.wasd.d.isDown || this.cursors.right!.isDown,
         jump: this.wasd.w.isDown || this.cursors.up!.isDown,
         shoot: (!useGamepad && pointer.isDown) || (useGamepad && this.gamepad?.buttons[controlSettings.gamepadMapping.shoot]?.pressed || false),
-        aimX: pointer.worldX,
-        aimY: pointer.worldY
+        aimX: worldPoint.x,
+        aimY: worldPoint.y
       })
     }
     
@@ -4518,21 +4519,29 @@ export default class GameScene extends Phaser.Scene {
     if (this.isRecording) {
       this.gameplayRecorder.startRecording()
       const dataCount = GameplayRecorder.getTrainingDataCount()
-      this.aiStatusText?.setText(`🎥 RECORDING (${dataCount} frames total)`)
+      this.aiStatusText?.setText(`🎥 RECORDING (${dataCount} frames)`)
       this.aiStatusText?.setVisible(true)
       this.aiStatusText?.setColor('#ff0000')
-      this.showTip('recording', '🎥 Recording your gameplay! Play naturally to teach the AI.')
+      this.showTip('recording', '🎥 Recording! Play 5-10 games naturally. Press R to stop.')
+      console.log('🎥 Recording started! Frames will be saved automatically.')
     } else {
       this.gameplayRecorder.stopRecording()
       const dataCount = GameplayRecorder.getTrainingDataCount()
       this.aiStatusText?.setText(`💾 Saved! Total: ${dataCount} frames`)
       this.aiStatusText?.setColor('#00ff00')
+      console.log(`💾 Recording saved! Total frames: ${dataCount}`)
+      console.log('💡 Need 100+ frames to train. Go to menu and click "Train ML AI"')
       this.time.delayedCall(3000, () => {
         this.aiStatusText?.setVisible(false)
         this.aiStatusText?.setColor('#ff00ff')
       })
-      this.showTip('recording_done', '💾 Recording saved! Train ML model from main menu.')
+      this.showTip('recording_done', '💾 Saved! Go to menu to train ML model.')
     }
+  }
+  
+  // Public method to access ML AI for training from menu
+  public getMLAIPlayer(): MLAIPlayer {
+    return this.mlAIPlayer
   }
   
   private updateDebugUI() {

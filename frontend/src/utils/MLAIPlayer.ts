@@ -179,7 +179,7 @@ export class MLAIPlayer {
     return tf.tensor2d([stateArray])
   }
 
-  public async train(onProgress?: (progress: number) => void): Promise<void> {
+  public async train(onProgress?: (epoch: number, logs: any) => void): Promise<void> {
     if (this.isTraining) {
       console.log('⚠️ Training already in progress')
       return
@@ -212,9 +212,10 @@ export class MLAIPlayer {
         callbacks: {
           onEpochEnd: (epoch, logs) => {
             this.trainingProgress = ((epoch + 1) / 50) * 100
-            console.log(`📊 Epoch ${epoch + 1}/50 - Loss: ${logs?.loss.toFixed(4)}`)
+            const loss = logs?.loss ?? 0
+            console.log(`📊 Epoch ${epoch + 1}/50 - Loss: ${loss.toFixed(4)}`)
             if (onProgress) {
-              onProgress(this.trainingProgress)
+              onProgress(epoch + 1, logs || { loss: 0 })
             }
           }
         }
