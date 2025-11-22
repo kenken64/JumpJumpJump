@@ -50,6 +50,8 @@ COPY nginx.conf /etc/nginx/templates/default.conf.template
 # Expose port (Railway will override this with PORT env var)
 EXPOSE 80
 
-# Use envsubst to replace ${PORT} in nginx config and start nginx
-# Railway sets PORT env var, default to 80 if not set
-CMD ["/bin/sh", "-c", "envsubst '${PORT}' < /etc/nginx/templates/default.conf.template > /etc/nginx/conf.d/default.conf && nginx -g 'daemon off;'"]
+# Set default PORT if not provided by Railway
+ENV PORT=80
+
+# Use envsubst to replace $PORT in nginx config and start nginx
+CMD ["/bin/sh", "-c", "envsubst '$PORT' < /etc/nginx/templates/default.conf.template > /etc/nginx/conf.d/default.conf && nginx -g 'daemon off;'"]
