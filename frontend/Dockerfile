@@ -44,11 +44,12 @@ COPY --from=builder /app/dist /usr/share/nginx/html
 # Verify assets in nginx
 RUN echo "=== Assets in nginx ===" && ls -la /usr/share/nginx/html/assets
 
-# Copy nginx configuration
-COPY nginx.conf /etc/nginx/conf.d/default.conf
+# Copy nginx configuration template
+COPY nginx.conf /etc/nginx/templates/default.conf.template
 
 # Expose port (Railway will override this with PORT env var)
 EXPOSE 80
 
-# Start nginx
-CMD ["nginx", "-g", "daemon off;"]
+# Use envsubst to replace ${PORT} in nginx config and start nginx
+# Railway sets PORT env var, default to 80 if not set
+CMD ["/bin/sh", "-c", "envsubst '${PORT}' < /etc/nginx/templates/default.conf.template > /etc/nginx/conf.d/default.conf && nginx -g 'daemon off;'"]
