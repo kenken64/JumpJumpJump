@@ -209,6 +209,9 @@ export default class GameScene extends Phaser.Scene {
     this.load.image('powerShield', '/assets/kenney_platformer-art-requests/Tiles/powerupBlue.png')
     this.load.image('powerLife', '/assets/kenney_platformer-art-requests/Tiles/powerupGreen.png')
     this.load.image('powerHealth', '/assets/pico-8/Transparent/Tiles/tile_0066.png')
+    
+    // Load game music
+    this.load.audio('gameMusic', '/assets/music/game.wav')
   }
 
   create() {
@@ -343,6 +346,13 @@ export default class GameScene extends Phaser.Scene {
       this.defeatedBossLevels = new Set(JSON.parse(savedDefeatedLevels))
       console.log('📊 Loaded defeated boss levels:', Array.from(this.defeatedBossLevels))
     }
+    
+    // Play game music
+    const music = this.sound.add('gameMusic', { 
+      loop: true, 
+      volume: 0.5 
+    })
+    music.play()
     
     // Set world bounds (infinite to the right)
     this.physics.world.setBounds(0, 0, 100000, 1200)
