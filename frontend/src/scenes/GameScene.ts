@@ -5,6 +5,8 @@ import { MusicManager } from '../utils/MusicManager'
 import { WorldGenerator } from '../utils/WorldGenerator'
 import { ControlManager } from '../utils/ControlManager'
 import { AIPlayer } from '../utils/AIPlayer'
+import { GameplayRecorder } from '../utils/GameplayRecorder'
+import { MLAIPlayer } from '../utils/MLAIPlayer'
 
 export default class GameScene extends Phaser.Scene {
   private player!: Phaser.Physics.Arcade.Sprite
@@ -94,6 +96,12 @@ export default class GameScene extends Phaser.Scene {
   private aiPlayer!: AIPlayer
   private aiEnabled: boolean = false
   private aiStatusText: Phaser.GameObjects.Text | null = null
+  
+  // ML AI Player
+  private mlAIPlayer!: MLAIPlayer
+  private mlAIEnabled: boolean = false
+  private gameplayRecorder!: GameplayRecorder
+  private isRecording: boolean = false
 
   constructor() {
     super('GameScene')
@@ -758,6 +766,22 @@ export default class GameScene extends Phaser.Scene {
     // Initialize AI player
     this.aiPlayer = new AIPlayer(this)
     
+    // Initialize ML AI and recorder
+    this.mlAIPlayer = new MLAIPlayer(this)
+    this.gameplayRecorder = new GameplayRecorder(this)
+    
+    // R key to toggle recording
+    const recordKey = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.R)
+    recordKey.on('down', () => {
+      this.toggleRecording()
+    })
+    
+    // O key to toggle ML AI (O for "observational AI")
+    const mlAIToggleKey = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.O)
+    mlAIToggleKey.on('down', () => {
+      this.toggleMLAI()
+    })
+    
     // Alternative debug key (Shift+D)
     const shiftKey = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.SHIFT)
     this.input.keyboard!.on('keydown-D', () => {
@@ -904,7 +928,7 @@ export default class GameScene extends Phaser.Scene {
     
     // AI status indicator (top center, below level)
     this.aiStatusText = this.add.text(640, 55, '', {
-      fontSize: '20px',
+      fontSize: '18px',
       color: '#ff00ff',
       fontStyle: 'bold',
       stroke: '#000000',
@@ -2184,6 +2208,22 @@ export default class GameScene extends Phaser.Scene {
     // Player movement
     this.handlePlayerMovement()
     
+    // Record gameplay if recording is enabled
+    if (this.isRecording && !this.aiEnabled && !this.mlAIEnabled) {
+      const controlSettings = ControlManager.getControlSettings()
+      const useGamepad = controlSettings.inputMethod === 'gamepad'
+      const pointer = this.input.activePointer
+      
+      this.gameplayRecorder.recordFrame(this.time.now, {
+        moveLeft: this.wasd.a.isDown || this.cursors.left!.isDown,
+        moveRight: this.wasd.d.isDown || this.cursors.right!.isDown,
+        jump: this.wasd.w.isDown || this.cursors.up!.isDown,
+        shoot: (!useGamepad && pointer.isDown) || (useGamepad && this.gamepad?.buttons[controlSettings.gamepadMapping.shoot]?.pressed || false),
+        aimX: pointer.worldX,
+        aimY: pointer.worldY
+      })
+    }
+    
     // Update shield sprite position if active
     if (this.hasShield && this.shieldSprite) {
       this.shieldSprite.setPosition(this.player.x, this.player.y)
@@ -2366,6 +2406,14 @@ export default class GameScene extends Phaser.Scene {
       aiLeft = aiDecision.moveLeft
       aiRight = aiDecision.moveRight
       aiJump = aiDecision.jump
+    } else if (this.mlAIEnabled) {
+      // Use ML AI (async, so we'll get it in the update loop)
+      this.mlAIPlayer.getDecision().then(aiDecision => {
+        // ML AI decisions will be applied next frame
+        aiLeft = aiDecision.moveLeft
+        aiRight = aiDecision.moveRight
+        aiJump = aiDecision.jump
+      })
     }
     
     // Get gamepad input (only if input method is gamepad and AI is disabled)
@@ -4431,15 +4479,59 @@ export default class GameScene extends Phaser.Scene {
   
   private toggleAI() {
     this.aiEnabled = !this.aiEnabled
+    this.mlAIEnabled = false // Disable ML AI if rule-based is enabled
     console.log('AI Player toggled:', this.aiEnabled ? 'ENABLED' : 'DISABLED')
     
     if (this.aiEnabled) {
-      this.aiStatusText?.setText('🤖 AI PLAYING (Press P to disable)')
+      this.aiStatusText?.setText('🤖 RULE-BASED AI (Press P to disable)')
       this.aiStatusText?.setVisible(true)
-      this.showTip('ai', 'AI is now controlling the player! Press P to take back control.')
+      this.showTip('ai', 'Rule-based AI is controlling the player! Press P to take back control.')
     } else {
       this.aiStatusText?.setVisible(false)
-      this.showTip('ai_off', 'You are now in control! Press P to enable AI again.')
+      this.showTip('ai_off', 'You are now in control! Press P for AI, R to record, O for ML AI.')
+    }
+  }
+  
+  private toggleMLAI() {
+    if (!this.mlAIPlayer.isModelTrained()) {
+      this.showTip('ml_no_model', '⚠️ No ML model! Press R to record gameplay, then train from menu.')
+      console.log('⚠️ Train ML model first! Record gameplay (R key) then train from menu.')
+      return
+    }
+    
+    this.mlAIEnabled = !this.mlAIEnabled
+    this.aiEnabled = false // Disable rule-based AI if ML is enabled
+    console.log('ML AI Player toggled:', this.mlAIEnabled ? 'ENABLED' : 'DISABLED')
+    
+    if (this.mlAIEnabled) {
+      this.aiStatusText?.setText('🧠 ML AI PLAYING (Press O to disable)')
+      this.aiStatusText?.setVisible(true)
+      this.showTip('ml_ai', 'ML AI learned from YOUR gameplay! Press O to take back control.')
+    } else {
+      this.aiStatusText?.setVisible(false)
+    }
+  }
+  
+  private toggleRecording() {
+    this.isRecording = !this.isRecording
+    
+    if (this.isRecording) {
+      this.gameplayRecorder.startRecording()
+      const dataCount = GameplayRecorder.getTrainingDataCount()
+      this.aiStatusText?.setText(`🎥 RECORDING (${dataCount} frames total)`)
+      this.aiStatusText?.setVisible(true)
+      this.aiStatusText?.setColor('#ff0000')
+      this.showTip('recording', '🎥 Recording your gameplay! Play naturally to teach the AI.')
+    } else {
+      this.gameplayRecorder.stopRecording()
+      const dataCount = GameplayRecorder.getTrainingDataCount()
+      this.aiStatusText?.setText(`💾 Saved! Total: ${dataCount} frames`)
+      this.aiStatusText?.setColor('#00ff00')
+      this.time.delayedCall(3000, () => {
+        this.aiStatusText?.setVisible(false)
+        this.aiStatusText?.setColor('#ff00ff')
+      })
+      this.showTip('recording_done', '💾 Recording saved! Train ML model from main menu.')
     }
   }
   
