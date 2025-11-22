@@ -17,6 +17,8 @@ export interface GameState {
   nearestSpikeDistance: number
   hasGroundAhead: boolean
   hasGroundBehind: boolean
+  platformAbove: boolean
+  platformAboveHeight: number
   
   // Game progress
   score: number
@@ -146,6 +148,9 @@ export class GameplayRecorder {
     const hasGroundAhead = this.checkGround(platforms, playerX + 100, playerY)
     const hasGroundBehind = this.checkGround(platforms, playerX - 100, playerY)
     
+    // Check for platforms above (critical for jumping to ledges!)
+    const platformAboveInfo = this.checkPlatformAbove(platforms, playerX, playerY)
+    
     return {
       playerX: playerX / 1000, // Normalize
       playerY: playerY / 1000,
@@ -160,6 +165,8 @@ export class GameplayRecorder {
       nearestSpikeDistance: nearestSpikeDistance / 1000,
       hasGroundAhead,
       hasGroundBehind,
+      platformAbove: platformAboveInfo.hasPlatform,
+      platformAboveHeight: platformAboveInfo.height,
       score: (this.scene as any).score / 1000,
       coins: (this.scene as any).coinCount / 10
     }
@@ -181,6 +188,35 @@ export class GameplayRecorder {
     }
     
     return false
+  }
+
+  private checkPlatformAbove(platforms: any, x: number, y: number): { hasPlatform: boolean, height: number } {
+    if (!platforms) return { hasPlatform: false, height: 0 }
+    
+    let nearestPlatformAbove = { found: false, yDistance: 1000 }
+    
+    for (const platform of platforms.getChildren()) {
+      if (!(platform as any).active) continue
+      
+      const bounds = (platform as any).getBounds()
+      const platformY = bounds.bottom
+      const platformCenterX = bounds.centerX
+      
+      // Check if platform is above player and within horizontal range
+      const yDiff = y - platformY
+      const xDiff = Math.abs(x - platformCenterX)
+      
+      if (yDiff > 0 && yDiff < 300 && xDiff < 200) {
+        if (yDiff < nearestPlatformAbove.yDistance) {
+          nearestPlatformAbove = { found: true, yDistance: yDiff }
+        }
+      }
+    }
+    
+    return {
+      hasPlatform: nearestPlatformAbove.found,
+      height: nearestPlatformAbove.yDistance / 300 // Normalize to 0-1
+    }
   }
 
   private saveRecording(): void {

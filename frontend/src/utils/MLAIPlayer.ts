@@ -131,6 +131,9 @@ export class MLAIPlayer {
     const hasGroundAhead = this.checkGround(platforms, playerX + 100, playerY)
     const hasGroundBehind = this.checkGround(platforms, playerX - 100, playerY)
     
+    // Check for platforms above (critical for jumping to ledges!)
+    const platformAboveInfo = this.checkPlatformAbove(platforms, playerX, playerY)
+    
     return {
       playerX: playerX / 1000,
       playerY: playerY / 1000,
@@ -145,6 +148,8 @@ export class MLAIPlayer {
       nearestSpikeDistance: nearestSpikeDistance / 1000,
       hasGroundAhead,
       hasGroundBehind,
+      platformAbove: platformAboveInfo.hasPlatform,
+      platformAboveHeight: platformAboveInfo.height,
       score: (this.scene as any).score / 1000,
       coins: (this.scene as any).coinCount / 10
     }
@@ -168,6 +173,35 @@ export class MLAIPlayer {
     return false
   }
 
+  private checkPlatformAbove(platforms: any, x: number, y: number): { hasPlatform: boolean, height: number } {
+    if (!platforms) return { hasPlatform: false, height: 0 }
+    
+    let nearestPlatformAbove = { found: false, yDistance: 1000 }
+    
+    for (const platform of platforms.getChildren()) {
+      if (!(platform as any).active) continue
+      
+      const bounds = (platform as any).getBounds()
+      const platformY = bounds.bottom
+      const platformCenterX = bounds.centerX
+      
+      // Check if platform is above player and within horizontal range
+      const yDiff = y - platformY
+      const xDiff = Math.abs(x - platformCenterX)
+      
+      if (yDiff > 0 && yDiff < 300 && xDiff < 200) {
+        if (yDiff < nearestPlatformAbove.yDistance) {
+          nearestPlatformAbove = { found: true, yDistance: yDiff }
+        }
+      }
+    }
+    
+    return {
+      hasPlatform: nearestPlatformAbove.found,
+      height: nearestPlatformAbove.yDistance / 300 // Normalize to 0-1
+    }
+  }
+
   private stateToTensor(state: GameState): tf.Tensor {
     const stateArray = [
       state.playerX,
@@ -183,6 +217,8 @@ export class MLAIPlayer {
       state.nearestSpikeDistance,
       state.hasGroundAhead ? 1 : 0,
       state.hasGroundBehind ? 1 : 0,
+      state.platformAbove ? 1 : 0,
+      state.platformAboveHeight,
       state.score,
       state.coins
     ]
@@ -254,11 +290,11 @@ export class MLAIPlayer {
   private createModel(): tf.LayersModel {
     const model = tf.sequential()
 
-    // Input layer (15 state features) - increased capacity
+    // Input layer (17 state features: added platformAbove + platformAboveHeight) - increased capacity
     model.add(tf.layers.dense({
       units: 128,
       activation: 'relu',
-      inputShape: [15],
+      inputShape: [17],
       kernelInitializer: 'heNormal'
     }))
 
