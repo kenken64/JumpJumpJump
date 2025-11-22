@@ -355,12 +355,18 @@ export default class GameScene extends Phaser.Scene {
     }
     this.sound.stopAll()
     
-    // Play game music
-    this.gameMusic = this.sound.add('gameMusic', { 
-      loop: true, 
-      volume: 0.5 
-    })
-    this.gameMusic.play()
+    // Load music settings from localStorage
+    const musicEnabled = localStorage.getItem('musicEnabled') !== 'false' // Default true
+    const musicVolume = parseFloat(localStorage.getItem('musicVolume') || '0.5')
+    
+    // Play game music if enabled
+    if (musicEnabled) {
+      this.gameMusic = this.sound.add('gameMusic', { 
+        loop: true, 
+        volume: musicVolume 
+      })
+      this.gameMusic.play()
+    }
     
     // Set world bounds (infinite to the right)
     this.physics.world.setBounds(0, 0, 100000, 1200)
@@ -3936,8 +3942,18 @@ export default class GameScene extends Phaser.Scene {
   
   // ========== SOUND EFFECTS ==========
   
+  private isSoundEnabled(): boolean {
+    const soundEnabled = localStorage.getItem('soundEnabled') !== 'false' // Default true
+    return soundEnabled
+  }
+
+  private getSoundVolume(): number {
+    const soundVolume = parseFloat(localStorage.getItem('soundVolume') || '0.5')
+    return soundVolume
+  }
+
   private playJumpSound(doubleJump: boolean = false) {
-    if (!this.audioContext?.createOscillator) return
+    if (!this.isSoundEnabled() || !this.audioContext?.createOscillator) return
     
     const oscillator = this.audioContext.createOscillator()
     const gainNode = this.audioContext.createGain()
@@ -3948,7 +3964,8 @@ export default class GameScene extends Phaser.Scene {
     oscillator.type = 'square'
     oscillator.frequency.value = doubleJump ? 600 : 400
     
-    gainNode.gain.setValueAtTime(0.1, this.audioContext.currentTime)
+    const volume = 0.1 * this.getSoundVolume()
+    gainNode.gain.setValueAtTime(volume, this.audioContext.currentTime)
     gainNode.gain.exponentialRampToValueAtTime(0.01, this.audioContext.currentTime + 0.1)
     
     oscillator.start(this.audioContext.currentTime)
@@ -3956,7 +3973,7 @@ export default class GameScene extends Phaser.Scene {
   }
   
   private playShootSound() {
-    if (!this.audioContext?.createOscillator) return
+    if (!this.isSoundEnabled() || !this.audioContext?.createOscillator) return
     
     const oscillator = this.audioContext.createOscillator()
     const gainNode = this.audioContext.createGain()
@@ -3968,7 +3985,8 @@ export default class GameScene extends Phaser.Scene {
     oscillator.frequency.setValueAtTime(800, this.audioContext.currentTime)
     oscillator.frequency.exponentialRampToValueAtTime(200, this.audioContext.currentTime + 0.05)
     
-    gainNode.gain.setValueAtTime(0.15, this.audioContext.currentTime)
+    const volume = 0.15 * this.getSoundVolume()
+    gainNode.gain.setValueAtTime(volume, this.audioContext.currentTime)
     gainNode.gain.exponentialRampToValueAtTime(0.01, this.audioContext.currentTime + 0.05)
     
     oscillator.start(this.audioContext.currentTime)
@@ -3976,7 +3994,7 @@ export default class GameScene extends Phaser.Scene {
   }
   
   private playMeleeSound() {
-    if (!this.audioContext?.createOscillator) return
+    if (!this.isSoundEnabled() || !this.audioContext?.createOscillator) return
     
     const oscillator = this.audioContext.createOscillator()
     const gainNode = this.audioContext.createGain()
@@ -3998,7 +4016,8 @@ export default class GameScene extends Phaser.Scene {
     oscillator.type = 'square'
     oscillator.frequency.value = 150
     
-    gainNode.gain.setValueAtTime(0.2, this.audioContext.currentTime)
+    const volume = 0.2 * this.getSoundVolume()
+    gainNode.gain.setValueAtTime(volume, this.audioContext.currentTime)
     gainNode.gain.exponentialRampToValueAtTime(0.01, this.audioContext.currentTime + 0.1)
     
     oscillator.start(this.audioContext.currentTime)
@@ -4008,7 +4027,7 @@ export default class GameScene extends Phaser.Scene {
   }
   
   private playCoinSound() {
-    if (!this.audioContext?.createOscillator) return
+    if (!this.isSoundEnabled() || !this.audioContext?.createOscillator) return
     
     const oscillator = this.audioContext.createOscillator()
     const gainNode = this.audioContext.createGain()
@@ -4020,7 +4039,8 @@ export default class GameScene extends Phaser.Scene {
     oscillator.frequency.setValueAtTime(800, this.audioContext.currentTime)
     oscillator.frequency.setValueAtTime(1000, this.audioContext.currentTime + 0.05)
     
-    gainNode.gain.setValueAtTime(0.15, this.audioContext.currentTime)
+    const volume = 0.15 * this.getSoundVolume()
+    gainNode.gain.setValueAtTime(volume, this.audioContext.currentTime)
     gainNode.gain.exponentialRampToValueAtTime(0.01, this.audioContext.currentTime + 0.15)
     
     oscillator.start(this.audioContext.currentTime)
@@ -4028,7 +4048,7 @@ export default class GameScene extends Phaser.Scene {
   }
   
   private playDamageSound() {
-    if (!this.audioContext?.createOscillator) return
+    if (!this.isSoundEnabled() || !this.audioContext?.createOscillator) return
     
     const oscillator = this.audioContext.createOscillator()
     const gainNode = this.audioContext.createGain()
@@ -4040,7 +4060,8 @@ export default class GameScene extends Phaser.Scene {
     oscillator.frequency.setValueAtTime(200, this.audioContext.currentTime)
     oscillator.frequency.exponentialRampToValueAtTime(50, this.audioContext.currentTime + 0.2)
     
-    gainNode.gain.setValueAtTime(0.2, this.audioContext.currentTime)
+    const volume = 0.2 * this.getSoundVolume()
+    gainNode.gain.setValueAtTime(volume, this.audioContext.currentTime)
     gainNode.gain.exponentialRampToValueAtTime(0.01, this.audioContext.currentTime + 0.2)
     
     oscillator.start(this.audioContext.currentTime)
@@ -4048,7 +4069,7 @@ export default class GameScene extends Phaser.Scene {
   }
   
   private playDeathSound() {
-    if (!this.audioContext?.createOscillator) return
+    if (!this.isSoundEnabled() || !this.audioContext?.createOscillator) return
     
     const oscillator = this.audioContext.createOscillator()
     const gainNode = this.audioContext.createGain()
@@ -4060,7 +4081,8 @@ export default class GameScene extends Phaser.Scene {
     oscillator.frequency.setValueAtTime(400, this.audioContext.currentTime)
     oscillator.frequency.exponentialRampToValueAtTime(50, this.audioContext.currentTime + 0.5)
     
-    gainNode.gain.setValueAtTime(0.3, this.audioContext.currentTime)
+    const volume = 0.3 * this.getSoundVolume()
+    gainNode.gain.setValueAtTime(volume, this.audioContext.currentTime)
     gainNode.gain.exponentialRampToValueAtTime(0.01, this.audioContext.currentTime + 0.5)
     
     oscillator.start(this.audioContext.currentTime)
@@ -4068,7 +4090,7 @@ export default class GameScene extends Phaser.Scene {
   }
   
   private playBossSound() {
-    if (!this.audioContext?.createOscillator) return
+    if (!this.isSoundEnabled() || !this.audioContext?.createOscillator) return
     
     // Deep rumble for boss spawn
     const oscillator1 = this.audioContext.createOscillator()
@@ -4084,7 +4106,8 @@ export default class GameScene extends Phaser.Scene {
     oscillator1.frequency.value = 80
     oscillator2.frequency.value = 120
     
-    gainNode.gain.setValueAtTime(0.3, this.audioContext.currentTime)
+    const volume = 0.3 * this.getSoundVolume()
+    gainNode.gain.setValueAtTime(volume, this.audioContext.currentTime)
     gainNode.gain.exponentialRampToValueAtTime(0.01, this.audioContext.currentTime + 1.0)
     
     oscillator1.start(this.audioContext.currentTime)
@@ -4094,7 +4117,7 @@ export default class GameScene extends Phaser.Scene {
   }
   
   private playBossAttackSound() {
-    if (!this.audioContext?.createOscillator) return
+    if (!this.isSoundEnabled() || !this.audioContext?.createOscillator) return
     
     const oscillator = this.audioContext.createOscillator()
     const gainNode = this.audioContext.createGain()
@@ -4106,7 +4129,8 @@ export default class GameScene extends Phaser.Scene {
     oscillator.frequency.setValueAtTime(300, this.audioContext.currentTime)
     oscillator.frequency.setValueAtTime(150, this.audioContext.currentTime + 0.1)
     
-    gainNode.gain.setValueAtTime(0.2, this.audioContext.currentTime)
+    const volume = 0.2 * this.getSoundVolume()
+    gainNode.gain.setValueAtTime(volume, this.audioContext.currentTime)
     gainNode.gain.exponentialRampToValueAtTime(0.01, this.audioContext.currentTime + 0.15)
     
     oscillator.start(this.audioContext.currentTime)

@@ -214,7 +214,7 @@ export default class MenuScene extends Phaser.Scene {
     leaderboardText.setOrigin(0.5)
     
     // Create Tutorial Button (small button in bottom left)
-    const tutorialButton = this.add.rectangle(120, 680, 180, 40, 0x444444)
+    const tutorialButton = this.add.rectangle(100, 680, 150, 40, 0x444444)
     tutorialButton.setInteractive({ useHandCursor: true })
     tutorialButton.on('pointerover', () => tutorialButton.setFillStyle(0x666666))
     tutorialButton.on('pointerout', () => tutorialButton.setFillStyle(0x444444))
@@ -222,12 +222,28 @@ export default class MenuScene extends Phaser.Scene {
       this.showTutorial()
     })
     
-    const tutorialText = this.add.text(120, 680, 'HOW TO PLAY', {
+    const tutorialText = this.add.text(100, 680, 'HOW TO PLAY', {
       fontSize: '18px',
       color: '#ffffff',
       fontStyle: 'bold'
     })
     tutorialText.setOrigin(0.5)
+    
+    // Create Settings Button (next to tutorial button)
+    const settingsButton = this.add.rectangle(270, 680, 150, 40, 0x444444)
+    settingsButton.setInteractive({ useHandCursor: true })
+    settingsButton.on('pointerover', () => settingsButton.setFillStyle(0x666666))
+    settingsButton.on('pointerout', () => settingsButton.setFillStyle(0x444444))
+    settingsButton.on('pointerdown', () => {
+      this.showSettings()
+    })
+    
+    const settingsText = this.add.text(270, 680, 'SETTINGS', {
+      fontSize: '18px',
+      color: '#ffffff',
+      fontStyle: 'bold'
+    })
+    settingsText.setOrigin(0.5)
     
     // Check if this is the first time playing
     const hasSeenTutorial = localStorage.getItem('hasSeenTutorial')
@@ -663,6 +679,195 @@ export default class MenuScene extends Phaser.Scene {
       this.apiStatusText.setColor('#ff0000')
       console.error('API connection check failed:', error)
     }
+  }
+
+  private showSettings() {
+    // Load current settings from localStorage
+    const musicEnabled = localStorage.getItem('musicEnabled') !== 'false' // Default true
+    const soundEnabled = localStorage.getItem('soundEnabled') !== 'false' // Default true
+    const musicVolume = parseFloat(localStorage.getItem('musicVolume') || '0.5')
+    const soundVolume = parseFloat(localStorage.getItem('soundVolume') || '0.5')
+
+    // Create dark overlay
+    const overlay = this.add.rectangle(640, 360, 1280, 720, 0x000000, 0.85)
+    overlay.setDepth(100)
+    overlay.setInteractive() // Block clicks to menu
+
+    // Create settings panel
+    const panel = this.add.rectangle(640, 360, 700, 500, 0x222222, 1)
+    panel.setDepth(101)
+    panel.setStrokeStyle(4, 0x00aaff)
+
+    // Settings title
+    const title = this.add.text(640, 140, 'SETTINGS', {
+      fontSize: '48px',
+      color: '#00aaff',
+      fontStyle: 'bold',
+      stroke: '#000000',
+      strokeThickness: 6
+    })
+    title.setOrigin(0.5)
+    title.setDepth(102)
+
+    const startY = 220
+    const lineHeight = 80
+
+    // Music Toggle
+    const musicLabel = this.add.text(360, startY, 'Music:', {
+      fontSize: '24px',
+      color: '#ffffff',
+      fontStyle: 'bold'
+    })
+    musicLabel.setOrigin(0, 0.5)
+    musicLabel.setDepth(102)
+
+    const musicToggle = this.add.rectangle(720, startY, 100, 40, musicEnabled ? 0x00aa00 : 0xaa0000)
+    musicToggle.setDepth(102)
+    musicToggle.setInteractive({ useHandCursor: true })
+    
+    const musicToggleText = this.add.text(720, startY, musicEnabled ? 'ON' : 'OFF', {
+      fontSize: '20px',
+      color: '#ffffff',
+      fontStyle: 'bold'
+    })
+    musicToggleText.setOrigin(0.5)
+    musicToggleText.setDepth(102)
+
+    // Music Volume Slider
+    const musicVolumeLabel = this.add.text(360, startY + 35, `Volume: ${Math.round(musicVolume * 100)}%`, {
+      fontSize: '18px',
+      color: '#aaaaaa'
+    })
+    musicVolumeLabel.setOrigin(0, 0.5)
+    musicVolumeLabel.setDepth(102)
+
+    const musicSliderBg = this.add.rectangle(640, startY + 35, 200, 10, 0x444444)
+    musicSliderBg.setDepth(102)
+    
+    const musicSliderFill = this.add.rectangle(640 - 100 + musicVolume * 200, startY + 35, musicVolume * 200, 10, 0x00aaff)
+    musicSliderFill.setOrigin(0, 0.5)
+    musicSliderFill.setDepth(102)
+
+    const musicSliderHandle = this.add.circle(540 + musicVolume * 200, startY + 35, 12, 0xffffff)
+    musicSliderHandle.setDepth(103)
+    musicSliderHandle.setInteractive({ useHandCursor: true, draggable: true })
+
+    // Sound Toggle
+    const soundLabel = this.add.text(360, startY + lineHeight, 'Sound:', {
+      fontSize: '24px',
+      color: '#ffffff',
+      fontStyle: 'bold'
+    })
+    soundLabel.setOrigin(0, 0.5)
+    soundLabel.setDepth(102)
+
+    const soundToggle = this.add.rectangle(720, startY + lineHeight, 100, 40, soundEnabled ? 0x00aa00 : 0xaa0000)
+    soundToggle.setDepth(102)
+    soundToggle.setInteractive({ useHandCursor: true })
+    
+    const soundToggleText = this.add.text(720, startY + lineHeight, soundEnabled ? 'ON' : 'OFF', {
+      fontSize: '20px',
+      color: '#ffffff',
+      fontStyle: 'bold'
+    })
+    soundToggleText.setOrigin(0.5)
+    soundToggleText.setDepth(102)
+
+    // Sound Volume Slider
+    const soundVolumeLabel = this.add.text(360, startY + lineHeight + 35, `Volume: ${Math.round(soundVolume * 100)}%`, {
+      fontSize: '18px',
+      color: '#aaaaaa'
+    })
+    soundVolumeLabel.setOrigin(0, 0.5)
+    soundVolumeLabel.setDepth(102)
+
+    const soundSliderBg = this.add.rectangle(640, startY + lineHeight + 35, 200, 10, 0x444444)
+    soundSliderBg.setDepth(102)
+    
+    const soundSliderFill = this.add.rectangle(640 - 100 + soundVolume * 200, startY + lineHeight + 35, soundVolume * 200, 10, 0x00aaff)
+    soundSliderFill.setOrigin(0, 0.5)
+    soundSliderFill.setDepth(102)
+
+    const soundSliderHandle = this.add.circle(540 + soundVolume * 200, startY + lineHeight + 35, 12, 0xffffff)
+    soundSliderHandle.setDepth(103)
+    soundSliderHandle.setInteractive({ useHandCursor: true, draggable: true })
+
+    // Music toggle functionality
+    let currentMusicEnabled = musicEnabled
+    musicToggle.on('pointerdown', () => {
+      currentMusicEnabled = !currentMusicEnabled
+      musicToggle.setFillStyle(currentMusicEnabled ? 0x00aa00 : 0xaa0000)
+      musicToggleText.setText(currentMusicEnabled ? 'ON' : 'OFF')
+      localStorage.setItem('musicEnabled', currentMusicEnabled.toString())
+    })
+
+    // Sound toggle functionality
+    let currentSoundEnabled = soundEnabled
+    soundToggle.on('pointerdown', () => {
+      currentSoundEnabled = !currentSoundEnabled
+      soundToggle.setFillStyle(currentSoundEnabled ? 0x00aa00 : 0xaa0000)
+      soundToggleText.setText(currentSoundEnabled ? 'ON' : 'OFF')
+      localStorage.setItem('soundEnabled', currentSoundEnabled.toString())
+    })
+
+    // Music volume slider drag
+    this.input.on('drag', (_pointer: Phaser.Input.Pointer, gameObject: Phaser.GameObjects.GameObject, dragX: number) => {
+      if (gameObject === musicSliderHandle) {
+        const clampedX = Phaser.Math.Clamp(dragX, 540, 740)
+        musicSliderHandle.x = clampedX
+        const volume = (clampedX - 540) / 200
+        musicSliderFill.width = volume * 200
+        musicSliderFill.x = 540
+        musicVolumeLabel.setText(`Volume: ${Math.round(volume * 100)}%`)
+        localStorage.setItem('musicVolume', volume.toString())
+      } else if (gameObject === soundSliderHandle) {
+        const clampedX = Phaser.Math.Clamp(dragX, 540, 740)
+        soundSliderHandle.x = clampedX
+        const volume = (clampedX - 540) / 200
+        soundSliderFill.width = volume * 200
+        soundSliderFill.x = 540
+        soundVolumeLabel.setText(`Volume: ${Math.round(volume * 100)}%`)
+        localStorage.setItem('soundVolume', volume.toString())
+      }
+    })
+
+    // Close button
+    const closeButton = this.add.rectangle(640, 520, 200, 50, 0x00aaff)
+    closeButton.setDepth(102)
+    closeButton.setInteractive({ useHandCursor: true })
+    closeButton.on('pointerover', () => closeButton.setFillStyle(0x00ddff))
+    closeButton.on('pointerout', () => closeButton.setFillStyle(0x00aaff))
+    closeButton.on('pointerdown', () => {
+      // Destroy all settings UI elements
+      overlay.destroy()
+      panel.destroy()
+      title.destroy()
+      musicLabel.destroy()
+      musicToggle.destroy()
+      musicToggleText.destroy()
+      musicVolumeLabel.destroy()
+      musicSliderBg.destroy()
+      musicSliderFill.destroy()
+      musicSliderHandle.destroy()
+      soundLabel.destroy()
+      soundToggle.destroy()
+      soundToggleText.destroy()
+      soundVolumeLabel.destroy()
+      soundSliderBg.destroy()
+      soundSliderFill.destroy()
+      soundSliderHandle.destroy()
+      closeButton.destroy()
+      closeText.destroy()
+      this.input.off('drag')
+    })
+
+    const closeText = this.add.text(640, 520, 'CLOSE', {
+      fontSize: '24px',
+      color: '#ffffff',
+      fontStyle: 'bold'
+    })
+    closeText.setOrigin(0.5)
+    closeText.setDepth(102)
   }
 }
 
