@@ -51,20 +51,24 @@ export class MLAIPlayer {
     prediction.dispose()
 
     // Convert prediction to action (4 outputs: moveLeft, moveRight, jump, shoot)
-    // Use 0.3 threshold for more responsive AI (sigmoid outputs are often < 0.5)
+    // Use adaptive threshold: pick the action with highest confidence if > 0.25
+    const [left, right, jump, shoot] = Array.from(actionData)
+    
+    // For movement, choose the direction with higher confidence
+    const moveThreshold = 0.25
     const decision = {
-      moveLeft: actionData[0] > 0.3,
-      moveRight: actionData[1] > 0.3,
-      jump: actionData[2] > 0.3,
-      shoot: actionData[3] > 0.3,
-      aimX: 0, // Will use rule-based aiming
+      moveLeft: left > moveThreshold && left > right,
+      moveRight: right > moveThreshold && right > left,
+      jump: jump > 0.3,  // Jump needs higher confidence
+      shoot: shoot > 0.3, // Shoot needs higher confidence
+      aimX: 0,
       aimY: 0
     }
     
     // Debug logging every 60 frames (~1 second at 60fps)
     if (Math.random() < 0.016) {
       console.log('ML AI prediction:', {
-        raw: Array.from(actionData).map(v => v.toFixed(3)),
+        raw: [left.toFixed(3), right.toFixed(3), jump.toFixed(3), shoot.toFixed(3)],
         decision: `L:${decision.moveLeft} R:${decision.moveRight} J:${decision.jump} S:${decision.shoot}`
       })
     }
@@ -215,16 +219,18 @@ export class MLAIPlayer {
       // Prepare training data
       const { inputs, outputs } = this.prepareTrainingData(trainingData)
 
-      // Train the model
+      // Train the model with more epochs for better learning
       await this.model.fit(inputs, outputs, {
-        epochs: 50,
-        batchSize: 32,
+        epochs: 100,
+        batchSize: 16,
         validationSplit: 0.2,
+        shuffle: true,
         callbacks: {
           onEpochEnd: (epoch, logs) => {
-            this.trainingProgress = ((epoch + 1) / 50) * 100
+            this.trainingProgress = ((epoch + 1) / 100) * 100
             const loss = logs?.loss ?? 0
-            console.log(`📊 Epoch ${epoch + 1}/50 - Loss: ${loss.toFixed(4)}`)
+            const acc = logs?.acc ?? 0
+            console.log(`📊 Epoch ${epoch + 1}/100 - Loss: ${loss.toFixed(4)} - Acc: ${acc.toFixed(4)}`)
             if (onProgress) {
               onProgress(epoch + 1, logs || { loss: 0 })
             }
@@ -252,24 +258,27 @@ export class MLAIPlayer {
   private createModel(): tf.LayersModel {
     const model = tf.sequential()
 
-    // Input layer (15 state features)
+    // Input layer (15 state features) - increased capacity
+    model.add(tf.layers.dense({
+      units: 128,
+      activation: 'relu',
+      inputShape: [15],
+      kernelInitializer: 'heNormal'
+    }))
+
+    // Hidden layers with higher capacity
+    model.add(tf.layers.dropout({ rate: 0.3 }))
     model.add(tf.layers.dense({
       units: 64,
       activation: 'relu',
-      inputShape: [15]
+      kernelInitializer: 'heNormal'
     }))
 
-    // Hidden layers
-    model.add(tf.layers.dropout({ rate: 0.2 }))
+    model.add(tf.layers.dropout({ rate: 0.3 }))
     model.add(tf.layers.dense({
       units: 32,
-      activation: 'relu'
-    }))
-
-    model.add(tf.layers.dropout({ rate: 0.2 }))
-    model.add(tf.layers.dense({
-      units: 16,
-      activation: 'relu'
+      activation: 'relu',
+      kernelInitializer: 'heNormal'
     }))
 
     // Output layer (4 actions: moveLeft, moveRight, jump, shoot)

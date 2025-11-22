@@ -1114,12 +1114,12 @@ export default class MenuScene extends Phaser.Scene {
           // Create a temporary ML AI player for training
           const mlAI = new MLAIPlayer(this as any)
           
-          // Train with progress callbacks
+          // Train with progress callbacks (100 epochs now)
           await mlAI.train((epoch: number, logs: any) => {
-            progressFill.width = (620 * epoch) / 50
+            progressFill.width = (620 * epoch) / 100
             const loss = logs?.loss || logs?.['loss'] || 0
-            const percent = Math.round((epoch / 50) * 100)
-            progressText.setText(`Training: ${percent}% (Epoch ${epoch}/50 - Loss: ${loss.toFixed(3)})`)
+            const percent = Math.round((epoch / 100) * 100)
+            progressText.setText(`Training: ${percent}% (Epoch ${epoch}/100 - Loss: ${loss.toFixed(3)})`)
           })
 
           trainButtonText.setText('✓ TRAINING COMPLETE!')
