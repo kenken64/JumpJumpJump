@@ -4518,34 +4518,43 @@ export default class GameScene extends Phaser.Scene {
   }
   
   private toggleMLAI() {
-    const modelInfo = this.mlAIPlayer.getModelInfo()
+    console.log('🔄 Toggling ML AI...')
     
-    if (!this.mlAIPlayer.isModelTrained()) {
-      this.showTip('ml_no_model', '⚠️ No ML model! Press R to record gameplay, then train from menu.')
-      console.log('⚠️ Train ML model first! Record gameplay (R key) then train from menu.')
-      console.log('Model status:', modelInfo)
+    try {
+      const modelInfo = this.mlAIPlayer.getModelInfo()
+      console.log('📊 ML AI Status:', modelInfo)
+      
+      if (!this.mlAIPlayer.isModelTrained()) {
+        this.showTip('ml_no_model', '⚠️ No ML model! Press R to record gameplay, then train from menu.')
+        console.log('⚠️ Train ML model first! Record gameplay (R key) then train from menu.')
+        console.log('Model status:', modelInfo)
+        return
+      }
+      
+      // Check if model was trained with enough data
+      if (modelInfo.dataFrames < 100) {
+        this.showTip('ml_insufficient_data', `⚠️ Only ${modelInfo.dataFrames} frames! Need 100+ for reliable AI. Record more and retrain.`)
+        console.log('⚠️ Insufficient training data:', modelInfo)
+        return
+      }
+      
+      this.mlAIEnabled = !this.mlAIEnabled
+      this.aiEnabled = false // Disable rule-based AI if ML is enabled
+      
+      if (this.mlAIEnabled) {
+        console.log('🧠 ML AI ENABLED')
+        console.log('Model info:', {
+          epochs: modelInfo.epochs,
+          trainingFrames: modelInfo.dataFrames,
+          trainedAt: new Date(modelInfo.timestamp).toLocaleString()
+        })
+      } else {
+        console.log('🧠 ML AI DISABLED')
+      }
+    } catch (error) {
+      console.error('❌ Error toggling ML AI:', error)
+      this.showTip('ml_error', '❌ ML AI error - check console for details')
       return
-    }
-    
-    // Check if model was trained with enough data
-    if (modelInfo.dataFrames < 100) {
-      this.showTip('ml_insufficient_data', `⚠️ Only ${modelInfo.dataFrames} frames! Need 100+ for reliable AI. Record more and retrain.`)
-      console.log('⚠️ Insufficient training data:', modelInfo)
-      return
-    }
-    
-    this.mlAIEnabled = !this.mlAIEnabled
-    this.aiEnabled = false // Disable rule-based AI if ML is enabled
-    
-    if (this.mlAIEnabled) {
-      console.log('🧠 ML AI ENABLED')
-      console.log('Model info:', {
-        epochs: modelInfo.epochs,
-        trainingFrames: modelInfo.dataFrames,
-        trainedAt: new Date(modelInfo.timestamp).toLocaleString()
-      })
-    } else {
-      console.log('🧠 ML AI DISABLED')
     }
     
     if (this.mlAIEnabled) {
