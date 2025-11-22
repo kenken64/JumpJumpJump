@@ -103,9 +103,19 @@ export default class LeaderboardScene extends Phaser.Scene {
     const startY = 200
     const lineHeight = 50
 
+    // Clear any existing details tooltip first
+    const existingDetails = this.children.getByName('details')
+    if (existingDetails) {
+      existingDetails.destroy()
+    }
+
     // Clear previous leaderboard display including header
     this.children.each((child) => {
       if (child.getData('leaderboardItem')) {
+        // Remove all event listeners before destroying
+        if (child instanceof Phaser.GameObjects.Text && child.input) {
+          child.removeAllListeners()
+        }
         child.destroy()
       }
     })
