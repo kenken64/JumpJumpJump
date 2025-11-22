@@ -674,9 +674,6 @@ export default class GameScene extends Phaser.Scene {
 
     // Initialize gamepad support
     if (this.input.gamepad) {
-      // Start the gamepad plugin
-      this.input.gamepad.start()
-      
       // Check for already connected gamepads
       if (this.input.gamepad.total > 0) {
         this.gamepad = this.input.gamepad.getPad(0)
@@ -3172,11 +3169,12 @@ export default class GameScene extends Phaser.Scene {
       const rightStickY = this.gamepad.rightStick.y
       const stickMagnitude = Math.sqrt(rightStickX * rightStickX + rightStickY * rightStickY)
       
-      // If right stick is being used (magnitude > 0.3), use gamepad aiming
-      if (stickMagnitude > 0.3) {
-        // Use right stick direction for aiming
-        aimX = this.player.x + rightStickX * 100
-        aimY = this.player.y + rightStickY * 100
+      // If right stick is being used (magnitude > 0.2), use gamepad aiming with reduced sensitivity
+      if (stickMagnitude > 0.2) {
+        // Use right stick direction for aiming with reduced sensitivity (0.5x)
+        const aimSensitivity = 0.5
+        aimX = this.player.x + rightStickX * 100 * aimSensitivity
+        aimY = this.player.y + rightStickY * 100 * aimSensitivity
       } else {
         // Default to aiming in player's facing direction
         aimX = this.player.x + (this.player.flipX ? -100 : 100)
