@@ -229,8 +229,8 @@ export default class MenuScene extends Phaser.Scene {
     })
     tutorialText.setOrigin(0.5)
     
-    // Create Settings Button (next to tutorial button)
-    const settingsButton = this.add.rectangle(270, 680, 150, 40, 0x444444)
+    // Create Settings Button (bottom right, above API status)
+    const settingsButton = this.add.rectangle(1150, 650, 150, 40, 0x444444)
     settingsButton.setInteractive({ useHandCursor: true })
     settingsButton.on('pointerover', () => settingsButton.setFillStyle(0x666666))
     settingsButton.on('pointerout', () => settingsButton.setFillStyle(0x444444))
@@ -238,7 +238,7 @@ export default class MenuScene extends Phaser.Scene {
       this.showSettings()
     })
     
-    const settingsText = this.add.text(270, 680, 'SETTINGS', {
+    const settingsText = this.add.text(1150, 650, 'SETTINGS', {
       fontSize: '18px',
       color: '#ffffff',
       fontStyle: 'bold'
