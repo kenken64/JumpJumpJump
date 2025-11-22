@@ -33,6 +33,9 @@ function App() {
             debug: false
           }
         },
+        input: {
+          gamepad: true
+        },
         scene: [MenuScene, GameScene, ShopScene, LeaderboardScene, InventoryScene, BossGalleryScene, CreditScene],
         scale: {
           mode: Phaser.Scale.FIT,

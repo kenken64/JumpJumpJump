@@ -821,6 +821,49 @@ export default class MenuScene extends Phaser.Scene {
     soundSliderHandle.setDepth(103)
     soundSliderHandle.setInteractive({ useHandCursor: true, draggable: true })
 
+    // Controls Button
+    const controlsButton = this.add.rectangle(640, startY + lineHeight * 2 + 20, 300, 50, 0x444444)
+    controlsButton.setDepth(102)
+    controlsButton.setInteractive({ useHandCursor: true })
+    controlsButton.on('pointerover', () => controlsButton.setFillStyle(0x666666))
+    controlsButton.on('pointerout', () => controlsButton.setFillStyle(0x444444))
+    controlsButton.on('pointerdown', () => {
+      // Close settings menu first
+      overlay.destroy()
+      panel.destroy()
+      title.destroy()
+      musicLabel.destroy()
+      musicToggle.destroy()
+      musicToggleText.destroy()
+      musicVolumeLabel.destroy()
+      musicSliderBg.destroy()
+      musicSliderFill.destroy()
+      musicSliderHandle.destroy()
+      soundLabel.destroy()
+      soundToggle.destroy()
+      soundToggleText.destroy()
+      soundVolumeLabel.destroy()
+      soundSliderBg.destroy()
+      soundSliderFill.destroy()
+      soundSliderHandle.destroy()
+      controlsButton.destroy()
+      controlsButtonText.destroy()
+      closeButton.destroy()
+      closeText.destroy()
+      this.input.off('drag')
+      
+      // Open controls menu
+      this.showControlSettings()
+    })
+
+    const controlsButtonText = this.add.text(640, startY + lineHeight * 2 + 20, 'CONFIGURE CONTROLS', {
+      fontSize: '20px',
+      color: '#ffffff',
+      fontStyle: 'bold'
+    })
+    controlsButtonText.setOrigin(0.5)
+    controlsButtonText.setDepth(102)
+
     // Music toggle functionality
     let currentMusicEnabled = musicEnabled
     musicToggle.on('pointerdown', () => {
@@ -885,6 +928,8 @@ export default class MenuScene extends Phaser.Scene {
       soundSliderBg.destroy()
       soundSliderFill.destroy()
       soundSliderHandle.destroy()
+      controlsButton.destroy()
+      controlsButtonText.destroy()
       closeButton.destroy()
       closeText.destroy()
       this.input.off('drag')
@@ -897,6 +942,236 @@ export default class MenuScene extends Phaser.Scene {
     })
     closeText.setOrigin(0.5)
     closeText.setDepth(102)
+  }
+
+  private showControlSettings() {
+    // Import ControlManager dynamically
+    import('../utils/ControlManager').then(({ ControlManager }) => {
+      const currentSettings = ControlManager.getControlSettings()
+      let inputMethod = currentSettings.inputMethod
+      let gamepadMapping = { ...currentSettings.gamepadMapping }
+      let waitingForButton: 'jump' | 'shoot' | null = null
+
+      // Create dark overlay
+      const overlay = this.add.rectangle(640, 360, 1280, 720, 0x000000, 0.85)
+      overlay.setDepth(100)
+      overlay.setInteractive()
+
+      // Create settings panel
+      const panel = this.add.rectangle(640, 360, 750, 600, 0x222222, 1)
+      panel.setDepth(101)
+      panel.setStrokeStyle(4, 0x00aaff)
+
+      // Title
+      const title = this.add.text(640, 100, 'CONTROL SETTINGS', {
+        fontSize: '42px',
+        color: '#00aaff',
+        fontStyle: 'bold',
+        stroke: '#000000',
+        strokeThickness: 6
+      })
+      title.setOrigin(0.5)
+      title.setDepth(102)
+
+      const startY = 180
+      const lineHeight = 70
+
+      // Input Method Selection
+      const methodLabel = this.add.text(320, startY, 'Input Method:', {
+        fontSize: '24px',
+        color: '#ffffff',
+        fontStyle: 'bold'
+      })
+      methodLabel.setOrigin(0, 0.5)
+      methodLabel.setDepth(102)
+
+      const keyboardButton = this.add.rectangle(580, startY, 150, 45, inputMethod === 'keyboard' ? 0x00aa00 : 0x444444)
+      keyboardButton.setDepth(102)
+      keyboardButton.setInteractive({ useHandCursor: true })
+
+      const keyboardText = this.add.text(580, startY, 'KEYBOARD', {
+        fontSize: '18px',
+        color: '#ffffff',
+        fontStyle: 'bold'
+      })
+      keyboardText.setOrigin(0.5)
+      keyboardText.setDepth(102)
+
+      const gamepadButton = this.add.rectangle(750, startY, 150, 45, inputMethod === 'gamepad' ? 0x00aa00 : 0x444444)
+      gamepadButton.setDepth(102)
+      gamepadButton.setInteractive({ useHandCursor: true })
+
+      const gamepadText = this.add.text(750, startY, 'GAMEPAD', {
+        fontSize: '18px',
+        color: '#ffffff',
+        fontStyle: 'bold'
+      })
+      gamepadText.setOrigin(0.5)
+      gamepadText.setDepth(102)
+
+      // Gamepad mapping section (only visible when gamepad is selected)
+      const mappingContainer: Phaser.GameObjects.GameObject[] = []
+
+      const createMappingUI = () => {
+        // Clear previous mapping UI
+        mappingContainer.forEach(obj => obj.destroy())
+        mappingContainer.length = 0
+
+        if (inputMethod !== 'gamepad') return
+
+        // Jump info (D-pad Up is always used for jump)
+        const jumpLabel = this.add.text(320, startY + lineHeight, 'Jump:', {
+          fontSize: '22px',
+          color: '#ffffff'
+        })
+        jumpLabel.setOrigin(0, 0.5)
+        jumpLabel.setDepth(102)
+        mappingContainer.push(jumpLabel)
+
+        const jumpInfoText = this.add.text(700, startY + lineHeight, 'D-Pad Up', {
+          fontSize: '18px',
+          color: '#88ff88'
+        })
+        jumpInfoText.setOrigin(0.5)
+        jumpInfoText.setDepth(102)
+        mappingContainer.push(jumpInfoText)
+
+        // Shoot button mapping
+        const shootLabel = this.add.text(320, startY + lineHeight * 2, 'Shoot Button:', {
+          fontSize: '22px',
+          color: '#ffffff'
+        })
+        shootLabel.setOrigin(0, 0.5)
+        shootLabel.setDepth(102)
+        mappingContainer.push(shootLabel)
+
+        const shootButtonBg = this.add.rectangle(700, startY + lineHeight * 2, 200, 40, 0x444444)
+        shootButtonBg.setDepth(102)
+        shootButtonBg.setInteractive({ useHandCursor: true })
+        mappingContainer.push(shootButtonBg)
+
+        const shootButtonText = this.add.text(700, startY + lineHeight * 2, 
+          waitingForButton === 'shoot' ? 'Press a button...' : ControlManager.getButtonName(gamepadMapping.shoot), {
+          fontSize: '18px',
+          color: waitingForButton === 'shoot' ? '#ffaa00' : '#ffffff'
+        })
+        shootButtonText.setOrigin(0.5)
+        shootButtonText.setDepth(102)
+        mappingContainer.push(shootButtonText)
+
+        shootButtonBg.on('pointerdown', () => {
+          waitingForButton = 'shoot'
+          shootButtonText.setText('Press a button...')
+          shootButtonText.setColor('#ffaa00')
+        })
+
+        // Info text
+        const infoText = this.add.text(640, startY + lineHeight * 3 + 20, 
+          'Click a button field above, then press\nthe gamepad button you want to use', {
+          fontSize: '16px',
+          color: '#aaaaaa',
+          align: 'center'
+        })
+        infoText.setOrigin(0.5)
+        infoText.setDepth(102)
+        mappingContainer.push(infoText)
+
+        // Gamepad button listener
+        const gamepadListener = () => {
+          if (waitingForButton && this.input.gamepad && this.input.gamepad.total > 0) {
+            const pad = this.input.gamepad.getPad(0)
+            if (pad) {
+              for (let i = 0; i < pad.buttons.length; i++) {
+                if (pad.buttons[i].pressed) {
+                  if (waitingForButton === 'shoot') {
+                    gamepadMapping.shoot = i
+                    shootButtonText.setText(ControlManager.getButtonName(i))
+                    shootButtonText.setColor('#ffffff')
+                  }
+                  waitingForButton = null
+                  return
+                }
+              }
+            }
+          }
+        }
+
+        this.events.on('update', gamepadListener)
+        mappingContainer.push({ destroy: () => this.events.off('update', gamepadListener) } as any)
+      }
+
+      // Input method toggle
+      keyboardButton.on('pointerdown', () => {
+        inputMethod = 'keyboard'
+        keyboardButton.setFillStyle(0x00aa00)
+        gamepadButton.setFillStyle(0x444444)
+        createMappingUI()
+      })
+
+      gamepadButton.on('pointerdown', () => {
+        inputMethod = 'gamepad'
+        keyboardButton.setFillStyle(0x444444)
+        gamepadButton.setFillStyle(0x00aa00)
+        createMappingUI()
+      })
+
+      // Create initial mapping UI
+      createMappingUI()
+
+      // Save & Close button
+      const saveButton = this.add.rectangle(640, 580, 200, 50, 0x00aa00)
+      saveButton.setDepth(102)
+      saveButton.setInteractive({ useHandCursor: true })
+      saveButton.on('pointerover', () => saveButton.setFillStyle(0x00dd00))
+      saveButton.on('pointerout', () => saveButton.setFillStyle(0x00aa00))
+      saveButton.on('pointerdown', () => {
+        // Save settings
+        ControlManager.saveControlSettings({
+          inputMethod,
+          gamepadMapping
+        })
+
+        // Cleanup
+        overlay.destroy()
+        panel.destroy()
+        title.destroy()
+        methodLabel.destroy()
+        keyboardButton.destroy()
+        keyboardText.destroy()
+        gamepadButton.destroy()
+        gamepadText.destroy()
+        mappingContainer.forEach(obj => obj.destroy())
+        saveButton.destroy()
+        saveText.destroy()
+
+        // Show confirmation
+        const confirmText = this.add.text(640, 360, 'Settings Saved!', {
+          fontSize: '32px',
+          color: '#00ff00',
+          fontStyle: 'bold',
+          stroke: '#000000',
+          strokeThickness: 6
+        })
+        confirmText.setOrigin(0.5)
+        confirmText.setDepth(102)
+
+        this.tweens.add({
+          targets: confirmText,
+          alpha: 0,
+          y: 320,
+          duration: 1500,
+          onComplete: () => confirmText.destroy()
+        })
+      })
+
+      const saveText = this.add.text(640, 580, 'SAVE', {
+        fontSize: '24px',
+        color: '#ffffff',
+        fontStyle: 'bold'
+      })
+      saveText.setOrigin(0.5)
+      saveText.setDepth(102)
+    })
   }
 }
 

@@ -68,7 +68,7 @@ export default class CreditScene extends Phaser.Scene {
       fontStyle: 'bold'
     }).setOrigin(0.5)
 
-    this.add.text(width / 2, creditsY + (lineHeight * 2) + 105, 'Mommy', {
+    this.add.text(width / 2, creditsY + (lineHeight * 2) + 105, 'my mom', {
       fontSize: '26px',
       fontFamily: 'Arial',
       color: '#ffffff'
@@ -82,7 +82,7 @@ export default class CreditScene extends Phaser.Scene {
       fontStyle: 'bold'
     }).setOrigin(0.5)
 
-    this.add.text(width / 2, creditsY + (lineHeight * 3) + 140, 'Daddy', {
+    this.add.text(width / 2, creditsY + (lineHeight * 3) + 140, 'my dad and me', {
       fontSize: '26px',
       fontFamily: 'Arial',
       color: '#ffffff'

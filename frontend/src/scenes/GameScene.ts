@@ -3,6 +3,7 @@ import { GameAPI } from '../services/api'
 import { AudioManager } from '../utils/AudioManager'
 import { MusicManager } from '../utils/MusicManager'
 import { WorldGenerator } from '../utils/WorldGenerator'
+import { ControlManager } from '../utils/ControlManager'
 
 export default class GameScene extends Phaser.Scene {
   private player!: Phaser.Physics.Arcade.Sprite
@@ -16,6 +17,7 @@ export default class GameScene extends Phaser.Scene {
     s: Phaser.Input.Keyboard.Key
     d: Phaser.Input.Keyboard.Key
   }
+  private gamepad: Phaser.Input.Gamepad.Gamepad | null = null
   private platforms!: Phaser.Physics.Arcade.StaticGroup
   private enemies!: Phaser.Physics.Arcade.Group
   private canDoubleJump: boolean = true
@@ -669,6 +671,33 @@ export default class GameScene extends Phaser.Scene {
       s: this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.S),
       d: this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.D)
     }
+
+    // Initialize gamepad support
+    if (this.input.gamepad) {
+      // Start the gamepad plugin
+      this.input.gamepad.start()
+      
+      // Check for already connected gamepads
+      if (this.input.gamepad.total > 0) {
+        this.gamepad = this.input.gamepad.getPad(0)
+        console.log('Gamepad already connected:', this.gamepad?.id)
+      }
+      
+      // Listen for new gamepad connections
+      this.input.gamepad.on('connected', (pad: Phaser.Input.Gamepad.Gamepad) => {
+        this.gamepad = pad
+        console.log('Gamepad connected:', pad.id)
+        this.showTip('gamepad', 'Gamepad connected! Left stick/D-pad: Move, A: Jump, RT: Shoot')
+      })
+      
+      // Listen for gamepad disconnections
+      this.input.gamepad.on('disconnected', (pad: Phaser.Input.Gamepad.Gamepad) => {
+        if (this.gamepad === pad) {
+          this.gamepad = null
+          console.log('Gamepad disconnected:', pad.id)
+        }
+      })
+    }
     
     // Add debug toggle key
     const debugKey = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.F3)
@@ -789,7 +818,7 @@ export default class GameScene extends Phaser.Scene {
     
     // Create reload bar below health bar
     const reloadBarY = healthBarY + healthBarHeight + 10
-    const reloadBarWidth = 200
+    const reloadBarWidth = 60 // Match the max width used in update
     const reloadBarHeight = 12
     
     // Background (empty state)
@@ -807,7 +836,7 @@ export default class GameScene extends Phaser.Scene {
     this.reloadBarFill = this.add.rectangle(
       startX - reloadBarWidth,
       reloadBarY,
-      reloadBarWidth,
+      0, // Start at 0 width
       reloadBarHeight,
       0x00aaff // Blue
     )
@@ -2302,15 +2331,52 @@ export default class GameScene extends Phaser.Scene {
       this.isStomping = false
     }
 
-    // Horizontal movement (A/D or Arrow keys)
+    // Get gamepad input (only if input method is gamepad)
+    const controlSettings = ControlManager.getControlSettings()
+    const useGamepad = controlSettings.inputMethod === 'gamepad'
+    
+    let gamepadLeft = false
+    let gamepadRight = false
+    let gamepadJump = false
+    
+    if (useGamepad && this.gamepad) {
+      const mapping = controlSettings.gamepadMapping
+      
+      // Left stick or D-pad for movement
+      const leftStickX = this.gamepad.leftStick.x
+      const leftStickY = this.gamepad.leftStick.y
+      const dpadLeft = this.gamepad.left
+      const dpadRight = this.gamepad.right
+      const dpadUp = this.gamepad.up
+      
+      if (mapping.moveLeftStick && (leftStickX < -0.3)) {
+        gamepadLeft = true
+      } else if (mapping.moveLeftStick && (leftStickX > 0.3)) {
+        gamepadRight = true
+      }
+      
+      if (mapping.moveDpad && dpadLeft) {
+        gamepadLeft = true
+      } else if (mapping.moveDpad && dpadRight) {
+        gamepadRight = true
+      }
+      
+      // Jump is D-pad Up or Left Stick Up when using gamepad
+      gamepadJump = dpadUp || (mapping.moveLeftStick && leftStickY < -0.3)
+    }
+
+    // Horizontal movement (A/D or Arrow keys or Gamepad)
     const moveSpeed = this.debugMode ? speed * 2 : speed  // 2x speed in debug mode
-    if (this.wasd.a.isDown || this.cursors.left!.isDown) {
+    const keyboardLeft = !useGamepad && (this.wasd.a.isDown || this.cursors.left!.isDown)
+    const keyboardRight = !useGamepad && (this.wasd.d.isDown || this.cursors.right!.isDown)
+    
+    if (keyboardLeft || gamepadLeft) {
       this.player.setVelocityX(-moveSpeed)
       this.player.setFlipX(true)
       if (onGround) {
         this.player.play('player_walk', true)
       }
-    } else if (this.wasd.d.isDown || this.cursors.right!.isDown) {
+    } else if (keyboardRight || gamepadRight) {
       this.player.setVelocityX(moveSpeed)
       this.player.setFlipX(false)
       if (onGround) {
@@ -2323,11 +2389,29 @@ export default class GameScene extends Phaser.Scene {
       }
     }
 
-    // Jump (W or Up arrow) - or fly up in debug mode
-    if (this.debugMode && this.wasd.w.isDown) {
+    // Check for continuous left stick up for jetpack behavior
+    const isJetpacking = useGamepad && this.gamepad && controlSettings.gamepadMapping.moveLeftStick && this.gamepad.leftStick.y < -0.5
+    
+    // Track gamepad jump button state for "just pressed" detection
+    const wasGamepadJumpPressed = this.player.getData('wasGamepadJumpPressed') || false
+    const gamepadJustPressed = gamepadJump && !wasGamepadJumpPressed
+    this.player.setData('wasGamepadJumpPressed', gamepadJump)
+
+    // Jump (W or Up arrow or Gamepad button) - or fly up in debug mode
+    const keyboardJump = !useGamepad && (Phaser.Input.Keyboard.JustDown(this.wasd.w) || Phaser.Input.Keyboard.JustDown(this.cursors.up!))
+    
+    if (this.debugMode && !useGamepad && this.wasd.w.isDown) {
       // Debug flight mode - fly up
       this.player.setVelocityY(-400)
-    } else if (Phaser.Input.Keyboard.JustDown(this.wasd.w) || Phaser.Input.Keyboard.JustDown(this.cursors.up!)) {
+    } else if (isJetpacking) {
+      // Jetpack mode - continuous flight with left stick held up
+      this.player.setVelocityY(-300)
+      this.player.play('player_jump', true)
+      // Emit particles for jetpack effect
+      if (Math.random() < 0.3) { // 30% chance each frame
+        this.jumpParticles.emitParticleAt(this.player.x, this.player.y + 30)
+      }
+    } else if (keyboardJump || gamepadJustPressed) {
       console.log('Jump pressed! onGround:', onGround, 'canDoubleJump:', this.canDoubleJump, 'hasDoubleJumped:', this.hasDoubleJumped)
       
       if (onGround) {
@@ -3076,19 +3160,45 @@ export default class GameScene extends Phaser.Scene {
     // Skip if player is dead
     if (this.playerIsDead) return
     
-    // Get mouse position in world coordinates
-    const pointer = this.input.activePointer
-    const worldPoint = this.cameras.main.getWorldPoint(pointer.x, pointer.y)
+    const controlSettings = ControlManager.getControlSettings()
+    const useGamepad = controlSettings.inputMethod === 'gamepad'
     
-    // Calculate angle to mouse first
+    let aimX: number
+    let aimY: number
+    
+    // Check for gamepad right stick aiming (only if gamepad mode is enabled)
+    if (useGamepad && this.gamepad && controlSettings.gamepadMapping.aimRightStick) {
+      const rightStickX = this.gamepad.rightStick.x
+      const rightStickY = this.gamepad.rightStick.y
+      const stickMagnitude = Math.sqrt(rightStickX * rightStickX + rightStickY * rightStickY)
+      
+      // If right stick is being used (magnitude > 0.3), use gamepad aiming
+      if (stickMagnitude > 0.3) {
+        // Use right stick direction for aiming
+        aimX = this.player.x + rightStickX * 100
+        aimY = this.player.y + rightStickY * 100
+      } else {
+        // Default to aiming in player's facing direction
+        aimX = this.player.x + (this.player.flipX ? -100 : 100)
+        aimY = this.player.y
+      }
+    } else {
+      // Mouse aiming (keyboard mode or when right stick aiming is disabled)
+      const pointer = this.input.activePointer
+      const worldPoint = this.cameras.main.getWorldPoint(pointer.x, pointer.y)
+      aimX = worldPoint.x
+      aimY = worldPoint.y
+    }
+    
+    // Calculate angle to aim point
     const angleToMouse = Phaser.Math.Angle.Between(
       this.player.x,
       this.player.y,
-      worldPoint.x,
-      worldPoint.y
+      aimX,
+      aimY
     )
     
-    // For sword, position 23 degrees ahead of player relative to mouse direction
+    // For sword, position 23 degrees ahead of player relative to aim direction
     let gunAngle = angleToMouse
     if (this.equippedWeapon === 'sword') {
       gunAngle = angleToMouse + Phaser.Math.DegToRad(23)
@@ -3115,33 +3225,44 @@ export default class GameScene extends Phaser.Scene {
     // Skip if player is dead
     if (this.playerIsDead) return
     
+    const controlSettings = ControlManager.getControlSettings()
+    const useGamepad = controlSettings.inputMethod === 'gamepad'
+    
     const pointer = this.input.activePointer
     const currentTime = this.time.now
     
-    // Right mouse button for special attack (sword blade throw)
-    if (pointer.rightButtonDown() && this.equippedWeapon === 'sword' && currentTime - this.lastShotTime > 2000) {
+    // Check gamepad shoot button from mapping
+    let gamepadShoot = false
+    if (useGamepad && this.gamepad) {
+      const shootButton = controlSettings.gamepadMapping.shoot
+      gamepadShoot = this.gamepad.buttons[shootButton]?.pressed || false
+    }
+    
+    // Right mouse button for special attack (sword blade throw) - keyboard only
+    if (!useGamepad && pointer.rightButtonDown() && this.equippedWeapon === 'sword' && currentTime - this.lastShotTime > 2000) {
       this.throwSwordBlade()
       this.lastShotTime = currentTime
       return // Skip normal attack
     }
     
     // Weapon-specific cooldowns and behavior
-    let shootCooldown = 1000 // Default raygun cooldown
+    let shootCooldown = 500 // Default raygun cooldown (reduced from 1000)
     let bulletSpeed = 600
     
     if (this.equippedWeapon === 'laserGun') {
-      shootCooldown = 300 // Laser gun fires 3x faster
+      shootCooldown = 150 // Laser gun fires very fast (reduced from 300)
       bulletSpeed = 800 // Faster bullets too
     } else if (this.equippedWeapon === 'sword') {
-      shootCooldown = 500 // Sword swings moderately fast
+      shootCooldown = 250 // Sword swings fast (reduced from 500)
       // Sword will use melee attack instead of bullets
     } else if (this.equippedWeapon === 'bazooka') {
-      shootCooldown = 2000 // Very slow fire rate
+      shootCooldown = 1000 // Bazooka fire rate (reduced from 2000)
       bulletSpeed = 400 // Slower rockets
     }
     
-    // Check for mouse button press (not held down)
-    if (pointer.isDown && currentTime - this.lastShotTime > shootCooldown) {
+    // Check for mouse button press or gamepad shoot button
+    const mouseShoot = !useGamepad && pointer.isDown
+    if ((mouseShoot || gamepadShoot) && currentTime - this.lastShotTime > shootCooldown) {
       this.lastShotTime = currentTime
       
       if (this.equippedWeapon === 'sword') {
