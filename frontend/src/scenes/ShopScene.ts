@@ -307,27 +307,27 @@ export default class ShopScene extends Phaser.Scene {
 
     // Price or purchased status
     if (isPurchased) {
-      const ownedText = this.add.text(x, y + 60, 'OWNED', {
+      const ownedText = this.add.text(x, y + 70, 'OWNED', {
         fontSize: '18px',
         color: '#00ff00',
         fontStyle: 'bold'
       }).setOrigin(0.5)
       this.shopCards.push(ownedText)
     } else {
-      // Price display
-      const priceContainer = this.add.container(x, y + 60)
-      const coinIcon = this.add.image(0, 0, 'coin').setScale(0.2)
-      const priceText = this.add.text(15, 0, `${item.price}`, {
-        fontSize: '18px',
-        color: canAfford ? '#FFD700' : '#888888',
+      // Price display (above buy button)
+      const priceContainer = this.add.container(x, y + 45)
+      const coinIcon = this.add.image(-15, 0, 'coin').setScale(0.25)
+      const priceText = this.add.text(5, 0, `${item.price}`, {
+        fontSize: '20px',
+        color: '#FFD700',
         fontStyle: 'bold'
       }).setOrigin(0, 0.5)
       priceContainer.add([coinIcon, priceText])
       this.shopCards.push(priceContainer)
 
-      // Buy button
+      // Buy button (below price)
       const buttonColor = canAfford ? 0x00aa00 : 0x444444
-      const buyButton = this.add.rectangle(x, y + 60, 100, 30, buttonColor)
+      const buyButton = this.add.rectangle(x, y + 75, 100, 30, buttonColor)
         .setInteractive({ useHandCursor: canAfford })
       this.shopCards.push(buyButton)
 
@@ -338,7 +338,7 @@ export default class ShopScene extends Phaser.Scene {
           .on('pointerdown', () => this.purchaseItem(item))
       }
 
-      const buyText = this.add.text(x, y + 60, 'BUY', {
+      const buyText = this.add.text(x, y + 75, 'BUY', {
         fontSize: '16px',
         color: canAfford ? '#ffffff' : '#666666',
         fontStyle: 'bold'
