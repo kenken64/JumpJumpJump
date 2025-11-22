@@ -105,6 +105,20 @@ export default class InventoryScene extends Phaser.Scene {
     
     swordGraphics.generateTexture('weaponSword', 70, 75)
     swordGraphics.destroy()
+    
+    // Create bazooka icon
+    const bazookaGraphics = this.make.graphics({ x: 0, y: 0 })
+    bazookaGraphics.fillStyle(0x884400, 1)
+    bazookaGraphics.fillRect(10, 25, 55, 18)
+    bazookaGraphics.fillStyle(0x663300, 1)
+    bazookaGraphics.fillCircle(10, 34, 10)
+    bazookaGraphics.fillRect(50, 40, 10, 18)
+    bazookaGraphics.fillStyle(0xff6600, 1)
+    bazookaGraphics.fillRect(15, 28, 45, 12)
+    bazookaGraphics.fillStyle(0x00ffff, 1)
+    bazookaGraphics.fillCircle(35, 22, 4)
+    bazookaGraphics.generateTexture('weaponBazooka', 80, 80)
+    bazookaGraphics.destroy()
   }
 
   create() {
@@ -165,7 +179,8 @@ export default class InventoryScene extends Phaser.Scene {
     const weapons = [
       { id: 'raygun', name: 'Raygun', icon: 'weaponRaygun', default: true },
       { id: 'laserGun', name: 'Laser Gun', icon: 'weaponLaserGun', default: false },
-      { id: 'sword', name: 'Energy Sword', icon: 'weaponSword', default: false }
+      { id: 'sword', name: 'Energy Sword', icon: 'weaponSword', default: false },
+      { id: 'bazooka', name: 'Bazooka', icon: 'weaponBazooka', default: false }
     ]
 
     let y = 220
@@ -320,6 +335,10 @@ export default class InventoryScene extends Phaser.Scene {
           type = 'weapon'
           icon = 'weaponSword'
           name = 'Energy Sword'
+        } else if (id === 'bazooka') {
+          type = 'weapon'
+          icon = 'weaponBazooka'
+          name = 'Bazooka'
         } else if (id === 'skinBlue') {
           type = 'skin'
           icon = 'skinBlue'

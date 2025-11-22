@@ -3593,6 +3593,35 @@ export default class GameScene extends Phaser.Scene {
           }
         })
         
+        // Check if boss is in melee range
+        if (this.boss && this.boss.active && this.bossActive) {
+          const distance = Phaser.Math.Distance.Between(meleeX, meleeY, this.boss.x, this.boss.y)
+          
+          if (distance < 150) { // Boss is bigger, larger melee range
+            // Damage boss (20 damage for melee on boss)
+            let bossHealth = this.boss.getData('health')
+            bossHealth -= 20
+            this.boss.setData('health', bossHealth)
+            
+            // Visual feedback
+            this.boss.setTint(0xff0000)
+            this.time.delayedCall(100, () => {
+              if (this.boss && this.boss.active) {
+                this.boss.clearTint()
+              }
+            })
+            
+            // Knockback
+            const knockbackForce = 200
+            this.boss.setVelocityX(meleeDirection * knockbackForce)
+            
+            // Check if boss defeated
+            if (bossHealth <= 0) {
+              this.defeatBoss()
+            }
+          }
+        }
+        
         // Flash gun sprite for visual feedback
         this.gun.setTint(0xffffff)
         this.time.delayedCall(100, () => {
@@ -4296,6 +4325,15 @@ export default class GameScene extends Phaser.Scene {
     laserGraphics.fillRect(2, 7, 28, 2)
     laserGraphics.generateTexture('laserBlue', 32, 16)
     laserGraphics.destroy()
+    
+    // Create Laser Bullet (Green beam for laser gun)
+    const laserGreenGraphics = this.make.graphics({ x: 0, y: 0 })
+    laserGreenGraphics.fillStyle(0x00aa00, 1)
+    laserGreenGraphics.fillRect(0, 6, 32, 4)
+    laserGreenGraphics.fillStyle(0x00ff00, 1)
+    laserGreenGraphics.fillRect(2, 7, 28, 2)
+    laserGreenGraphics.generateTexture('laserGreen', 32, 16)
+    laserGreenGraphics.destroy()
     
     // Create Raygun (Blue pistol shape)
     const raygunGraphics = this.make.graphics({ x: 0, y: 0 })
