@@ -4,6 +4,7 @@ import { AudioManager } from '../utils/AudioManager'
 import { MusicManager } from '../utils/MusicManager'
 import { WorldGenerator } from '../utils/WorldGenerator'
 import { ControlManager } from '../utils/ControlManager'
+import { AIPlayer } from '../utils/AIPlayer'
 
 export default class GameScene extends Phaser.Scene {
   private player!: Phaser.Physics.Arcade.Sprite
@@ -88,6 +89,11 @@ export default class GameScene extends Phaser.Scene {
   private debugText: Phaser.GameObjects.Text | null = null
   private fpsText: Phaser.GameObjects.Text | null = null
   private coordText: Phaser.GameObjects.Text | null = null
+  
+  // AI Player
+  private aiPlayer!: AIPlayer
+  private aiEnabled: boolean = false
+  private aiStatusText: Phaser.GameObjects.Text | null = null
 
   constructor() {
     super('GameScene')
@@ -743,6 +749,15 @@ export default class GameScene extends Phaser.Scene {
       this.showQuitConfirmation()
     })
     
+    // P key to toggle AI player
+    const aiToggleKey = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.P)
+    aiToggleKey.on('down', () => {
+      this.toggleAI()
+    })
+    
+    // Initialize AI player
+    this.aiPlayer = new AIPlayer(this)
+    
     // Alternative debug key (Shift+D)
     const shiftKey = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.SHIFT)
     this.input.keyboard!.on('keydown-D', () => {
@@ -886,6 +901,19 @@ export default class GameScene extends Phaser.Scene {
     this.levelText.setOrigin(0.5, 0)
     this.levelText.setScrollFactor(0)
     this.levelText.setDepth(100)
+    
+    // AI status indicator (top center, below level)
+    this.aiStatusText = this.add.text(640, 55, '', {
+      fontSize: '20px',
+      color: '#ff00ff',
+      fontStyle: 'bold',
+      stroke: '#000000',
+      strokeThickness: 3
+    })
+    this.aiStatusText.setOrigin(0.5, 0)
+    this.aiStatusText.setScrollFactor(0)
+    this.aiStatusText.setDepth(100)
+    this.aiStatusText.setVisible(false)
     
     // Create home button (bottom-left corner) - prominent red circle
     const homeButtonX = 60
@@ -2328,9 +2356,21 @@ export default class GameScene extends Phaser.Scene {
       this.isStomping = false
     }
 
-    // Get gamepad input (only if input method is gamepad)
+    // Get AI decision if AI is enabled
+    let aiLeft = false
+    let aiRight = false
+    let aiJump = false
+    
+    if (this.aiEnabled) {
+      const aiDecision = this.aiPlayer.getDecision(this.time.now)
+      aiLeft = aiDecision.moveLeft
+      aiRight = aiDecision.moveRight
+      aiJump = aiDecision.jump
+    }
+    
+    // Get gamepad input (only if input method is gamepad and AI is disabled)
     const controlSettings = ControlManager.getControlSettings()
-    const useGamepad = controlSettings.inputMethod === 'gamepad'
+    const useGamepad = !this.aiEnabled && controlSettings.inputMethod === 'gamepad'
     
     let gamepadLeft = false
     let gamepadRight = false
@@ -2362,18 +2402,18 @@ export default class GameScene extends Phaser.Scene {
       gamepadJump = dpadUp || (mapping.moveLeftStick && leftStickY < -0.3)
     }
 
-    // Horizontal movement (A/D or Arrow keys or Gamepad)
+    // Horizontal movement (A/D or Arrow keys or Gamepad or AI)
     const moveSpeed = this.debugMode ? speed * 2 : speed  // 2x speed in debug mode
-    const keyboardLeft = !useGamepad && (this.wasd.a.isDown || this.cursors.left!.isDown)
-    const keyboardRight = !useGamepad && (this.wasd.d.isDown || this.cursors.right!.isDown)
+    const keyboardLeft = !this.aiEnabled && !useGamepad && (this.wasd.a.isDown || this.cursors.left!.isDown)
+    const keyboardRight = !this.aiEnabled && !useGamepad && (this.wasd.d.isDown || this.cursors.right!.isDown)
     
-    if (keyboardLeft || gamepadLeft) {
+    if (keyboardLeft || gamepadLeft || aiLeft) {
       this.player.setVelocityX(-moveSpeed)
       this.player.setFlipX(true)
       if (onGround) {
         this.player.play('player_walk', true)
       }
-    } else if (keyboardRight || gamepadRight) {
+    } else if (keyboardRight || gamepadRight || aiRight) {
       this.player.setVelocityX(moveSpeed)
       this.player.setFlipX(false)
       if (onGround) {
@@ -2393,11 +2433,16 @@ export default class GameScene extends Phaser.Scene {
     const wasGamepadJumpPressed = this.player.getData('wasGamepadJumpPressed') || false
     const gamepadJustPressed = gamepadJump && !wasGamepadJumpPressed
     this.player.setData('wasGamepadJumpPressed', gamepadJump)
-
-    // Jump (W or Up arrow or Gamepad button) - or fly up in debug mode
-    const keyboardJump = !useGamepad && (Phaser.Input.Keyboard.JustDown(this.wasd.w) || Phaser.Input.Keyboard.JustDown(this.cursors.up!))
     
-    if (this.debugMode && !useGamepad && this.wasd.w.isDown) {
+    // Track AI jump button state for "just pressed" detection
+    const wasAIJumpPressed = this.player.getData('wasAIJumpPressed') || false
+    const aiJustPressed = aiJump && !wasAIJumpPressed
+    this.player.setData('wasAIJumpPressed', aiJump)
+
+    // Jump (W or Up arrow or Gamepad button or AI) - or fly up in debug mode
+    const keyboardJump = !this.aiEnabled && !useGamepad && (Phaser.Input.Keyboard.JustDown(this.wasd.w) || Phaser.Input.Keyboard.JustDown(this.cursors.up!))
+    
+    if (this.debugMode && !this.aiEnabled && !useGamepad && this.wasd.w.isDown) {
       // Debug flight mode - fly up
       this.player.setVelocityY(-400)
     } else if (isJetpacking) {
@@ -2408,7 +2453,7 @@ export default class GameScene extends Phaser.Scene {
       if (Math.random() < 0.3) { // 30% chance each frame
         this.jumpParticles.emitParticleAt(this.player.x, this.player.y + 30)
       }
-    } else if (keyboardJump || gamepadJustPressed) {
+    } else if (keyboardJump || gamepadJustPressed || aiJustPressed) {
       console.log('Jump pressed! onGround:', onGround, 'canDoubleJump:', this.canDoubleJump, 'hasDoubleJumped:', this.hasDoubleJumped)
       
       if (onGround) {
@@ -3158,13 +3203,19 @@ export default class GameScene extends Phaser.Scene {
     if (this.playerIsDead) return
     
     const controlSettings = ControlManager.getControlSettings()
-    const useGamepad = controlSettings.inputMethod === 'gamepad'
+    const useGamepad = !this.aiEnabled && controlSettings.inputMethod === 'gamepad'
     
     let aimX: number
     let aimY: number
     
+    // AI aiming takes priority
+    if (this.aiEnabled) {
+      const aiDecision = this.aiPlayer.getDecision(this.time.now)
+      aimX = aiDecision.aimX || this.player.x + 100
+      aimY = aiDecision.aimY || this.player.y
+    }
     // Check for gamepad right stick aiming (only if gamepad mode is enabled)
-    if (useGamepad && this.gamepad && controlSettings.gamepadMapping.aimRightStick) {
+    else if (useGamepad && this.gamepad && controlSettings.gamepadMapping.aimRightStick) {
       const rightStickX = this.gamepad.rightStick.x
       const rightStickY = this.gamepad.rightStick.y
       const stickMagnitude = Math.sqrt(rightStickX * rightStickX + rightStickY * rightStickY)
@@ -3224,10 +3275,17 @@ export default class GameScene extends Phaser.Scene {
     if (this.playerIsDead) return
     
     const controlSettings = ControlManager.getControlSettings()
-    const useGamepad = controlSettings.inputMethod === 'gamepad'
+    const useGamepad = !this.aiEnabled && controlSettings.inputMethod === 'gamepad'
     
     const pointer = this.input.activePointer
     const currentTime = this.time.now
+    
+    // Check AI shoot decision
+    let aiShoot = false
+    if (this.aiEnabled) {
+      const aiDecision = this.aiPlayer.getDecision(this.time.now)
+      aiShoot = aiDecision.shoot
+    }
     
     // Check gamepad shoot button from mapping
     let gamepadShoot = false
@@ -3258,9 +3316,9 @@ export default class GameScene extends Phaser.Scene {
       bulletSpeed = 400 // Slower rockets
     }
     
-    // Check for mouse button press or gamepad shoot button
-    const mouseShoot = !useGamepad && pointer.isDown
-    if ((mouseShoot || gamepadShoot) && currentTime - this.lastShotTime > shootCooldown) {
+    // Check for mouse button press or gamepad shoot button or AI shoot
+    const mouseShoot = !this.aiEnabled && !useGamepad && pointer.isDown
+    if ((mouseShoot || gamepadShoot || aiShoot) && currentTime - this.lastShotTime > shootCooldown) {
       this.lastShotTime = currentTime
       
       if (this.equippedWeapon === 'sword') {
@@ -4368,6 +4426,20 @@ export default class GameScene extends Phaser.Scene {
       this.fpsText?.setVisible(false)
       this.coordText?.setVisible(false)
       console.log('Debug mode disabled')
+    }
+  }
+  
+  private toggleAI() {
+    this.aiEnabled = !this.aiEnabled
+    console.log('AI Player toggled:', this.aiEnabled ? 'ENABLED' : 'DISABLED')
+    
+    if (this.aiEnabled) {
+      this.aiStatusText?.setText('🤖 AI PLAYING (Press P to disable)')
+      this.aiStatusText?.setVisible(true)
+      this.showTip('ai', 'AI is now controlling the player! Press P to take back control.')
+    } else {
+      this.aiStatusText?.setVisible(false)
+      this.showTip('ai_off', 'You are now in control! Press P to enable AI again.')
     }
   }
   
