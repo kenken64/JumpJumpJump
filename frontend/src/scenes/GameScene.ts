@@ -2017,9 +2017,9 @@ export default class GameScene extends Phaser.Scene {
       const distance = Phaser.Math.Distance.Between(x, y, enemySprite.x, enemySprite.y)
       
       if (distance < splashRadius) {
-        // Splash damage (reduced damage, 2 instead of 3)
+        // Splash damage (3 damage for splash hits)
         let health = enemySprite.getData('health')
-        health -= 2
+        health -= 3
         enemySprite.setData('health', health)
         
         // Visual feedback
@@ -3801,6 +3801,12 @@ export default class GameScene extends Phaser.Scene {
       
       // Destroy after lifetime
       if (age >= bulletLifetime) {
+        // Rockets explode at end of lifetime
+        const isRocket = sprite.getData('isRocket')
+        if (isRocket) {
+          this.createExplosion(sprite.x, sprite.y)
+        }
+        
         sprite.setActive(false)
         sprite.setVisible(false)
       }
@@ -3809,6 +3815,13 @@ export default class GameScene extends Phaser.Scene {
 
   private handleBulletPlatformCollision(bullet: any) {
     const bulletSprite = bullet as Phaser.Physics.Arcade.Sprite
+    const isRocket = bulletSprite.getData('isRocket')
+    
+    // If it's a rocket, create explosion
+    if (isRocket) {
+      this.createExplosion(bulletSprite.x, bulletSprite.y)
+    }
+    
     bulletSprite.setActive(false)
     bulletSprite.setVisible(false)
   }
@@ -3828,8 +3841,8 @@ export default class GameScene extends Phaser.Scene {
     bulletSprite.setActive(false)
     bulletSprite.setVisible(false)
     
-    // Damage enemy (rockets do 3x damage)
-    const damage = isRocket ? 3 : 1
+    // Damage enemy (rockets do 5x damage to 2-shot worms)
+    const damage = isRocket ? 5 : 1
     let health = enemySprite.getData('health')
     health -= damage
     enemySprite.setData('health', health)
@@ -4348,44 +4361,36 @@ export default class GameScene extends Phaser.Scene {
     raygunGraphics.generateTexture('raygun', 48, 36)
     raygunGraphics.destroy()
     
-    // Create Laser Gun (Green rapid-fire weapon)
+    // Create Laser Gun (Green rapid-fire weapon - matching shop design)
     const laserGunGraphics = this.make.graphics({ x: 0, y: 0 })
-    laserGunGraphics.fillStyle(0x00aa00, 1)
-    laserGunGraphics.fillRect(8, 14, 28, 8)
-    laserGunGraphics.fillRect(32, 10, 14, 16)
+    // Scale down the shop design to fit 48x36
     laserGunGraphics.fillStyle(0x00ff00, 1)
-    laserGunGraphics.fillRect(10, 16, 24, 4)
-    laserGunGraphics.fillRect(34, 12, 10, 12)
-    // Barrel vents
-    laserGunGraphics.lineStyle(2, 0x00ffaa, 1)
-    laserGunGraphics.beginPath()
-    laserGunGraphics.moveTo(36, 14)
-    laserGunGraphics.lineTo(42, 14)
-    laserGunGraphics.moveTo(36, 18)
-    laserGunGraphics.lineTo(42, 18)
-    laserGunGraphics.moveTo(36, 22)
-    laserGunGraphics.lineTo(42, 22)
-    laserGunGraphics.strokePath()
+    laserGunGraphics.fillRect(6, 14, 30, 9) // Barrel
+    laserGunGraphics.fillRect(3, 16, 6, 6) // Tip
+    laserGunGraphics.fillRect(33, 11, 9, 15) // Handle
+    laserGunGraphics.fillRect(36, 26, 6, 6) // Grip
+    // Energy core (cyan glow)
+    laserGunGraphics.fillStyle(0x00ffff, 1)
+    laserGunGraphics.fillCircle(36, 18, 3)
     laserGunGraphics.generateTexture('laserGun', 48, 36)
     laserGunGraphics.destroy()
     
-    // Create Bazooka (Large orange/red rocket launcher)
+    // Create Bazooka (Large orange/red rocket launcher - matching shop design)
     const bazookaGraphics = this.make.graphics({ x: 0, y: 0 })
-    // Main tube
+    // Brown/orange bazooka body
     bazookaGraphics.fillStyle(0x884400, 1)
-    bazookaGraphics.fillRect(8, 12, 36, 12)
-    // Front muzzle
-    bazookaGraphics.fillStyle(0xaa5500, 1)
-    bazookaGraphics.fillRect(4, 10, 8, 16)
-    // Handle
+    bazookaGraphics.fillRect(6, 12, 33, 11) // Main tube
+    // Barrel opening
     bazookaGraphics.fillStyle(0x663300, 1)
-    bazookaGraphics.fillRect(32, 20, 8, 10)
-    // Barrel detail
+    bazookaGraphics.fillCircle(6, 17, 6)
+    // Handle
+    bazookaGraphics.fillRect(30, 20, 6, 11)
+    // Details
     bazookaGraphics.fillStyle(0xff6600, 1)
-    bazookaGraphics.fillRect(10, 14, 30, 8)
+    bazookaGraphics.fillRect(9, 14, 27, 7)
     // Scope
     bazookaGraphics.fillStyle(0x00ffff, 1)
-    bazookaGraphics.fillCircle(25, 10, 3)
+    bazookaGraphics.fillCircle(21, 10, 2)
     bazookaGraphics.generateTexture('bazooka', 48, 36)
     bazookaGraphics.destroy()
     
