@@ -965,6 +965,17 @@ export default class MenuScene extends Phaser.Scene {
     // Get training data info
     const trainingDataStr = localStorage.getItem('ml_training_data')
     const frameCount = trainingDataStr ? JSON.parse(trainingDataStr).length : 0
+    
+    // Get model info
+    const modelMetadata = localStorage.getItem('ml-model-metadata')
+    let modelInfo = { trained: false, epochs: 0, timestamp: 0 }
+    if (modelMetadata) {
+      try {
+        modelInfo = JSON.parse(modelMetadata)
+      } catch (e) {
+        console.error('Failed to parse model metadata')
+      }
+    }
 
     // Create dark overlay
     const overlay = this.add.rectangle(640, 360, 1280, 720, 0x000000, 0.9)
@@ -992,6 +1003,7 @@ export default class MenuScene extends Phaser.Scene {
       dataPanel.destroy()
       frameInfo.destroy()
       statusText.destroy()
+      modelStatusText.destroy()
       instructionBox.destroy()
       instructions.destroy()
       progressBg.destroy()
@@ -1029,20 +1041,33 @@ export default class MenuScene extends Phaser.Scene {
     dataPanel.setDepth(102)
     dataPanel.setStrokeStyle(2, frameCount >= 100 ? 0x00ff00 : 0xff9900)
 
-    const frameInfo = this.add.text(640, 190, `${frameCount} frames recorded`, {
-      fontSize: '28px',
+    const frameInfo = this.add.text(640, 185, `${frameCount} frames recorded`, {
+      fontSize: '24px',
       color: frameCount >= 100 ? '#00ff00' : '#ff9900',
       fontStyle: 'bold'
     })
     frameInfo.setOrigin(0.5)
     frameInfo.setDepth(102)
 
-    const statusText = this.add.text(640, 215, frameCount >= 100 ? '✓ Ready to train!' : '⚠ Need 100+ frames (press R in-game)', {
-      fontSize: '16px',
+    const statusText = this.add.text(640, 210, frameCount >= 100 ? '✓ Ready to train!' : '⚠ Need 100+ frames (press R in-game)', {
+      fontSize: '15px',
       color: '#cccccc'
     })
     statusText.setOrigin(0.5)
     statusText.setDepth(102)
+    
+    // Model status
+    const modelStatusText = this.add.text(640, 228, 
+      modelInfo.trained 
+        ? `Model: Trained (${modelInfo.epochs} epochs, ${new Date(modelInfo.timestamp).toLocaleDateString()})` 
+        : 'Model: Not trained yet',
+      {
+        fontSize: '13px',
+        color: modelInfo.trained ? '#00aaff' : '#999999'
+      }
+    )
+    modelStatusText.setOrigin(0.5)
+    modelStatusText.setDepth(102)
 
     // Instructions box
     const instructionBox = this.add.rectangle(640, 305, 640, 140, 0x252525, 1)
@@ -1137,6 +1162,7 @@ export default class MenuScene extends Phaser.Scene {
             dataPanel.destroy()
             frameInfo.destroy()
             statusText.destroy()
+            modelStatusText.destroy()
             instructionBox.destroy()
             instructions.destroy()
             progressBg.destroy()

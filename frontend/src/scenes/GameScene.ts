@@ -4518,17 +4518,35 @@ export default class GameScene extends Phaser.Scene {
   }
   
   private toggleMLAI() {
+    const modelInfo = this.mlAIPlayer.getModelInfo()
+    
     if (!this.mlAIPlayer.isModelTrained()) {
       this.showTip('ml_no_model', '⚠️ No ML model! Press R to record gameplay, then train from menu.')
       console.log('⚠️ Train ML model first! Record gameplay (R key) then train from menu.')
-      console.log('Model trained:', this.mlAIPlayer.isModelTrained())
+      console.log('Model status:', modelInfo)
+      return
+    }
+    
+    // Check if model was trained with enough data
+    if (modelInfo.dataFrames < 100) {
+      this.showTip('ml_insufficient_data', `⚠️ Only ${modelInfo.dataFrames} frames! Need 100+ for reliable AI. Record more and retrain.`)
+      console.log('⚠️ Insufficient training data:', modelInfo)
       return
     }
     
     this.mlAIEnabled = !this.mlAIEnabled
     this.aiEnabled = false // Disable rule-based AI if ML is enabled
-    console.log('🧠 ML AI Player toggled:', this.mlAIEnabled ? 'ENABLED' : 'DISABLED')
-    console.log('Current AI state:', { mlAIEnabled: this.mlAIEnabled, aiEnabled: this.aiEnabled, modelTrained: this.mlAIPlayer.isModelTrained() })
+    
+    if (this.mlAIEnabled) {
+      console.log('🧠 ML AI ENABLED')
+      console.log('Model info:', {
+        epochs: modelInfo.epochs,
+        trainingFrames: modelInfo.dataFrames,
+        trainedAt: new Date(modelInfo.timestamp).toLocaleString()
+      })
+    } else {
+      console.log('🧠 ML AI DISABLED')
+    }
     
     if (this.mlAIEnabled) {
       this.aiStatusText?.setText('🧠 ML AI PLAYING (Press O to disable)')

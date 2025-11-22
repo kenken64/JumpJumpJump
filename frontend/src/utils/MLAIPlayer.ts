@@ -366,6 +366,16 @@ export class MLAIPlayer {
     if (!this.model) return
 
     await this.model.save('localstorage://ml-ai-model')
+    
+    // Save training metadata
+    const metadata = {
+      trained: true,
+      timestamp: Date.now(),
+      epochs: 100,
+      version: '2.0'
+    }
+    localStorage.setItem('ml-model-metadata', JSON.stringify(metadata))
+    
     console.log('💾 Model saved to browser storage')
   }
 
@@ -380,6 +390,27 @@ export class MLAIPlayer {
 
   public isModelTrained(): boolean {
     return this.model !== null
+  }
+  
+  public getModelInfo(): { trained: boolean; epochs: number; timestamp: number; dataFrames: number } {
+    try {
+      const metadata = localStorage.getItem('ml-model-metadata')
+      const trainingData = GameplayRecorder.getTrainingData()
+      
+      if (!metadata) {
+        return { trained: false, epochs: 0, timestamp: 0, dataFrames: trainingData.length }
+      }
+      
+      const info = JSON.parse(metadata)
+      return {
+        trained: info.trained && this.model !== null,
+        epochs: info.epochs || 0,
+        timestamp: info.timestamp || 0,
+        dataFrames: trainingData.length
+      }
+    } catch {
+      return { trained: false, epochs: 0, timestamp: 0, dataFrames: 0 }
+    }
   }
 
   public isCurrentlyTraining(): boolean {
