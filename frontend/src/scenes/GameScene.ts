@@ -2419,6 +2419,11 @@ export default class GameScene extends Phaser.Scene {
       aiRight = this.mlAIDecision.moveRight
       aiJump = this.mlAIDecision.jump
       
+      // Debug log every 60 frames (~1 second)
+      if (Math.random() < 0.016) {
+        console.log('ML AI applying decision:', { aiLeft, aiRight, aiJump })
+      }
+      
       // Update ML AI decision asynchronously for next frame
       this.mlAIPlayer.getDecision().then(aiDecision => {
         this.mlAIDecision = aiDecision
@@ -4509,12 +4514,14 @@ export default class GameScene extends Phaser.Scene {
     if (!this.mlAIPlayer.isModelTrained()) {
       this.showTip('ml_no_model', '⚠️ No ML model! Press R to record gameplay, then train from menu.')
       console.log('⚠️ Train ML model first! Record gameplay (R key) then train from menu.')
+      console.log('Model trained:', this.mlAIPlayer.isModelTrained())
       return
     }
     
     this.mlAIEnabled = !this.mlAIEnabled
     this.aiEnabled = false // Disable rule-based AI if ML is enabled
-    console.log('ML AI Player toggled:', this.mlAIEnabled ? 'ENABLED' : 'DISABLED')
+    console.log('🧠 ML AI Player toggled:', this.mlAIEnabled ? 'ENABLED' : 'DISABLED')
+    console.log('Current AI state:', { mlAIEnabled: this.mlAIEnabled, aiEnabled: this.aiEnabled, modelTrained: this.mlAIPlayer.isModelTrained() })
     
     if (this.mlAIEnabled) {
       this.aiStatusText?.setText('🧠 ML AI PLAYING (Press O to disable)')

@@ -51,14 +51,25 @@ export class MLAIPlayer {
     prediction.dispose()
 
     // Convert prediction to action (4 outputs: moveLeft, moveRight, jump, shoot)
-    return {
-      moveLeft: actionData[0] > 0.5,
-      moveRight: actionData[1] > 0.5,
-      jump: actionData[2] > 0.5,
-      shoot: actionData[3] > 0.5,
+    // Use 0.3 threshold for more responsive AI (sigmoid outputs are often < 0.5)
+    const decision = {
+      moveLeft: actionData[0] > 0.3,
+      moveRight: actionData[1] > 0.3,
+      jump: actionData[2] > 0.3,
+      shoot: actionData[3] > 0.3,
       aimX: 0, // Will use rule-based aiming
       aimY: 0
     }
+    
+    // Debug logging every 60 frames (~1 second at 60fps)
+    if (Math.random() < 0.016) {
+      console.log('ML AI prediction:', {
+        raw: Array.from(actionData).map(v => v.toFixed(3)),
+        decision: `L:${decision.moveLeft} R:${decision.moveRight} J:${decision.jump} S:${decision.shoot}`
+      })
+    }
+    
+    return decision
   }
 
   private captureGameState(): GameState | null {
