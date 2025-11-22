@@ -76,6 +76,7 @@ export default class GameScene extends Phaser.Scene {
   private audioContext!: AudioContext
   private farthestPlayerX: number = 0 // Track farthest X position reached
   private levelCompleteShown: boolean = false // Prevent multiple level complete triggers
+  private gameMusic!: Phaser.Sound.BaseSound | null
   
   // Debug mode
   private debugMode: boolean = false
@@ -347,12 +348,19 @@ export default class GameScene extends Phaser.Scene {
       console.log('📊 Loaded defeated boss levels:', Array.from(this.defeatedBossLevels))
     }
     
+    // Stop any existing music before starting new one
+    if (this.gameMusic) {
+      this.gameMusic.stop()
+      this.gameMusic.destroy()
+    }
+    this.sound.stopAll()
+    
     // Play game music
-    const music = this.sound.add('gameMusic', { 
+    this.gameMusic = this.sound.add('gameMusic', { 
       loop: true, 
       volume: 0.5 
     })
-    music.play()
+    this.gameMusic.play()
     
     // Set world bounds (infinite to the right)
     this.physics.world.setBounds(0, 0, 100000, 1200)
@@ -4948,5 +4956,15 @@ export default class GameScene extends Phaser.Scene {
       callback: checkBounds,
       repeat: 20
     })
+  }
+
+  shutdown() {
+    // Stop and clean up music when scene shuts down
+    if (this.gameMusic) {
+      this.gameMusic.stop()
+      this.gameMusic.destroy()
+      this.gameMusic = null
+    }
+    this.sound.stopAll()
   }
 }
