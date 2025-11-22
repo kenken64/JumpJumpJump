@@ -51,10 +51,10 @@ RUN echo "=== Files in nginx root ===" && ls -la /usr/share/nginx/html && echo "
 COPY nginx.conf /etc/nginx/templates/default.conf.template
 
 # Expose port (Railway will override this with PORT env var)
-EXPOSE 80
+EXPOSE 8080
 
-# Set default PORT if not provided by Railway
-ENV PORT=80
+# Set default PORT to 8080 if not provided by Railway
+ENV PORT=8080
 
 # Use envsubst to replace $PORT in nginx config and start nginx
 CMD ["/bin/sh", "-c", "envsubst '$PORT' < /etc/nginx/templates/default.conf.template > /etc/nginx/conf.d/default.conf && nginx -g 'daemon off;'"]
