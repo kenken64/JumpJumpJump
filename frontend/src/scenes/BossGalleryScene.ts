@@ -71,6 +71,12 @@ export default class BossGalleryScene extends Phaser.Scene {
 
       // Calculate total pages
       this.totalPages = Math.ceil(this.bosses.length / this.bossesPerPage)
+      
+      console.log('📊 Boss Gallery:', {
+        totalBosses: this.bosses.length,
+        bossesPerPage: this.bossesPerPage,
+        totalPages: this.totalPages
+      })
 
       // Display first page
       this.displayBossPage()
@@ -298,6 +304,7 @@ export default class BossGalleryScene extends Phaser.Scene {
     this.nextButton.on('pointerover', () => this.nextButton!.setFillStyle(0x555555))
     this.nextButton.on('pointerout', () => this.nextButton!.setFillStyle(0x333333))
     this.nextButton.on('pointerdown', () => {
+      console.log('Next clicked:', { currentPage: this.currentPage, totalPages: this.totalPages, canGoNext: this.currentPage < this.totalPages - 1 })
       if (this.currentPage < this.totalPages - 1) {
         this.currentPage++
         this.displayBossPage()
