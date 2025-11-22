@@ -66,6 +66,7 @@ export default class GameScene extends Phaser.Scene {
   private defeatedBossLevels: Set<number> = new Set() // Track which boss levels have been defeated
   private bossHealthBar!: Phaser.GameObjects.Rectangle | null
   private bossHealthBarBg!: Phaser.GameObjects.Rectangle | null
+  private bossNameText!: Phaser.GameObjects.Text | null
   private equippedSkin: string = 'alienBeige'
   private equippedWeapon: string = 'raygun'
   private powerUps!: Phaser.Physics.Arcade.Group
@@ -197,11 +198,11 @@ export default class GameScene extends Phaser.Scene {
     this.load.image('planet04', '/assets/kenny_planets/Planets/planet04.png')
     this.load.image('planet05', '/assets/kenny_planets/Planets/planet05.png')
     
-    // Load boss spritesheet (bosses vary in size, using larger frame to capture them)
-    this.load.spritesheet('geminiBoss', '/assets/gemini-boss-spritesheet.png', {
-      frameWidth: 256,
-      frameHeight: 256
-    })
+    // Load individual boss images (22 bosses)
+    for (let i = 0; i < 22; i++) {
+      const bossKey = `boss_${i.toString().padStart(2, '0')}`
+      this.load.image(bossKey, `/assets/bosses_individual/boss_${i.toString().padStart(2, '0')}.png`)
+    }
     
     // Load power-up sprites
     this.load.image('powerSpeed', '/assets/kenney_platformer-art-requests/Tiles/powerupYellow.png')
@@ -334,6 +335,7 @@ export default class GameScene extends Phaser.Scene {
     this.bossActive = false
     this.bossHealthBar = null
     this.bossHealthBarBg = null
+    this.bossNameText = null
     
     // Load defeated boss levels from localStorage
     const savedDefeatedLevels = localStorage.getItem('defeatedBossLevels')
@@ -1700,7 +1702,7 @@ export default class GameScene extends Phaser.Scene {
     return 0 // If all bosses defeated, start over
   }
 
-  private spawnBoss(x: number, forcedBossIndex?: number) {
+  private async spawnBoss(x: number, forcedBossIndex?: number) {
     if (this.bossActive || this.boss) return
     
     this.bossActive = true
@@ -1712,46 +1714,39 @@ export default class GameScene extends Phaser.Scene {
     // Play boss spawn sound
     this.playBossSound()
     
-    // Calculate which boss to use based on level (0-23 different bosses in the spritesheet)
-    // Spritesheet has 4 columns and 6 rows = 24 bosses total
+    // Calculate which boss to use based on level (0-21 different bosses)
     // Level 5 = boss 0, Level 10 = boss 1, Level 15 = boss 2, etc.
-    const defaultBossIndex = Math.floor((this.currentLevel / 5) - 1) % 24
+    const defaultBossIndex = Math.floor((this.currentLevel / 5) - 1) % 22
     const bossIndex = forcedBossIndex !== undefined ? forcedBossIndex : defaultBossIndex
-    const bossRow = Math.floor(bossIndex / 4)
-    const bossCol = bossIndex % 4
-    const baseFrame = bossRow * 4 + bossCol // Calculate the frame index
     
-    // Create dynamic animations for this specific boss
-    const idleKey = `boss_idle_${baseFrame}`
-    const attackKey = `boss_attack_${baseFrame}`
-    
-    // Only create animations if they don't exist
-    if (!this.anims.exists(idleKey)) {
-      this.anims.create({
-        key: idleKey,
-        frames: [{ key: 'geminiBoss', frame: baseFrame }],
-        frameRate: 1,
-        repeat: -1
-      })
+    // Fetch boss data from backend
+    let bossName = 'BOSS'
+    let bossTitle = ''
+    try {
+      const bosses = await GameAPI.getAllBosses()
+      const bossData = bosses.find(b => b.boss_index === bossIndex)
+      if (bossData) {
+        bossName = bossData.boss_name.toUpperCase()
+        bossTitle = bossData.notorious_title
+      }
+    } catch (error) {
+      console.error('Failed to fetch boss data:', error)
     }
     
-    if (!this.anims.exists(attackKey)) {
-      this.anims.create({
-        key: attackKey,
-        frames: [{ key: 'geminiBoss', frame: baseFrame }],
-        frameRate: 1,
-        repeat: 0
-      })
-    }
+    // Use individual boss image
+    const bossKey = `boss_${bossIndex.toString().padStart(2, '0')}`
     
-    // Create boss sprite (same size as player, hovering)
-    this.boss = this.physics.add.sprite(x, bossY, 'geminiBoss', baseFrame)
-    this.boss.setScale(1) // 1x size of player
-    this.boss.play(idleKey)
+    // Create boss sprite using individual image (hovering)
+    this.boss = this.physics.add.sprite(x, bossY, bossKey)
+    
+    // Scale boss to appropriate size (around 200-250px)
+    const targetSize = 250
+    const scale = Math.min(targetSize / this.boss.width, targetSize / this.boss.height)
+    this.boss.setScale(scale)
+    
     this.boss.setDepth(10) // In front of player and enemies
     this.boss.setCollideWorldBounds(true)
-    this.boss.setData('idleKey', idleKey) // Store for later use
-    this.boss.setData('attackKey', attackKey) // Store for later use
+    this.boss.setData('bossKey', bossKey) // Store boss image key
     
     // Set hitbox for hovering boss (no gravity)
     if (this.boss.body) {
@@ -1769,7 +1764,7 @@ export default class GameScene extends Phaser.Scene {
     this.boss.setData('lastAttack', 0)
     this.boss.setData('attackCooldown', 2000)
     this.boss.setData('phase', 1)
-    this.boss.setData('bossIndex', baseFrame) // Store boss index for defeat tracking
+    this.boss.setData('bossIndex', bossIndex) // Store boss index for defeat tracking
     
     // Create boss health bar (moved down to avoid level text overlap)
     this.bossHealthBarBg = this.add.rectangle(640, 80, 500, 30, 0x000000, 0.7)
@@ -1780,14 +1775,17 @@ export default class GameScene extends Phaser.Scene {
     this.bossHealthBar.setScrollFactor(0)
     this.bossHealthBar.setDepth(1000)
     
-    const bossText = this.add.text(640, 80, 'GEMINI BOSS', {
+    // Display boss name from backend
+    this.bossNameText = this.add.text(640, 80, bossName, {
       fontSize: '20px',
       color: '#ffffff',
-      fontStyle: 'bold'
+      fontStyle: 'bold',
+      stroke: '#000000',
+      strokeThickness: 3
     })
-    bossText.setOrigin(0.5)
-    bossText.setScrollFactor(0)
-    bossText.setDepth(1001)
+    this.bossNameText.setOrigin(0.5)
+    this.bossNameText.setScrollFactor(0)
+    this.bossNameText.setDepth(1001)
     
     // Add collision with player bullets
     this.physics.add.overlap(this.bullets, this.boss, this.handleBulletBossCollision as any, undefined, this)
@@ -2017,6 +2015,10 @@ export default class GameScene extends Phaser.Scene {
     if (this.bossHealthBarBg) {
       this.bossHealthBarBg.destroy()
       this.bossHealthBarBg = null
+    }
+    if (this.bossNameText) {
+      this.bossNameText.destroy()
+      this.bossNameText = null
     }
     
     // Victory message

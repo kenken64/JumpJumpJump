@@ -1,6 +1,8 @@
 from fastapi import FastAPI, HTTPException, Security, Header
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import APIKeyHeader
+from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 from typing import List, Optional
 import sqlite3
@@ -76,31 +78,38 @@ def init_db():
         )
     """)
     
-    # Insert boss data if not exists (16 bosses from 4x4 spritesheet)
+    # Insert boss data if not exists (22 bosses from individual images)
     cursor.execute("SELECT COUNT(*) FROM bosses")
     if cursor.fetchone()[0] == 0:
         boss_names = [
             ("Vortex Reaper", "The Dimensional Destroyer"),
-            ("Nebula Tyrant", "Cosmic Annihilator"),
-            ("Quantum Phantom", "Master of Reality Collapse"),
-            ("Crimson Void", "The Blood Star"),
-            ("Eclipse Warden", "Shadow of Oblivion"),
-            ("Stellar Juggernaut", "Planet Crusher"),
-            ("Chrono Scourge", "Time's End"),
-            ("Nova Hellion", "The Supernova Beast"),
-            ("Celestial Nightmare", "Harbinger of Chaos"),
-            ("Void Leviathan", "The Abyss Walker"),
-            ("Galactic Sentinel", "Guardian of the Dark"),
-            ("Plasma Overlord", "Emperor of Destruction"),
-            ("Astral Devourer", "Consumer of Worlds"),
-            ("Omega Colossus", "The Final Terror"),
-            ("Infinity Bane", "Eternal Nemesis"),
-            ("Genesis Titan", "The First Destroyer")
+            ("Nebula Dragon", "Cosmic Annihilator"),
+            ("Quantum Mech", "Master of Reality"),
+            ("Steel Colossus", "The Iron Tyrant"),
+            ("Inferno Demon", "Harbinger of Flames"),
+            ("Wing Commander", "Sky Dominator"),
+            ("Titan Crusher", "Mountain Breaker"),
+            ("Void Sentinel", "Guardian of Darkness"),
+            ("Plasma King", "Emperor of Energy"),
+            ("Astral Behemoth", "Star Devourer"),
+            ("Eclipse Warlord", "Shadow Conqueror"),
+            ("Nova Juggernaut", "The Supernova Beast"),
+            ("Chrono Mech", "Time's End"),
+            ("Cyber Overlord", "Digital Destroyer"),
+            ("Omega Titan", "The Final Terror"),
+            ("Genesis Machine", "First of Many"),
+            ("Blade Knight", "Master of Combat"),
+            ("Fortress Prime", "The Unbreakable"),
+            ("Plasma Destroyer", "Energy Incarnate"),
+            ("Void Enforcer", "The Abyss Walker"),
+            ("Tentacle Horror", "Deep Space Terror"),
+            ("Ancient Evil", "Primordial Nightmare")
         ]
         
         for idx, (name, title) in enumerate(boss_names):
-            frame_x = (idx % 4) * 256
-            frame_y = (idx // 4) * 256
+            # Map to individual boss image files
+            frame_x = 0  # Not used for individual images
+            frame_y = 0  # Not used for individual images
             cursor.execute("""
                 INSERT INTO bosses (boss_index, boss_name, notorious_title, frame_x, frame_y)
                 VALUES (?, ?, ?, ?, ?)
@@ -141,6 +150,7 @@ class Boss(BaseModel):
     notorious_title: str
     frame_x: int
     frame_y: int
+    image_url: Optional[str] = None
 
 # API Endpoints
 @app.get("/")
@@ -304,7 +314,7 @@ def get_score_rank(score: int, game_mode: Optional[str] = None, api_key: str = S
 
 @app.get("/api/bosses", response_model=List[Boss])
 def get_all_bosses(api_key: str = Security(verify_api_key)):
-    """Get all boss data from the database"""
+    """Get all boss data from the database with individual image URLs"""
     try:
         conn = sqlite3.connect(DB_PATH)
         cursor = conn.cursor()
@@ -318,14 +328,39 @@ def get_all_bosses(api_key: str = Security(verify_api_key)):
         rows = cursor.fetchall()
         conn.close()
         
-        return [Boss(
-            id=row[0],
-            boss_index=row[1],
-            boss_name=row[2],
-            notorious_title=row[3],
-            frame_x=row[4],
-            frame_y=row[5]
-        ) for row in rows]
+        # Map to individual boss images
+        bosses = []
+        for row in rows:
+            boss_index = row[1]
+            boss = Boss(
+                id=row[0],
+                boss_index=boss_index,
+                boss_name=row[2],
+                notorious_title=row[3],
+                frame_x=row[4],
+                frame_y=row[5],
+                image_url=f"/api/bosses/images/{boss_index:02d}"
+            )
+            bosses.append(boss)
+        
+        return bosses
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/api/bosses/images/{boss_index}")
+def get_boss_image(boss_index: int):
+    """Serve individual boss image by index"""
+    try:
+        # Path to individual boss images
+        boss_images_dir = os.path.join(os.path.dirname(__file__), "..", "frontend", "assets", "bosses_individual")
+        image_path = os.path.join(boss_images_dir, f"boss_{boss_index:02d}.png")
+        
+        if not os.path.exists(image_path):
+            raise HTTPException(status_code=404, detail=f"Boss image {boss_index} not found")
+        
+        return FileResponse(image_path, media_type="image/png")
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 

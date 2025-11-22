@@ -22,11 +22,11 @@ export default class BossGalleryScene extends Phaser.Scene {
     this.currentPage = 0
     this.bossCards = []
     
-    // Always reload the spritesheet to ensure it's available
-    this.load.spritesheet('geminiBoss', '/assets/gemini-boss-spritesheet.png', {
-      frameWidth: 256,
-      frameHeight: 256
-    })
+    // Load individual boss images (22 bosses)
+    for (let i = 0; i < 22; i++) {
+      const bossKey = `boss_${i.toString().padStart(2, '0')}`
+      this.load.image(bossKey, `/assets/bosses_individual/boss_${i.toString().padStart(2, '0')}.png`)
+    }
   }
 
   async create() {
@@ -137,9 +137,14 @@ export default class BossGalleryScene extends Phaser.Scene {
       card.setInteractive({ useHandCursor: true })
       this.bossCards.push(card)
 
-      // Boss sprite
-      const bossSprite = this.add.sprite(x, y - 30, 'geminiBoss', boss.boss_index)
-      bossSprite.setScale(0.7)
+      // Boss sprite using individual image
+      const bossKey = `boss_${boss.boss_index.toString().padStart(2, '0')}`
+      const bossSprite = this.add.image(x, y - 30, bossKey)
+      
+      // Scale to fit in the card (max 200px width/height)
+      const maxSize = 200
+      const scale = Math.min(maxSize / bossSprite.width, maxSize / bossSprite.height)
+      bossSprite.setScale(scale)
       this.bossCards.push(bossSprite)
 
       // Boss name
