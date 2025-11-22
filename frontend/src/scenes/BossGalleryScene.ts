@@ -200,9 +200,8 @@ export default class BossGalleryScene extends Phaser.Scene {
         line.strokePath()
         this.bossCards.push(line)
 
-        // Dim the boss sprite
+        // Dim the boss sprite and title only
         bossSprite.setAlpha(0.4)
-        nameText.setAlpha(0.5)
         titleText.setAlpha(0.5)
       }
 
