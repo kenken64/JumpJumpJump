@@ -1,5 +1,6 @@
 import Phaser from 'phaser'
 import { GameAPI } from '../services/api'
+import { MLAIPlayer } from '../utils/MLAIPlayer'
 
 export default class MenuScene extends Phaser.Scene {
   private coinCount: number = 0
@@ -1059,43 +1060,39 @@ export default class MenuScene extends Phaser.Scene {
         progressText.setVisible(true)
 
         try {
-          // Get the GameScene and its ML AI player
-          const gameScene = this.scene.get('GameScene') as any
-          if (gameScene && gameScene.getMLAIPlayer) {
-            const mlAI = gameScene.getMLAIPlayer()
-            
-            // Train with progress callbacks
-            await mlAI.train((epoch: number, logs: any) => {
-              progressFill.width = (600 * epoch) / 50
-              const loss = logs?.loss || logs?.['loss'] || 0
-              progressText.setText(`Epoch ${epoch}/50 - Loss: ${loss.toFixed(4)}`)
-            })
+          // Create a temporary ML AI player for training
+          // (we don't need the GameScene, MLAIPlayer can work independently)
+          const mlAI = new MLAIPlayer(this as any)
+          
+          // Train with progress callbacks
+          await mlAI.train((epoch: number, logs: any) => {
+            progressFill.width = (600 * epoch) / 50
+            const loss = logs?.loss || logs?.['loss'] || 0
+            progressText.setText(`Epoch ${epoch}/50 - Loss: ${loss.toFixed(4)}`)
+          })
 
-            trainButtonText.setText('TRAINING COMPLETE!')
-            trainButton.setFillStyle(0x00aa00)
-            progressText.setText('Training complete! Use O key to enable ML AI')
-            
-            // Auto-close after 3 seconds
-            this.time.delayedCall(3000, () => {
-              overlay.destroy()
-              panel.destroy()
-              title.destroy()
-              frameInfo.destroy()
-              statusText.destroy()
-              instructions.destroy()
-              progressBg.destroy()
-              progressFill.destroy()
-              progressText.destroy()
-              trainButton.destroy()
-              trainButtonText.destroy()
-              clearButton.destroy()
-              clearButtonText.destroy()
-              closeButton.destroy()
-              closeText.destroy()
-            })
-          } else {
-            throw new Error('Could not access ML AI player')
-          }
+          trainButtonText.setText('TRAINING COMPLETE!')
+          trainButton.setFillStyle(0x00aa00)
+          progressText.setText('Training complete! Use O key to enable ML AI')
+          
+          // Auto-close after 3 seconds
+          this.time.delayedCall(3000, () => {
+            overlay.destroy()
+            panel.destroy()
+            title.destroy()
+            frameInfo.destroy()
+            statusText.destroy()
+            instructions.destroy()
+            progressBg.destroy()
+            progressFill.destroy()
+            progressText.destroy()
+            trainButton.destroy()
+            trainButtonText.destroy()
+            clearButton.destroy()
+            clearButtonText.destroy()
+            closeButton.destroy()
+            closeText.destroy()
+          })
         } catch (error) {
           console.error('Training failed:', error)
           trainButtonText.setText('TRAINING FAILED')
