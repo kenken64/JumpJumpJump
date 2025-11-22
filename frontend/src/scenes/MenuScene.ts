@@ -338,7 +338,7 @@ export default class MenuScene extends Phaser.Scene {
     })
     
     // Tips section
-    const tipsY = 470
+    const tipsY = 450
     const tips = this.add.text(640, tipsY, 'TIPS:\n• Collect coins to buy weapons and skins in the shop\n• Power-ups: Speed (yellow), Shield (blue), Extra Life (green)\n• Boss fights appear every 5 levels\n• Use checkpoints to save your progress', {
       fontSize: '18px',
       color: '#aaaaaa',
@@ -348,8 +348,20 @@ export default class MenuScene extends Phaser.Scene {
     tips.setOrigin(0.5)
     tips.setDepth(102)
     
+    // Cheat codes section
+    const cheatsY = 560
+    const cheats = this.add.text(640, cheatsY, 'CHEAT CODES:\nF3: Toggle Debug Mode | F4: Jump to Boss Level | F5: Reset Defeated Bosses', {
+      fontSize: '16px',
+      color: '#ff6600',
+      align: 'center',
+      lineSpacing: 6,
+      fontStyle: 'italic'
+    })
+    cheats.setOrigin(0.5)
+    cheats.setDepth(102)
+    
     // Close button
-    const closeButton = this.add.rectangle(640, 600, 200, 50, 0x00aa00)
+    const closeButton = this.add.rectangle(640, 620, 200, 50, 0x00aa00)
     closeButton.setDepth(102)
     closeButton.setInteractive({ useHandCursor: true })
     closeButton.on('pointerover', () => closeButton.setFillStyle(0x00ff00))
@@ -360,6 +372,7 @@ export default class MenuScene extends Phaser.Scene {
       panel.destroy()
       title.destroy()
       tips.destroy()
+      cheats.destroy()
       closeButton.destroy()
       closeText.destroy()
       
@@ -367,7 +380,7 @@ export default class MenuScene extends Phaser.Scene {
       controlTexts.forEach(text => text.destroy())
     })
     
-    const closeText = this.add.text(640, 600, 'GOT IT!', {
+    const closeText = this.add.text(640, 620, 'GOT IT!', {
       fontSize: '24px',
       color: '#ffffff',
       fontStyle: 'bold'
