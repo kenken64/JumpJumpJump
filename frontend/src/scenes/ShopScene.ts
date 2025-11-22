@@ -163,7 +163,7 @@ export default class ShopScene extends Phaser.Scene {
         id: 'bazooka',
         name: 'Bazooka',
         type: 'weapon',
-        price: 100,
+        price: 200,
         icon: 'bazooka',
         description: 'Explosive rocket launcher with splash damage'
       },
