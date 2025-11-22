@@ -103,14 +103,14 @@ export default class LeaderboardScene extends Phaser.Scene {
     const startY = 200
     const lineHeight = 50
 
-    // Clear previous leaderboard display
+    // Clear previous leaderboard display including header
     this.children.each((child) => {
       if (child.getData('leaderboardItem')) {
         child.destroy()
       }
     })
 
-    // Header
+    // Header - must be recreated each time
     const header = this.add.text(150, startY, 'RANK   PLAYER                SCORE      LEVEL    MODE', {
       fontSize: '20px',
       color: '#ffaa00',
@@ -275,6 +275,7 @@ export default class LeaderboardScene extends Phaser.Scene {
     })
     pageText.setOrigin(0.5)
     pageText.setName('pageIndicator')
+    pageText.setData('leaderboardItem', true)
   }
 
   private updatePaginationButtons() {
@@ -293,11 +294,20 @@ export default class LeaderboardScene extends Phaser.Scene {
       this.nextButtonText.setAlpha(nextDisabled ? 0.5 : 1)
     }
 
-    // Update page indicator
-    const pageIndicator = this.children.getByName('pageIndicator') as Phaser.GameObjects.Text
-    if (pageIndicator) {
-      pageIndicator.setText(`Page ${this.currentPage} / ${totalPages}`)
+    // Update page indicator - destroy old one and create new one to ensure clean display
+    const oldPageIndicator = this.children.getByName('pageIndicator')
+    if (oldPageIndicator) {
+      oldPageIndicator.destroy()
     }
+    
+    const pageText = this.add.text(640, 580, `Page ${this.currentPage} / ${totalPages}`, {
+      fontSize: '20px',
+      color: '#ffffff',
+      fontStyle: 'bold'
+    })
+    pageText.setOrigin(0.5)
+    pageText.setName('pageIndicator')
+    pageText.setData('leaderboardItem', true)
   }
 
   private createBackButton() {
