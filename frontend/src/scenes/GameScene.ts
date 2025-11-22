@@ -2229,6 +2229,13 @@ export default class GameScene extends Phaser.Scene {
         aimX: worldPoint.x,
         aimY: worldPoint.y
       })
+      
+      // Update frame count display every 30 frames (~0.5 seconds at 60fps)
+      if (this.time.now % 500 < 20) {
+        const currentFrames = this.gameplayRecorder.getCurrentFrameCount()
+        const totalFrames = GameplayRecorder.getTrainingDataCount()
+        this.aiStatusText?.setText(`🎥 RECORDING (${currentFrames} frames this session, ${totalFrames} total)`)
+      }
     }
     
     // Update shield sprite position if active

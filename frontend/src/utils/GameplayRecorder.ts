@@ -67,6 +67,10 @@ export class GameplayRecorder {
     return this.isRecording
   }
 
+  public getCurrentFrameCount(): number {
+    return this.frames.length
+  }
+
   public recordFrame(currentTime: number, action: PlayerAction): void {
     if (!this.isRecording) return
     if (currentTime - this.lastRecordTime < this.recordInterval) return
