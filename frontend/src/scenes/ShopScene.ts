@@ -14,6 +14,15 @@ export default class ShopScene extends Phaser.Scene {
   private coinText!: Phaser.GameObjects.Text
   private shopItems: ShopItem[] = []
   private purchasedItems: Set<string> = new Set()
+  private currentPage: number = 0
+  private itemsPerPage: number = 6
+  private totalPages: number = 0
+  private shopCards: Phaser.GameObjects.GameObject[] = []
+  private pageText?: Phaser.GameObjects.Text
+  private prevButton?: Phaser.GameObjects.Rectangle
+  private nextButton?: Phaser.GameObjects.Rectangle
+  private prevButtonText?: Phaser.GameObjects.Text
+  private nextButtonText?: Phaser.GameObjects.Text
 
   constructor() {
     super('ShopScene')
@@ -22,6 +31,8 @@ export default class ShopScene extends Phaser.Scene {
   init(data: { coins?: number }) {
     this.coinCount = data.coins || this.loadCoins()
     this.loadPurchasedItems()
+    this.currentPage = 0
+    this.shopCards = []
   }
 
   preload() {
@@ -226,20 +237,48 @@ export default class ShopScene extends Phaser.Scene {
       this.scene.start('MenuScene')
     })
 
-    // Create shop grid
-    const startX = 200
-    const startY = 200
-    const spacing = 400
-    const rowSpacing = 250
+    // Calculate total pages
+    this.totalPages = Math.ceil(this.shopItems.length / this.itemsPerPage)
 
-    this.shopItems.forEach((item, index) => {
+    // Display first page
+    this.displayShopPage()
+
+    // Create pagination controls
+    this.createPaginationControls()
+  }
+
+  private displayShopPage() {
+    // Clear existing shop cards
+    this.shopCards.forEach(obj => obj.destroy())
+    this.shopCards = []
+
+    // Calculate which items to show
+    const startIndex = this.currentPage * this.itemsPerPage
+    const endIndex = Math.min(startIndex + this.itemsPerPage, this.shopItems.length)
+    const pageItems = this.shopItems.slice(startIndex, endIndex)
+
+    // Display items in a 3x2 grid (6 items per page)
+    const startX = 280
+    const startY = 220
+    const spacingX = 380
+    const spacingY = 280
+
+    pageItems.forEach((item, index) => {
       const col = index % 3
       const row = Math.floor(index / 3)
-      const x = startX + col * spacing
-      const y = startY + row * rowSpacing
+      const x = startX + col * spacingX
+      const y = startY + row * spacingY
 
       this.createShopItem(item, x, y)
     })
+
+    // Update page text
+    if (this.pageText && this.pageText.scene) {
+      this.pageText.setText(`Page ${this.currentPage + 1} / ${this.totalPages}`)
+    }
+
+    // Update button states
+    this.updateButtonStates()
   }
 
   private createShopItem(item: ShopItem, x: number, y: number) {
@@ -248,28 +287,32 @@ export default class ShopScene extends Phaser.Scene {
 
     // Item background
     const bg = this.add.rectangle(x, y, 120, 180, 0x2a2a3e, 0.8)
+    this.shopCards.push(bg)
 
     // Item icon
     const icon = this.add.image(x, y - 40, item.icon)
     icon.setScale(0.8)
     icon.displayHeight = Math.min(icon.displayHeight, 60)
     icon.scaleX = icon.scaleY
+    this.shopCards.push(icon)
 
     // Item name
-    this.add.text(x, y + 20, item.name, {
+    const nameText = this.add.text(x, y + 20, item.name, {
       fontSize: '16px',
       color: '#ffffff',
       fontStyle: 'bold',
       align: 'center'
     }).setOrigin(0.5)
+    this.shopCards.push(nameText)
 
     // Price or purchased status
     if (isPurchased) {
-      this.add.text(x, y + 60, 'OWNED', {
+      const ownedText = this.add.text(x, y + 60, 'OWNED', {
         fontSize: '18px',
         color: '#00ff00',
         fontStyle: 'bold'
       }).setOrigin(0.5)
+      this.shopCards.push(ownedText)
     } else {
       // Price display
       const priceContainer = this.add.container(x, y + 60)
@@ -280,11 +323,13 @@ export default class ShopScene extends Phaser.Scene {
         fontStyle: 'bold'
       }).setOrigin(0, 0.5)
       priceContainer.add([coinIcon, priceText])
+      this.shopCards.push(priceContainer)
 
       // Buy button
       const buttonColor = canAfford ? 0x00aa00 : 0x444444
       const buyButton = this.add.rectangle(x, y + 60, 100, 30, buttonColor)
         .setInteractive({ useHandCursor: canAfford })
+      this.shopCards.push(buyButton)
 
       if (canAfford) {
         buyButton
@@ -293,11 +338,12 @@ export default class ShopScene extends Phaser.Scene {
           .on('pointerdown', () => this.purchaseItem(item))
       }
 
-      this.add.text(x, y + 60, 'BUY', {
+      const buyText = this.add.text(x, y + 60, 'BUY', {
         fontSize: '16px',
         color: canAfford ? '#ffffff' : '#666666',
         fontStyle: 'bold'
       }).setOrigin(0.5)
+      this.shopCards.push(buyText)
     }
 
     // Description tooltip on hover
@@ -336,6 +382,110 @@ export default class ShopScene extends Phaser.Scene {
     }
   }
 
+  private createPaginationControls() {
+    // Clear existing pagination elements if they exist
+    if (this.pageText && this.pageText.scene) {
+      this.pageText.destroy()
+    }
+    this.pageText = undefined
+    
+    if (this.prevButton && this.prevButton.scene) {
+      this.prevButton.destroy()
+    }
+    this.prevButton = undefined
+    
+    if (this.prevButtonText && this.prevButtonText.scene) {
+      this.prevButtonText.destroy()
+    }
+    this.prevButtonText = undefined
+    
+    if (this.nextButton && this.nextButton.scene) {
+      this.nextButton.destroy()
+    }
+    this.nextButton = undefined
+    
+    if (this.nextButtonText && this.nextButtonText.scene) {
+      this.nextButtonText.destroy()
+    }
+    this.nextButtonText = undefined
+    
+    // Page indicator
+    this.pageText = this.add.text(640, 630, `Page ${this.currentPage + 1} / ${this.totalPages}`, {
+      fontSize: '24px',
+      color: '#ffffff',
+      fontStyle: 'bold'
+    })
+    this.pageText.setOrigin(0.5)
+
+    // Previous button
+    this.prevButton = this.add.rectangle(400, 630, 150, 50, 0x333333)
+    this.prevButton.setInteractive({ useHandCursor: true })
+    this.prevButton.on('pointerover', () => this.prevButton!.setFillStyle(0x555555))
+    this.prevButton.on('pointerout', () => this.prevButton!.setFillStyle(0x333333))
+    this.prevButton.on('pointerdown', () => {
+      if (this.currentPage > 0) {
+        this.currentPage--
+        this.displayShopPage()
+      }
+    })
+
+    this.prevButtonText = this.add.text(400, 630, '◀ PREV', {
+      fontSize: '20px',
+      color: '#ffffff',
+      fontStyle: 'bold'
+    })
+    this.prevButtonText.setOrigin(0.5)
+
+    // Next button
+    this.nextButton = this.add.rectangle(880, 630, 150, 50, 0x333333)
+    this.nextButton.setInteractive({ useHandCursor: true })
+    this.nextButton.on('pointerover', () => this.nextButton!.setFillStyle(0x555555))
+    this.nextButton.on('pointerout', () => this.nextButton!.setFillStyle(0x333333))
+    this.nextButton.on('pointerdown', () => {
+      if (this.currentPage < this.totalPages - 1) {
+        this.currentPage++
+        this.displayShopPage()
+      }
+    })
+
+    this.nextButtonText = this.add.text(880, 630, 'NEXT ▶', {
+      fontSize: '20px',
+      color: '#ffffff',
+      fontStyle: 'bold'
+    })
+    this.nextButtonText.setOrigin(0.5)
+
+    // Update button states after controls are created
+    this.updateButtonStates()
+  }
+
+  private updateButtonStates() {
+    // Update button states based on current page
+    if (this.prevButton && this.prevButton.scene) {
+      if (this.currentPage === 0) {
+        this.prevButton.setAlpha(0.3)
+        if (this.prevButtonText) this.prevButtonText.setAlpha(0.3)
+        this.prevButton.disableInteractive()
+      } else {
+        this.prevButton.setAlpha(1)
+        if (this.prevButtonText) this.prevButtonText.setAlpha(1)
+        this.prevButton.setInteractive({ useHandCursor: true })
+      }
+    }
+
+    if (this.nextButton && this.nextButton.scene) {
+      if (this.currentPage === this.totalPages - 1) {
+        this.nextButton.setAlpha(0.3)
+        if (this.nextButtonText) this.nextButtonText.setAlpha(0.3)
+        this.nextButton.disableInteractive()
+      } else {
+        this.nextButton.setAlpha(1)
+        if (this.nextButtonText) this.nextButtonText.setAlpha(1)
+        this.nextButton.setInteractive({ useHandCursor: true })
+      }
+    }
+  }
+
   private purchaseItem(item: ShopItem) {
     if (this.coinCount >= item.price && !this.purchasedItems.has(item.id)) {
       this.coinCount -= item.price
@@ -363,8 +513,8 @@ export default class ShopScene extends Phaser.Scene {
         onComplete: () => successText.destroy()
       })
 
-      // Refresh shop display
-      this.scene.restart({ coins: this.coinCount })
+      // Refresh current page display
+      this.displayShopPage()
     }
   }
 
