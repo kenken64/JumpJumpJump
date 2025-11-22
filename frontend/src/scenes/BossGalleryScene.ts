@@ -169,22 +169,64 @@ export default class BossGalleryScene extends Phaser.Scene {
       titleText.setOrigin(0.5)
       this.bossCards.push(titleText)
 
+      // Check if this boss has been defeated
+      const playerName = localStorage.getItem('player_name') || 'Guest'
+      const defeatedKey = `${playerName}_boss_${boss.boss_index}`
+      const isDefeated = localStorage.getItem(defeatedKey) === 'defeated'
+
+      if (isDefeated) {
+        // Add defeated overlay
+        const defeatedOverlay = this.add.rectangle(x, y, 240, 240, 0x000000, 0.6)
+        this.bossCards.push(defeatedOverlay)
+
+        // Add "DEFEATED" text with strikethrough effect
+        const defeatedText = this.add.text(x, y, 'DEFEATED', {
+          fontSize: '32px',
+          color: '#00ff00',
+          fontStyle: 'bold',
+          stroke: '#000000',
+          strokeThickness: 4
+        })
+        defeatedText.setOrigin(0.5)
+        defeatedText.setRotation(-0.2) // Slight angle for stamp effect
+        this.bossCards.push(defeatedText)
+
+        // Add diagonal strikethrough line
+        const line = this.add.graphics()
+        line.lineStyle(4, 0x00ff00, 1)
+        line.beginPath()
+        line.moveTo(x - 80, y - 40)
+        line.lineTo(x + 80, y + 40)
+        line.strokePath()
+        this.bossCards.push(line)
+
+        // Dim the boss sprite
+        bossSprite.setAlpha(0.4)
+        nameText.setAlpha(0.5)
+        titleText.setAlpha(0.5)
+      }
+
       // Hover effect
       card.on('pointerover', () => {
-        card.setFillStyle(0x222222, 0.9)
-        bossSprite.setScale(0.75)
-        this.tweens.add({
-          targets: bossSprite,
-          angle: 360,
-          duration: 500,
-          ease: 'Power2'
-        })
+        if (!isDefeated) {
+          card.setFillStyle(0x222222, 0.9)
+          const newScale = scale * 1.1
+          bossSprite.setScale(newScale)
+          this.tweens.add({
+            targets: bossSprite,
+            angle: 360,
+            duration: 500,
+            ease: 'Power2'
+          })
+        }
       })
 
       card.on('pointerout', () => {
-        card.setFillStyle(0x111111, 0.8)
-        bossSprite.setScale(0.7)
-        bossSprite.setAngle(0)
+        if (!isDefeated) {
+          card.setFillStyle(0x111111, 0.8)
+          bossSprite.setScale(scale)
+          bossSprite.setAngle(0)
+        }
       })
     })
 
