@@ -229,6 +229,22 @@ export default class MenuScene extends Phaser.Scene {
     })
     tutorialText.setOrigin(0.5)
     
+    // Create Credits Button (bottom right, above Settings)
+    const creditsButton = this.add.rectangle(1150, 600, 150, 40, 0x444444)
+    creditsButton.setInteractive({ useHandCursor: true })
+    creditsButton.on('pointerover', () => creditsButton.setFillStyle(0x666666))
+    creditsButton.on('pointerout', () => creditsButton.setFillStyle(0x444444))
+    creditsButton.on('pointerdown', () => {
+      this.scene.start('CreditScene')
+    })
+    
+    const creditsText = this.add.text(1150, 600, 'CREDITS', {
+      fontSize: '18px',
+      color: '#ffffff',
+      fontStyle: 'bold'
+    })
+    creditsText.setOrigin(0.5)
+    
     // Create Settings Button (bottom right, above API status)
     const settingsButton = this.add.rectangle(1150, 650, 150, 40, 0x444444)
     settingsButton.setInteractive({ useHandCursor: true })
