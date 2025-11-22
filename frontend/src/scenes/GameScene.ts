@@ -100,6 +100,12 @@ export default class GameScene extends Phaser.Scene {
   // ML AI Player
   private mlAIPlayer!: MLAIPlayer
   private mlAIEnabled: boolean = false
+  private mlAIDecision: { moveLeft: boolean; moveRight: boolean; jump: boolean; shoot: boolean } = { 
+    moveLeft: false, 
+    moveRight: false, 
+    jump: false, 
+    shoot: false 
+  }
   private gameplayRecorder!: GameplayRecorder
   private isRecording: boolean = false
 
@@ -2408,18 +2414,22 @@ export default class GameScene extends Phaser.Scene {
       aiRight = aiDecision.moveRight
       aiJump = aiDecision.jump
     } else if (this.mlAIEnabled) {
-      // Use ML AI (async, so we'll get it in the update loop)
+      // Use ML AI decision from stored state (updated asynchronously)
+      aiLeft = this.mlAIDecision.moveLeft
+      aiRight = this.mlAIDecision.moveRight
+      aiJump = this.mlAIDecision.jump
+      
+      // Update ML AI decision asynchronously for next frame
       this.mlAIPlayer.getDecision().then(aiDecision => {
-        // ML AI decisions will be applied next frame
-        aiLeft = aiDecision.moveLeft
-        aiRight = aiDecision.moveRight
-        aiJump = aiDecision.jump
+        this.mlAIDecision = aiDecision
+      }).catch(error => {
+        console.error('ML AI decision error:', error)
       })
     }
     
     // Get gamepad input (only if input method is gamepad and AI is disabled)
     const controlSettings = ControlManager.getControlSettings()
-    const useGamepad = !this.aiEnabled && controlSettings.inputMethod === 'gamepad'
+    const useGamepad = !this.aiEnabled && !this.mlAIEnabled && controlSettings.inputMethod === 'gamepad'
     
     let gamepadLeft = false
     let gamepadRight = false
@@ -2453,8 +2463,8 @@ export default class GameScene extends Phaser.Scene {
 
     // Horizontal movement (A/D or Arrow keys or Gamepad or AI)
     const moveSpeed = this.debugMode ? speed * 2 : speed  // 2x speed in debug mode
-    const keyboardLeft = !this.aiEnabled && !useGamepad && (this.wasd.a.isDown || this.cursors.left!.isDown)
-    const keyboardRight = !this.aiEnabled && !useGamepad && (this.wasd.d.isDown || this.cursors.right!.isDown)
+    const keyboardLeft = !this.aiEnabled && !this.mlAIEnabled && !useGamepad && (this.wasd.a.isDown || this.cursors.left!.isDown)
+    const keyboardRight = !this.aiEnabled && !this.mlAIEnabled && !useGamepad && (this.wasd.d.isDown || this.cursors.right!.isDown)
     
     if (keyboardLeft || gamepadLeft || aiLeft) {
       this.player.setVelocityX(-moveSpeed)
@@ -2489,9 +2499,9 @@ export default class GameScene extends Phaser.Scene {
     this.player.setData('wasAIJumpPressed', aiJump)
 
     // Jump (W or Up arrow or Gamepad button or AI) - or fly up in debug mode
-    const keyboardJump = !this.aiEnabled && !useGamepad && (Phaser.Input.Keyboard.JustDown(this.wasd.w) || Phaser.Input.Keyboard.JustDown(this.cursors.up!))
+    const keyboardJump = !this.aiEnabled && !this.mlAIEnabled && !useGamepad && (Phaser.Input.Keyboard.JustDown(this.wasd.w) || Phaser.Input.Keyboard.JustDown(this.cursors.up!))
     
-    if (this.debugMode && !this.aiEnabled && !useGamepad && this.wasd.w.isDown) {
+    if (this.debugMode && !this.aiEnabled && !this.mlAIEnabled && !useGamepad && this.wasd.w.isDown) {
       // Debug flight mode - fly up
       this.player.setVelocityY(-400)
     } else if (isJetpacking) {
@@ -3334,6 +3344,8 @@ export default class GameScene extends Phaser.Scene {
     if (this.aiEnabled) {
       const aiDecision = this.aiPlayer.getDecision(this.time.now)
       aiShoot = aiDecision.shoot
+    } else if (this.mlAIEnabled) {
+      aiShoot = this.mlAIDecision.shoot
     }
     
     // Check gamepad shoot button from mapping
@@ -3366,7 +3378,7 @@ export default class GameScene extends Phaser.Scene {
     }
     
     // Check for mouse button press or gamepad shoot button or AI shoot
-    const mouseShoot = !this.aiEnabled && !useGamepad && pointer.isDown
+    const mouseShoot = !this.aiEnabled && !this.mlAIEnabled && !useGamepad && pointer.isDown
     if ((mouseShoot || gamepadShoot || aiShoot) && currentTime - this.lastShotTime > shootCooldown) {
       this.lastShotTime = currentTime
       
