@@ -42,6 +42,21 @@ export class MLAIPlayer {
     // Convert state to tensor
     const stateTensor = this.stateToTensor(state)
     
+    // Verify tensor shape matches model (should be 17 features)
+    const inputShape = this.model.inputs[0].shape
+    const expectedFeatures = inputShape[1] as number
+    const actualFeatures = stateTensor.shape[1]
+    
+    if (actualFeatures !== expectedFeatures) {
+      console.error(`❌ ML AI MODEL MISMATCH! Expected ${expectedFeatures} features, got ${actualFeatures}`)
+      console.error('🔄 Please retrain the model with new data!')
+      console.error('   1. Clear old data: localStorage.removeItem("ml_training_data"); localStorage.removeItem("ml_model")')
+      console.error('   2. Record new gameplay (R key)')
+      console.error('   3. Train in menu (needs 100+ frames)')
+      stateTensor.dispose()
+      throw new Error('Model feature mismatch - retrain required')
+    }
+    
     // Predict action
     const prediction = this.model.predict(stateTensor) as tf.Tensor
     const actionData = await prediction.data()
@@ -418,6 +433,22 @@ export class MLAIPlayer {
   private async loadModel(): Promise<void> {
     try {
       this.model = await tf.loadLayersModel('localstorage://ml-ai-model')
+      
+      // Check if loaded model has correct input shape (17 features)
+      const inputShape = this.model.inputs[0].shape
+      const expectedFeatures = 17
+      const modelFeatures = inputShape[1] as number
+      
+      if (modelFeatures !== expectedFeatures) {
+        console.warn(`⚠️ Loaded model expects ${modelFeatures} features, but current version needs ${expectedFeatures}`)
+        console.warn('🔄 Model incompatible with new features. Clearing old model...')
+        this.model = null
+        await tf.io.removeModel('localstorage://ml-ai-model')
+        localStorage.removeItem('ml-model-metadata')
+        console.log('✅ Old model cleared. Please train a new model with updated features.')
+        return
+      }
+      
       console.log('✅ ML model loaded from storage')
     } catch (error) {
       console.log('ℹ️ No saved model found. Train a new model to use ML AI.')
