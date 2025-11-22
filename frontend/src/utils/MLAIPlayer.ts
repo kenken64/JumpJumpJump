@@ -51,27 +51,23 @@ export class MLAIPlayer {
     prediction.dispose()
 
     // Convert prediction to action (4 outputs: moveLeft, moveRight, jump, shoot)
-    // Use adaptive threshold: pick the action with highest confidence if > 0.25
     const [left, right, jump, shoot] = Array.from(actionData)
     
-    // For movement, choose the direction with higher confidence
-    const moveThreshold = 0.25
+    // Very low thresholds - be aggressive with actions
     const decision = {
-      moveLeft: left > moveThreshold && left > right,
-      moveRight: right > moveThreshold && right > left,
-      jump: jump > 0.3,  // Jump needs higher confidence
-      shoot: shoot > 0.3, // Shoot needs higher confidence
+      moveLeft: left > 0.15 && left > right,  // Move if any slight preference
+      moveRight: right > 0.15 && right > left,
+      jump: jump > 0.2,  // Jump more easily - critical for gameplay!
+      shoot: shoot > 0.25,
       aimX: 0,
       aimY: 0
     }
     
-    // Debug logging every 60 frames (~1 second at 60fps)
-    if (Math.random() < 0.016) {
-      console.log('ML AI prediction:', {
-        raw: [left.toFixed(3), right.toFixed(3), jump.toFixed(3), shoot.toFixed(3)],
-        decision: `L:${decision.moveLeft} R:${decision.moveRight} J:${decision.jump} S:${decision.shoot}`
-      })
-    }
+    // Always log predictions to see what's happening
+    console.log('ML AI prediction:', {
+      raw: `L:${left.toFixed(3)} R:${right.toFixed(3)} J:${jump.toFixed(3)} S:${shoot.toFixed(3)}`,
+      decision: `L:${decision.moveLeft} R:${decision.moveRight} J:${decision.jump} S:${decision.shoot}`
+    })
     
     return decision
   }
@@ -300,6 +296,25 @@ export class MLAIPlayer {
   private prepareTrainingData(frames: GameplayFrame[]): { inputs: tf.Tensor, outputs: tf.Tensor } {
     const states: number[][] = []
     const actions: number[][] = []
+    
+    // Count action frequencies for class balancing
+    let jumpCount = 0
+    let leftCount = 0
+    let rightCount = 0
+    
+    for (const frame of frames) {
+      if (frame.action.jump) jumpCount++
+      if (frame.action.moveLeft) leftCount++
+      if (frame.action.moveRight) rightCount++
+    }
+    
+    console.log('📊 Training data distribution:', {
+      total: frames.length,
+      jump: jumpCount,
+      left: leftCount,
+      right: rightCount,
+      jumpRate: (jumpCount / frames.length * 100).toFixed(1) + '%'
+    })
 
     for (const frame of frames) {
       // Convert state to array
@@ -331,6 +346,14 @@ export class MLAIPlayer {
 
       states.push(stateArray)
       actions.push(actionArray)
+      
+      // Augment jump frames (duplicate them to balance classes)
+      if (frame.action.jump && jumpCount < frames.length * 0.3) {
+        // Add duplicate with slight noise to increase jump representation
+        const noisyState = stateArray.map(v => v + (Math.random() - 0.5) * 0.01)
+        states.push(noisyState)
+        actions.push(actionArray)
+      }
     }
 
     return {
