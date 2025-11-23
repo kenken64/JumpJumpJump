@@ -4485,16 +4485,14 @@ export default class GameScene extends Phaser.Scene {
     this.debugMode = !this.debugMode
     console.log('Debug mode toggled:', this.debugMode)
     
-    // Toggle debug graphics
+    // Toggle debug text only (not physics hitboxes)
     if (this.debugMode) {
-      this.physics.world.createDebugGraphic()
+      // Show debug text but NOT physics bodies
       this.debugText?.setVisible(true)
       this.fpsText?.setVisible(true)
       this.coordText?.setVisible(true)
-      console.log('Debug mode enabled - showing physics bodies')
+      console.log('Debug mode enabled - showing debug info (physics bodies disabled)')
     } else {
-      this.physics.world.debugGraphic?.clear()
-      this.physics.world.debugGraphic?.destroy()
       this.debugText?.setVisible(false)
       this.fpsText?.setVisible(false)
       this.coordText?.setVisible(false)
