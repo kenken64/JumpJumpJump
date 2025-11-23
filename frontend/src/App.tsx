@@ -36,6 +36,10 @@ function App() {
         input: {
           gamepad: true
         },
+        loader: {
+          crossOrigin: 'anonymous',
+          maxParallelDownloads: 10
+        },
         scene: [MenuScene, GameScene, ShopScene, LeaderboardScene, InventoryScene, BossGalleryScene, CreditScene],
         scale: {
           mode: Phaser.Scale.FIT,
