@@ -20,13 +20,23 @@ export class MusicManager {
     const musicEnabled = localStorage.getItem('musicEnabled') !== 'false'
     const musicVolume = parseFloat(localStorage.getItem('musicVolume') || '0.5')
     
+    // Check if gameMusic exists in cache before playing
+    if (!this.scene.cache.audio.exists('gameMusic')) {
+      console.warn('⚠️ Game music not found in cache. Music disabled.')
+      return
+    }
+    
     // Play game music if enabled
     if (musicEnabled) {
-      this.gameMusic = this.scene.sound.add('gameMusic', { 
-        loop: true, 
-        volume: musicVolume 
-      })
-      this.gameMusic.play()
+      try {
+        this.gameMusic = this.scene.sound.add('gameMusic', { 
+          loop: true, 
+          volume: musicVolume 
+        })
+        this.gameMusic.play()
+      } catch (error) {
+        console.error('❌ Failed to play game music:', error)
+      }
     }
   }
 
