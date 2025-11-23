@@ -1364,10 +1364,11 @@ export default class MenuScene extends Phaser.Scene {
 
         if (gamepadCount === 0) {
           const helpText = this.add.text(640, startY + lineHeight + 20,
-            'Please connect a gamepad and press any button', {
-            fontSize: '16px',
-            color: '#aaaaaa',
-            align: 'center'
+            'Press any button on your gamepad to detect it', {
+            fontSize: '18px',
+            color: '#ffaa00',
+            align: 'center',
+            fontStyle: 'bold'
           })
           helpText.setOrigin(0.5)
           helpText.setDepth(102)
