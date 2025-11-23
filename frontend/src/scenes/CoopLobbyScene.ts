@@ -58,6 +58,9 @@ export default class CoopLobbyScene extends Phaser.Scene {
     // Gamepad plugin is already initialized via game config
     // Just log if it's available
 
+    // Initial gamepad check
+    this.updateGamepadAssignments()
+
     // Listen for gamepad connections
     this.input.gamepad?.on('connected', (pad: Phaser.Input.Gamepad.Gamepad) => {
       console.log(`Gamepad ${pad.index} connected`)
@@ -273,6 +276,19 @@ export default class CoopLobbyScene extends Phaser.Scene {
   }
 
   update(): void {
+    // Poll for gamepad changes every frame (browser requires button press to activate)
+    const gamepads = this.input.gamepad?.gamepads || []
+    const activeGamepads = gamepads.filter(gp => gp !== null && gp !== undefined)
+
+    // Check if gamepad count changed
+    const currentP1 = activeGamepads.length > 0 ? activeGamepads[0] : null
+    const currentP2 = activeGamepads.length > 1 ? activeGamepads[1] : null
+
+    if (currentP1 !== this.player1Gamepad || currentP2 !== this.player2Gamepad) {
+      console.log('🎮 Gamepad state changed, updating assignments...')
+      this.updateGamepadAssignments()
+    }
+
     // Check for gamepad input to mark players as ready
     if (this.player1Gamepad && !this.coopManager.getPlayer1State().isReady) {
       if (this.player1Gamepad.A) {
