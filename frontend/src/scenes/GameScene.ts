@@ -304,7 +304,13 @@ export default class GameScene extends Phaser.Scene {
     const equippedWeapon = localStorage.getItem('equippedWeapon')
     const equippedSkin = localStorage.getItem('equippedSkin')
     this.equippedWeapon = equippedWeapon || 'raygun'
-    this.equippedSkin = equippedSkin || 'alienBeige'
+
+    // Override skin in co-op mode
+    if (this.isCoopMode) {
+      this.equippedSkin = 'alienGreen' // Player 1 uses green alien in co-op
+    } else {
+      this.equippedSkin = equippedSkin || 'alienBeige'
+    }
 
     // Initialize power-up state
     this.hasSpeedBoost = false
