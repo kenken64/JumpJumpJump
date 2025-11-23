@@ -207,8 +207,12 @@ export default class CoopLobbyScene extends Phaser.Scene {
   private updateGamepadAssignments(): void {
     const gamepads = this.input.gamepad?.gamepads || []
 
-    this.player1Gamepad = gamepads.length > 0 ? gamepads[0] : null
-    this.player2Gamepad = gamepads.length > 1 ? gamepads[1] : null
+    // Filter out null gamepads and get only active ones
+    const activeGamepads = gamepads.filter(gp => gp !== null && gp !== undefined)
+
+    // Assign first two active gamepads to players
+    this.player1Gamepad = activeGamepads.length > 0 ? activeGamepads[0] : null
+    this.player2Gamepad = activeGamepads.length > 1 ? activeGamepads[1] : null
 
     // Update player 1 indicator
     if (this.player1Indicator) {
@@ -219,7 +223,8 @@ export default class CoopLobbyScene extends Phaser.Scene {
         statusText.setText('CONNECTED')
         statusText.setColor('#00ff00')
         gamepadIcon.setAlpha(1)
-        this.coopManager.updatePlayerState(1, { gamepadIndex: 0 })
+        // Use actual gamepad index
+        this.coopManager.updatePlayerState(1, { gamepadIndex: this.player1Gamepad.index })
       } else {
         statusText.setText('WAITING...')
         statusText.setColor('#888888')
@@ -237,7 +242,8 @@ export default class CoopLobbyScene extends Phaser.Scene {
         statusText.setText('CONNECTED')
         statusText.setColor('#00ffff')
         gamepadIcon.setAlpha(1)
-        this.coopManager.updatePlayerState(2, { gamepadIndex: 1 })
+        // Use actual gamepad index
+        this.coopManager.updatePlayerState(2, { gamepadIndex: this.player2Gamepad.index })
       } else {
         statusText.setText('WAITING...')
         statusText.setColor('#888888')
