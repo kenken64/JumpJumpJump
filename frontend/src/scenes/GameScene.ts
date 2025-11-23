@@ -3162,7 +3162,7 @@ export default class GameScene extends Phaser.Scene {
     panel.setDepth(2001)
     
     // Game over title
-    const gameOverText = this.add.text(640, 180, 'GAME OVER', {
+    const gameOverText = this.add.text(640, 150, 'GAME OVER', {
       fontSize: '64px',
       color: '#ff0000',
       fontStyle: 'bold',
@@ -3174,7 +3174,7 @@ export default class GameScene extends Phaser.Scene {
     gameOverText.setDepth(2002)
     
     // Stats
-    const statsText = this.add.text(640, 280, 
+    const statsText = this.add.text(640, 300, 
       `Level: ${this.currentLevel}\nScore: ${this.score}\nCoins: ${this.coinCount}\nEnemies: ${this.enemiesDefeated}\nDistance: ${Math.floor(this.player.x / 70)}m`, {
       fontSize: '28px',
       color: '#ffffff',
