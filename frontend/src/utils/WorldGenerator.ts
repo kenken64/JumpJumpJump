@@ -151,11 +151,11 @@ export class WorldGenerator {
             plat.setOrigin(0.5, 0.5)
             this.scene.physics.add.existing(plat, true)
             const body = plat.body as Phaser.Physics.Arcade.StaticBody
-            // Thin platform hitbox - reduced size for better gameplay feel
-            const hitboxWidth = plat.width * 0.8  // Reduced to 80% to match visual better
-            const hitboxHeight = plat.height * 0.3  // Reduced to 30% for thinner collision
+            // Floating platform hitbox - larger for easier landing
+            const hitboxWidth = plat.width * 0.9  // 90% width
+            const hitboxHeight = plat.height * 0.5  // 50% height for good landing surface
             body.setSize(hitboxWidth, hitboxHeight)
-            // Align hitbox to TOP of platform sprite (no vertical offset from center)
+            // Align hitbox to TOP of platform sprite
             body.setOffset((plat.width - hitboxWidth) / 2, 0)
             body.updateFromGameObject()
             this.platforms.add(plat)
@@ -188,11 +188,11 @@ export class WorldGenerator {
             step.setOrigin(0.5, 0.5)
             this.scene.physics.add.existing(step, true)
             const body = step.body as Phaser.Physics.Arcade.StaticBody
-            // Thin platform hitbox - reduced size for better gameplay feel
-            const hitboxWidth = step.width * 0.8  // Reduced to 80% to match visual better
-            const hitboxHeight = step.height * 0.3  // Reduced to 30% for thinner collision
+            // Staircase platform hitbox - larger for easier climbing
+            const hitboxWidth = step.width * 0.9  // 90% width
+            const hitboxHeight = step.height * 0.5  // 50% height for good landing surface
             body.setSize(hitboxWidth, hitboxHeight)
-            // Align hitbox to TOP of platform sprite (no vertical offset from center)
+            // Align hitbox to TOP of platform sprite
             body.setOffset((step.width - hitboxWidth) / 2, 0)
             body.updateFromGameObject()
             this.platforms.add(step)
