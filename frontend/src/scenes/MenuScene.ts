@@ -1258,20 +1258,21 @@ export default class MenuScene extends Phaser.Scene {
       const getGamepadCount = (silent: boolean = true): number => {
         if (!this.input.gamepad) return 0
 
-        // Check browser's native gamepad API
+        // Check browser's native gamepad API and filter out nulls
         const nativeGamepads = navigator.getGamepads ? navigator.getGamepads() : []
-        let count = 0
-        for (const gp of nativeGamepads) {
-          if (gp !== null) count++
-        }
+        const activeGamepads = Array.from(nativeGamepads).filter(gp => gp !== null && gp !== undefined)
+        const count = activeGamepads.length
 
         if (!silent) {
-          console.log(`🎮 Native gamepad count: ${count}`)
-          console.log(`🎮 Phaser gamepad total: ${this.input.gamepad.total}`)
+          console.log(`🎮 Active gamepad count: ${count}`)
+          if (count > 0) {
+            activeGamepads.forEach((gp) => {
+              console.log(`  - Gamepad at index ${gp!.index}: ${gp!.id}`)
+            })
+          }
         }
 
-        // Use the higher of the two counts
-        return Math.max(count, this.input.gamepad.total)
+        return count
       }
 
       // Detect connected gamepads (verbose first check)
