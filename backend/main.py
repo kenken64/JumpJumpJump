@@ -28,9 +28,13 @@ async def verify_api_key(api_key: str = Security(api_key_header)):
 # Get allowed origins from environment variable or use defaults
 ALLOWED_ORIGINS = os.getenv("ALLOWED_ORIGINS", "http://localhost:3000,http://localhost:5173").split(",")
 
+# Allow all Railway domains for easier deployment
+if any(".railway.app" in origin for origin in ALLOWED_ORIGINS):
+    ALLOWED_ORIGINS.append("https://*.railway.app")
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=ALLOWED_ORIGINS,
+    allow_origins=["*"] if os.getenv("ALLOW_ALL_ORIGINS") == "true" else ALLOWED_ORIGINS,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
