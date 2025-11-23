@@ -37,8 +37,8 @@ export class DQNAgent {
     private readonly stateSize = 11
     private readonly actionSize = 9  // Expanded to include shooting actions
     private epsilon = 1.0
-    private readonly epsilonMin = 0.01
-    private readonly epsilonDecay = 0.995
+    private readonly epsilonMin = 0.05  // Keep more exploration
+    private readonly epsilonDecay = 0.998  // Slower decay
     private replayBuffer: Experience[] = []
     private readonly maxBufferSize = 10000
     private readonly minBufferSize = 100
@@ -52,7 +52,6 @@ export class DQNAgent {
     private framesSinceProgress = 0
     private alive = true
     private stuckCounter = 0
-    private lastAction = -1
 
     constructor(_scene: GameScene) {
         // Scene reference not used but kept for compatibility
@@ -142,29 +141,50 @@ export class DQNAgent {
         
         // Track if stuck moving right
         const isMovingRight = currentAction === 2 || currentAction === 4 || currentAction === 6 || currentAction === 8
+        const isJumping = currentAction === 3 || currentAction === 4 || currentAction === 8
+        
         if (isMovingRight && progress <= 0) {
             this.stuckCounter++
-            // If stuck moving right for too long, heavily penalize
-            if (this.stuckCounter > 30) {
-                reward -= 1.0  // Strong penalty to discourage being stuck
+            // Progressive penalties for being stuck
+            if (this.stuckCounter > 20) {
+                reward -= 2.0  // Very strong penalty
+            } else if (this.stuckCounter > 10) {
+                reward -= 0.5  // Medium penalty
             }
-        } else {
+        } else if (progress > 0) {
             this.stuckCounter = 0
+        } else if (!isMovingRight) {
+            // Reduce stuck counter when trying other actions
+            this.stuckCounter = Math.max(0, this.stuckCounter - 2)
         }
         
         // Reward forward progress
         if (progress > 0) {
-            reward += progress / 100
+            reward += progress / 50  // Increased progress reward
             this.framesSinceProgress = 0
-            this.stuckCounter = 0  // Reset stuck counter on progress
+            this.stuckCounter = 0
+            // Bonus for making progress while jumping
+            if (isJumping) {
+                reward += 0.1
+            }
         } else {
             this.framesSinceProgress++
-            if (this.framesSinceProgress > 60) {
-                reward -= 0.1
+            
+            // Escalating penalties for no progress
+            if (this.framesSinceProgress > 120) {
+                reward -= 0.5  // Severe penalty after 2 seconds
+            } else if (this.framesSinceProgress > 60) {
+                reward -= 0.2
             }
-            // If stuck for a while, reward trying different actions (left, jump)
-            if (this.framesSinceProgress > 30 && !isMovingRight) {
-                reward += 0.05  // Small bonus for exploring when stuck
+            
+            // Encourage exploration when stuck
+            if (this.framesSinceProgress > 20) {
+                if (!isMovingRight) {
+                    reward += 0.1  // Reward trying different actions
+                }
+                if (isJumping) {
+                    reward += 0.15  // Extra reward for jumping when stuck
+                }
             }
         }
         
@@ -175,7 +195,6 @@ export class DQNAgent {
         
         this.lastX = state.playerX
         this.lastScore = score
-        this.lastAction = currentAction
         return reward
     }
 
@@ -192,7 +211,6 @@ export class DQNAgent {
         this.lastScore = 0
         this.framesSinceProgress = 0
         this.stuckCounter = 0
-        this.lastAction = -1
         this.alive = true
     }
 

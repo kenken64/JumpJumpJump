@@ -160,7 +160,7 @@ export default class DQNTrainingScene extends Phaser.Scene {
 
             const isDead = (this.gameScene as any).playerIsDead
             const score = (this.gameScene as any).score
-            const reward = this.dqnAgent.calculateReward(currentState, isDead, score)
+            const reward = this.dqnAgent.calculateReward(currentState, isDead, score, action.actionIndex)
 
             if (this.lastState) {
                 this.dqnAgent.remember(this.lastState, this.lastAction, reward, currentState, isDead)
