@@ -1252,13 +1252,7 @@ export default class MenuScene extends Phaser.Scene {
       const currentSettings = ControlManager.getControlSettings()
       let inputMethod = currentSettings.inputMethod
       let gamepadMapping = { ...currentSettings.gamepadMapping }
-      // Initialize gamepad plugin if not already started
-      if (!this.input.gamepad) {
-        console.log('🎮 Gamepad plugin missing, creating new instance...')
-        this.input.gamepad = new Phaser.Input.Gamepad.GamepadPlugin(this.input)
-      } else {
-        console.log('🎮 Gamepad plugin already exists')
-      }
+      // Gamepad plugin is already initialized via game config
 
       // Function to count actual connected gamepads
       const getGamepadCount = (silent: boolean = true): number => {

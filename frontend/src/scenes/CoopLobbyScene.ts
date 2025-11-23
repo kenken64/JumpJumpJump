@@ -55,11 +55,8 @@ export default class CoopLobbyScene extends Phaser.Scene {
     // Back button
     this.createBackButton()
 
-    // Enable gamepad plugin
-    // Enable gamepad plugin
-    if (!this.input.gamepad) {
-      this.input.gamepad = new Phaser.Input.Gamepad.GamepadPlugin(this.input)
-    }
+    // Gamepad plugin is already initialized via game config
+    // Just log if it's available
 
     // Listen for gamepad connections
     this.input.gamepad?.on('connected', (pad: Phaser.Input.Gamepad.Gamepad) => {
