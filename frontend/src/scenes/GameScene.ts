@@ -3083,11 +3083,29 @@ export default class GameScene extends Phaser.Scene {
         enemy.y
       )
 
-      if (distance < detectionRange) {
-        // Enemy detected player - move towards player
-        const direction = this.player.x > enemy.x ? 1 : -1
+      // In co-op mode, also check distance to player 2 and target the nearest
+      let targetPlayer = this.player
+      let targetDistance = distance
+
+      if (this.isCoopMode && this.player2) {
+        const distance2 = Phaser.Math.Distance.Between(
+          this.player2.x,
+          this.player2.y,
+          enemy.x,
+          enemy.y
+        )
+
+        if (distance2 < targetDistance) {
+          targetPlayer = this.player2
+          targetDistance = distance2
+        }
+      }
+
+      if (targetDistance < detectionRange) {
+        // Enemy detected player - move towards nearest player
+        const direction = targetPlayer.x > enemy.x ? 1 : -1
         const enemyOnGround = enemy.body!.touching.down
-        const horizontalDistance = Math.abs(this.player.x - enemy.x)
+        const horizontalDistance = Math.abs(targetPlayer.x - enemy.x)
 
         // Check if enemy is blocked (touching wall in the direction they want to move)
         const isBlockedRight = enemy.body!.blocked.right || enemy.body!.touching.right
@@ -3146,8 +3164,8 @@ export default class GameScene extends Phaser.Scene {
         // Reset idle timer when chasing
         enemy.setData('idleTimer', 0)
 
-        // Check if player is above enemy and enemy is on ground - make enemy jump
-        const playerAbove = this.player.y < enemy.y - 50 // Player is at least 50px higher
+        // Check if target player is above enemy and enemy is on ground - make enemy jump
+        const playerAbove = targetPlayer.y < enemy.y - 50 // Player is at least 50px higher
 
         if (playerAbove && enemyOnGround && horizontalDistance < 200 && stuckTimer < 0.3) {
           enemy.setVelocityY(-400) // Jump velocity
