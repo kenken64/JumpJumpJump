@@ -109,10 +109,11 @@ export class WorldGenerator {
       floor.setOrigin(0.5, 0.5)
       this.scene.physics.add.existing(floor, true)
       const body = floor.body as Phaser.Physics.Arcade.StaticBody
-      // Use 95% of texture for tighter, more accurate hitbox
-      const hitboxSize = tileSize * 0.95
-      body.setSize(hitboxSize, hitboxSize)
-      body.setOffset((floor.width - hitboxSize) / 2, (floor.height - hitboxSize) / 2)
+      // Ground platform hitbox - align to top surface
+      const hitboxWidth = tileSize * 0.95
+      const hitboxHeight = tileSize * 0.3  // Thin hitbox on top surface
+      body.setSize(hitboxWidth, hitboxHeight)
+      body.setOffset((floor.width - hitboxWidth) / 2, 0)  // Align to top
       body.updateFromGameObject()
       this.platforms.add(floor)
       
