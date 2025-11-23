@@ -23,14 +23,18 @@ ARG VITE_API_KEY
 ENV VITE_API_BASE_URL=$VITE_API_BASE_URL
 ENV VITE_API_KEY=$VITE_API_KEY
 
-# Build the application with environment variables (Vite will copy assets from publicDir)
+# Build the application with environment variables
 RUN pnpm build
 
-# Verify build output exists and assets were copied by Vite
-RUN echo "=== Build output ===" && ls -la /app/dist && \
-    echo "=== index.html exists? ===" && ls -la /app/dist/index.html && \
-    echo "=== Assets in dist (copied by Vite) ===" && ls -la /app/dist/ && \
-    echo "=== Checking specific asset ===" && find /app/dist -name "shieldGold.png" -o -name "alienBeige_stand.png"
+# Manually copy assets to dist/assets (preserve directory structure)
+RUN mkdir -p /app/dist/assets && \
+    cp -r /app/assets/* /app/dist/assets/ && \
+    echo "=== Assets copied to dist/assets ===" && \
+    ls -la /app/dist/assets/ && \
+    echo "=== Verify shieldGold.png ===" && \
+    ls -la /app/dist/assets/kenney_platformer-art-requests/Tiles/shieldGold.png && \
+    echo "=== Verify alienBeige_stand.png ===" && \
+    ls -la "/app/dist/assets/kenney_platformer-art-extended-enemies/Alien sprites/alienBeige_stand.png"
 
 # Stage 2: Production server with nginx
 FROM nginx:alpine
