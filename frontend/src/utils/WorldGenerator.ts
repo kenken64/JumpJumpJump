@@ -151,9 +151,9 @@ export class WorldGenerator {
             plat.setOrigin(0.5, 0.5)
             this.scene.physics.add.existing(plat, true)
             const body = plat.body as Phaser.Physics.Arcade.StaticBody
-            // Floating platform hitbox - larger for easier landing
-            const hitboxWidth = plat.width * 0.9  // 90% width
-            const hitboxHeight = plat.height * 0.5  // 50% height for good landing surface
+            // Floating platform hitbox - very thin to prevent blocking
+            const hitboxWidth = plat.width * 0.7  // 70% width
+            const hitboxHeight = plat.height * 0.2  // 20% height - very thin
             body.setSize(hitboxWidth, hitboxHeight)
             // Align hitbox to TOP of platform sprite
             body.setOffset((plat.width - hitboxWidth) / 2, 0)
@@ -188,9 +188,9 @@ export class WorldGenerator {
             step.setOrigin(0.5, 0.5)
             this.scene.physics.add.existing(step, true)
             const body = step.body as Phaser.Physics.Arcade.StaticBody
-            // Staircase platform hitbox - larger for easier climbing
-            const hitboxWidth = step.width * 0.9  // 90% width
-            const hitboxHeight = step.height * 0.5  // 50% height for good landing surface
+            // Staircase platform hitbox - very thin to prevent blocking
+            const hitboxWidth = step.width * 0.7  // 70% width
+            const hitboxHeight = step.height * 0.2  // 20% height - very thin
             body.setSize(hitboxWidth, hitboxHeight)
             // Align hitbox to TOP of platform sprite
             body.setOffset((step.width - hitboxWidth) / 2, 0)
