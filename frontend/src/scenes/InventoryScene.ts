@@ -193,13 +193,14 @@ export default class InventoryScene extends Phaser.Scene {
         const panel = this.add.rectangle(200, y, 320, 100, equipped ? 0x00aa00 : 0x222222, 1)
         panel.setStrokeStyle(2, equipped ? 0x00ff00 : 0x666666)
         
-        if (!weapon.default) {
+        // Make all weapons interactive (including default raygun)
+        if (!equipped) {
           panel.setInteractive({ useHandCursor: true })
           panel.on('pointerover', () => {
-            if (!equipped) panel.setFillStyle(0x333333)
+            panel.setFillStyle(0x333333)
           })
           panel.on('pointerout', () => {
-            if (!equipped) panel.setFillStyle(0x222222)
+            panel.setFillStyle(0x222222)
           })
           panel.on('pointerdown', () => {
             this.equipWeapon(weapon.id)
