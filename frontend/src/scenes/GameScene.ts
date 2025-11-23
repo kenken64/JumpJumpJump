@@ -3189,13 +3189,13 @@ export default class GameScene extends Phaser.Scene {
     statsText.setDepth(2002)
     
     // Restart Button
-    const restartBtn = this.add.rectangle(540, 420, 200, 60, 0x00aa00)
+    const restartBtn = this.add.rectangle(540, 480, 200, 60, 0x00aa00)
     restartBtn.setStrokeStyle(3, 0x00ff00)
     restartBtn.setScrollFactor(0)
     restartBtn.setDepth(2002)
     restartBtn.setInteractive({ useHandCursor: true })
     
-    const restartText = this.add.text(540, 420, 'RESTART', {
+    const restartText = this.add.text(540, 480, 'RESTART', {
       fontSize: '28px',
       color: '#ffffff',
       fontStyle: 'bold'
@@ -3205,13 +3205,13 @@ export default class GameScene extends Phaser.Scene {
     restartText.setDepth(2003)
     
     // Home Button
-    const homeBtn = this.add.rectangle(740, 420, 200, 60, 0x0066cc)
+    const homeBtn = this.add.rectangle(740, 480, 200, 60, 0x0066cc)
     homeBtn.setStrokeStyle(3, 0x0099ff)
     homeBtn.setScrollFactor(0)
     homeBtn.setDepth(2002)
     homeBtn.setInteractive({ useHandCursor: true })
     
-    const homeText = this.add.text(740, 420, 'MENU', {
+    const homeText = this.add.text(740, 480, 'MENU', {
       fontSize: '28px',
       color: '#ffffff',
       fontStyle: 'bold'
