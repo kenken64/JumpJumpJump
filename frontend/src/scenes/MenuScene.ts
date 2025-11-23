@@ -1256,10 +1256,28 @@ export default class MenuScene extends Phaser.Scene {
 
       // Function to count actual connected gamepads
       const getGamepadCount = (silent: boolean = true): number => {
-        if (!this.input.gamepad) return 0
+        if (!this.input.gamepad) {
+          console.log('⚠️ this.input.gamepad is null/undefined')
+          return 0
+        }
 
         // Check browser's native gamepad API and filter out nulls
         const nativeGamepads = navigator.getGamepads ? navigator.getGamepads() : []
+
+        if (!silent) {
+          console.log('🎮 Raw navigator.getGamepads():', nativeGamepads)
+          console.log('🎮 Array length:', nativeGamepads.length)
+
+          // Log each index
+          for (let i = 0; i < nativeGamepads.length; i++) {
+            if (nativeGamepads[i]) {
+              console.log(`  [${i}] ${nativeGamepads[i]!.id} (connected: ${nativeGamepads[i]!.connected})`)
+            } else {
+              console.log(`  [${i}] null`)
+            }
+          }
+        }
+
         const activeGamepads = Array.from(nativeGamepads).filter(gp => gp !== null && gp !== undefined)
         const count = activeGamepads.length
 
@@ -1443,14 +1461,23 @@ export default class MenuScene extends Phaser.Scene {
         mappingContainer.push(infoText)
 
         // Gamepad test listener - show active gamepad inputs
+        let pollCount = 0
         const gamepadListener = () => {
+          pollCount++
+          // Log every 60 frames (about 1 second)
+          const verbose = pollCount % 60 === 0
+
+          if (verbose) {
+            console.log('🔍 Polling gamepads...')
+          }
+
           // Update gamepad count dynamically using native API
-          const newCount = getGamepadCount()
+          const newCount = getGamepadCount(verbose)
 
           if (newCount !== gamepadCount) {
             // Gamepad connection changed, refresh UI
             gamepadCount = newCount
-            console.log(`🎮 Gamepad count changed to: ${newCount}`)
+            console.log(`🎮 Gamepad count changed from ${gamepadCount} to ${newCount}!`)
             createMappingUI()
           }
         }
