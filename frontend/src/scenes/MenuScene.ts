@@ -1476,8 +1476,9 @@ export default class MenuScene extends Phaser.Scene {
 
           if (newCount !== gamepadCount) {
             // Gamepad connection changed, refresh UI
+            const oldCount = gamepadCount
             gamepadCount = newCount
-            console.log(`🎮 Gamepad count changed from ${gamepadCount} to ${newCount}!`)
+            console.log(`🎮 Gamepad count changed from ${oldCount} to ${newCount}!`)
             createMappingUI()
           }
         }
