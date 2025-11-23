@@ -114,7 +114,6 @@ export class WorldGenerator {
       const hitboxHeight = tileSize * 0.3  // Thin hitbox on top surface
       body.setSize(hitboxWidth, hitboxHeight)
       body.setOffset((floor.width - hitboxWidth) / 2, 0)  // Align to top
-      body.updateFromGameObject()
       this.platforms.add(floor)
       
       // Check if we need to switch biome
@@ -158,7 +157,6 @@ export class WorldGenerator {
             body.setSize(hitboxWidth, hitboxHeight)
             // Align hitbox to TOP of platform sprite
             body.setOffset((plat.width - hitboxWidth) / 2, 0)
-            body.updateFromGameObject()
             this.platforms.add(plat)
             
             // Mark cells as occupied
@@ -195,7 +193,6 @@ export class WorldGenerator {
             body.setSize(hitboxWidth, hitboxHeight)
             // Align hitbox to TOP of platform sprite
             body.setOffset((step.width - hitboxWidth) / 2, 0)
-            body.updateFromGameObject()
             this.platforms.add(step)
             
             // Mark cell as occupied
