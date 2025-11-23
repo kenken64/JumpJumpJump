@@ -3140,6 +3140,9 @@ export default class GameScene extends Phaser.Scene {
     
     this.physics.pause()
     
+    // Fade camera back in from black
+    this.cameras.main.fadeIn(500, 0, 0, 0)
+    
     // Submit score to backend (non-blocking)
     this.submitScoreToBackend().catch(err => {
       console.log('Score submission failed (backend may be offline):', err)
