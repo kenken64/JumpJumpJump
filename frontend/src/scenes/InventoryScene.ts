@@ -240,7 +240,7 @@ export default class InventoryScene extends Phaser.Scene {
     ]
 
     let x = 480
-    let y = 220
+    let y = 280
     skins.forEach((skin, index) => {
       const owned = skin.default || this.inventory.some(item => item.id === skin.id)
       // Check equipped status - convert game skin ID to shop ID for comparison
