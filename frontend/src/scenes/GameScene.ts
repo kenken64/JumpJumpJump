@@ -3536,8 +3536,8 @@ export default class GameScene extends Phaser.Scene {
                 }
               })
               
-              // Respawn after 5 seconds only if location is ahead of player's progress
-              this.time.delayedCall(5000, () => {
+              // Respawn after 10 seconds only if location is ahead of player's progress
+              this.time.delayedCall(10000, () => {
                 // Don't respawn if player has already passed this area
                 if (spawnX < this.farthestPlayerX - 500) {
                   return // Skip respawn in explored areas
@@ -3860,8 +3860,8 @@ export default class GameScene extends Phaser.Scene {
         }
       })
       
-      // Respawn after 5 seconds only if location is ahead of player's progress
-      this.time.delayedCall(5000, () => {
+      // Respawn after 10 seconds only if location is ahead of player's progress
+      this.time.delayedCall(10000, () => {
         // Don't respawn if player has already passed this area
         if (spawnX < this.farthestPlayerX - 500) {
           return // Skip respawn in explored areas
