@@ -1358,13 +1358,13 @@ export default class GameScene extends Phaser.Scene {
     const numCoins = Phaser.Math.Between(2, 4)
     for (let i = 0; i < numCoins; i++) {
       let x = Phaser.Math.Between(startX + 100, endX - 100)
-      let y = Phaser.Math.Between(400, 900)
+      let y = Phaser.Math.Between(300, 600)  // Keep coins above ground platform at Y=650
       
       // Check if coin would spawn on spikes, retry if so
       let retries = 0
       while (retries < 5 && this.isOnSpikes(x, y)) {
         x = Phaser.Math.Between(startX + 100, endX - 100)
-        y = Phaser.Math.Between(400, 900)
+        y = Phaser.Math.Between(300, 600)  // Keep coins above ground platform at Y=650
         retries++
       }
       
