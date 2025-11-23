@@ -122,9 +122,9 @@ export class WorldGenerator {
       }
     }
     
-    // Define 7 fixed Y levels for platform spawning (from top to ground)
+    // Define Y levels for platform spawning (above ground at Y=650)
     // Spacing increased to 100px to accommodate 80px tall player character
-    const yLevels = [300, 400, 500, 600, 700, 800] // 6 levels with 100px spacing
+    const yLevels = [200, 300, 400, 500, 600] // 5 levels above ground, all above Y=650
     
     // Track occupied grid cells to prevent overlap
     const occupiedCells = new Set<string>()
