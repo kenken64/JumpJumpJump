@@ -1703,7 +1703,8 @@ export default class GameScene extends Phaser.Scene {
       const reward = this.dqnAgent.calculateReward(
         this.lastDQNState,
         this.playerIsDead,
-        this.score
+        this.score,
+        this.lastDQNAction.actionIndex
       )
       
       this.dqnCurrentReward += reward

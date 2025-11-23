@@ -1,6 +1,5 @@
 import Phaser from 'phaser'
 import { GameAPI } from '../services/api'
-import { MLAIPlayer } from '../utils/MLAIPlayer'
 
 export default class MenuScene extends Phaser.Scene {
   private coinCount: number = 0
@@ -979,9 +978,6 @@ export default class MenuScene extends Phaser.Scene {
   }
 
   private async showMLTraining() {
-    // Check if model exists
-    const hasModel = localStorage.getItem('jumpjump-dqn-model') !== null
-
     // Create semi-transparent overlay (allows game to be visible behind)
     const overlay = this.add.rectangle(640, 360, 1280, 720, 0x000000, 0.7)
     overlay.setDepth(100)
