@@ -13,7 +13,7 @@ export default class MenuScene extends Phaser.Scene {
   preload() {
     // Load UI assets
     this.load.image('coin', '/assets/kenney_platformer-art-requests/Tiles/shieldGold.png')
-    
+
     // Load all alien skins
     this.load.image('alienBeige_stand', '/assets/kenney_platformer-art-extended-enemies/Alien sprites/alienBeige_stand.png')
     this.load.image('alienBlue_stand', '/assets/kenney_platformer-art-extended-enemies/Alien sprites/alienBlue_stand.png')
@@ -29,11 +29,11 @@ export default class MenuScene extends Phaser.Scene {
 
     // Check API connection status
     this.checkAPIConnection()
-    
+
     // Set background to black with blackhole effect
     this.cameras.main.setBackgroundColor('#0a0a1a')
     this.createBlackholeBackground()
-    
+
     // Add player name button in top-left corner
     const playerName = localStorage.getItem('player_name') || 'Guest'
     const nameButton = this.add.rectangle(120, 50, 200, 50, 0x0066cc, 0.8)
@@ -44,14 +44,14 @@ export default class MenuScene extends Phaser.Scene {
     nameButton.on('pointerdown', () => {
       this.showNameInputDialog()
     })
-    
+
     const nameLabel = this.add.text(120, 40, 'PLAYER:', {
       fontSize: '14px',
       color: '#aaaaaa',
       fontStyle: 'bold'
     })
     nameLabel.setOrigin(0.5)
-    
+
     const nameText = this.add.text(120, 60, playerName, {
       fontSize: '20px',
       color: '#ffffff',
@@ -59,9 +59,9 @@ export default class MenuScene extends Phaser.Scene {
     })
     nameText.setOrigin(0.5)
     nameText.setName('playerNameText') // Store reference for updates
-    
+
     // Add game title
-    const title = this.add.text(640, 150, 'JUMP JUMP JUMP', {
+    const title = this.add.text(640, 120, 'JUMP JUMP JUMP', {
       fontSize: '72px',
       color: '#00ff00',
       fontStyle: 'bold',
@@ -69,18 +69,18 @@ export default class MenuScene extends Phaser.Scene {
       strokeThickness: 8
     })
     title.setOrigin(0.5)
-    
+
     // Add subtitle
-    const subtitle = this.add.text(640, 230, 'A Sci-Fi Platformer Adventure', {
+    const subtitle = this.add.text(640, 200, 'A Sci-Fi Platformer Adventure', {
       fontSize: '24px',
       color: '#ffffff',
       fontStyle: 'italic'
     })
     subtitle.setOrigin(0.5)
-    
+
     // Get equipped skin from inventory
     const equippedSkin = localStorage.getItem('equippedSkin') || 'alienBeige'
-    
+
     // Add version number in bottom-right corner (moved from bottom-left to avoid button overlap)
     const version = this.add.text(1260, 700, 'v1.0.0', {
       fontSize: '16px',
@@ -88,27 +88,27 @@ export default class MenuScene extends Phaser.Scene {
       fontStyle: 'bold'
     })
     version.setOrigin(1, 1)
-    
+
     // Add player character preview with equipped skin
-    const playerPreview = this.add.image(640, 360, `${equippedSkin}_stand`)
+    const playerPreview = this.add.image(640, 320, `${equippedSkin}_stand`)
     playerPreview.setScale(2)
-    
+
     // Floating animation for player
     this.tweens.add({
       targets: playerPreview,
-      y: 340,
+      y: 300,
       duration: 1500,
       yoyo: true,
       repeat: -1,
       ease: 'Sine.easeInOut'
     })
-    
+
     // Add coin decorations
-    const coin1 = this.add.image(450, 360, 'coin')
-    const coin2 = this.add.image(830, 360, 'coin')
+    const coin1 = this.add.image(450, 320, 'coin')
+    const coin2 = this.add.image(830, 320, 'coin')
     coin1.setScale(0.6)
     coin2.setScale(0.6)
-    
+
     // Rotating coins
     this.tweens.add({
       targets: [coin1, coin2],
@@ -117,119 +117,135 @@ export default class MenuScene extends Phaser.Scene {
       repeat: -1,
       ease: 'Linear'
     })
-    
+
     // Create Level Mode Button
-    const levelButton = this.add.rectangle(640, 470, 300, 60, 0x00aa00)
+    const levelButton = this.add.rectangle(640, 410, 300, 60, 0x00aa00)
     levelButton.setInteractive({ useHandCursor: true })
     levelButton.on('pointerover', () => levelButton.setFillStyle(0x00ff00))
     levelButton.on('pointerout', () => levelButton.setFillStyle(0x00aa00))
     levelButton.on('pointerdown', () => {
       this.scene.start('GameScene', { gameMode: 'levels', level: 1 })
     })
-    
-    const levelText = this.add.text(640, 470, 'LEVEL MODE', {
+
+    const levelText = this.add.text(640, 410, 'LEVEL MODE', {
       fontSize: '32px',
       color: '#ffffff',
       fontStyle: 'bold'
     })
     levelText.setOrigin(0.5)
-    
+
+    // Create Local Co-op Button
+    const coopButton = this.add.rectangle(640, 485, 300, 60, 0xff6600)
+    coopButton.setInteractive({ useHandCursor: true })
+    coopButton.on('pointerover', () => coopButton.setFillStyle(0xff9933))
+    coopButton.on('pointerout', () => coopButton.setFillStyle(0xff6600))
+    coopButton.on('pointerdown', () => {
+      this.scene.start('CoopLobbyScene')
+    })
+
+    const coopText = this.add.text(640, 485, '🎮 LOCAL CO-OP', {
+      fontSize: '32px',
+      color: '#ffffff',
+      fontStyle: 'bold'
+    })
+    coopText.setOrigin(0.5)
+
     // Create Endless Mode Button
-    const endlessButton = this.add.rectangle(640, 550, 300, 60, 0x0088aa)
+    const endlessButton = this.add.rectangle(640, 560, 300, 60, 0x0088aa)
     endlessButton.setInteractive({ useHandCursor: true })
     endlessButton.on('pointerover', () => endlessButton.setFillStyle(0x00ccff))
     endlessButton.on('pointerout', () => endlessButton.setFillStyle(0x0088aa))
     endlessButton.on('pointerdown', () => {
       this.scene.start('GameScene', { gameMode: 'endless', level: 1 })
     })
-    
-    const endlessText = this.add.text(640, 550, 'ENDLESS MODE', {
+
+    const endlessText = this.add.text(640, 560, 'ENDLESS MODE', {
       fontSize: '32px',
       color: '#ffffff',
       fontStyle: 'bold'
     })
     endlessText.setOrigin(0.5)
-    
+
     // Create Shop Button
-    const shopButton = this.add.rectangle(320, 630, 180, 60, 0xaa00aa)
+    const shopButton = this.add.rectangle(280, 640, 160, 50, 0xaa00aa)
     shopButton.setInteractive({ useHandCursor: true })
     shopButton.on('pointerover', () => shopButton.setFillStyle(0xff00ff))
     shopButton.on('pointerout', () => shopButton.setFillStyle(0xaa00aa))
     shopButton.on('pointerdown', () => {
       this.scene.start('ShopScene', { coins: this.coinCount })
     })
-    
-    const shopText = this.add.text(320, 630, 'SHOP', {
-      fontSize: '24px',
+
+    const shopText = this.add.text(280, 640, 'SHOP', {
+      fontSize: '22px',
       color: '#ffffff',
       fontStyle: 'bold'
     })
     shopText.setOrigin(0.5)
-    
+
     // Create Inventory Button
-    const inventoryButton = this.add.rectangle(520, 630, 180, 60, 0xaa6600)
+    const inventoryButton = this.add.rectangle(460, 640, 160, 50, 0xaa6600)
     inventoryButton.setInteractive({ useHandCursor: true })
     inventoryButton.on('pointerover', () => inventoryButton.setFillStyle(0xffaa00))
     inventoryButton.on('pointerout', () => inventoryButton.setFillStyle(0xaa6600))
     inventoryButton.on('pointerdown', () => {
       this.scene.start('InventoryScene')
     })
-    
-    const inventoryText = this.add.text(520, 630, 'INVENTORY', {
-      fontSize: '24px',
+
+    const inventoryText = this.add.text(460, 640, 'INVENTORY', {
+      fontSize: '22px',
       color: '#ffffff',
       fontStyle: 'bold'
     })
     inventoryText.setOrigin(0.5)
-    
+
     // Create Bosses Button
-    const bossesButton = this.add.rectangle(720, 630, 180, 60, 0xcc0000)
+    const bossesButton = this.add.rectangle(640, 640, 160, 50, 0xcc0000)
     bossesButton.setInteractive({ useHandCursor: true })
     bossesButton.on('pointerover', () => bossesButton.setFillStyle(0xff0000))
     bossesButton.on('pointerout', () => bossesButton.setFillStyle(0xcc0000))
     bossesButton.on('pointerdown', () => {
       this.scene.start('BossGalleryScene')
     })
-    
-    const bossesText = this.add.text(720, 630, 'BOSSES', {
-      fontSize: '24px',
+
+    const bossesText = this.add.text(640, 640, 'BOSSES', {
+      fontSize: '22px',
       color: '#ffffff',
       fontStyle: 'bold'
     })
     bossesText.setOrigin(0.5)
-    
+
     // Create Leaderboard Button
-    const leaderboardButton = this.add.rectangle(920, 630, 180, 60, 0x0066cc)
+    const leaderboardButton = this.add.rectangle(820, 640, 160, 50, 0x0066cc)
     leaderboardButton.setInteractive({ useHandCursor: true })
     leaderboardButton.on('pointerover', () => leaderboardButton.setFillStyle(0x0099ff))
     leaderboardButton.on('pointerout', () => leaderboardButton.setFillStyle(0x0066cc))
     leaderboardButton.on('pointerdown', () => {
       this.scene.start('LeaderboardScene')
     })
-    
-    const leaderboardText = this.add.text(920, 630, 'LEADERBOARD', {
-      fontSize: '22px',
+
+    const leaderboardText = this.add.text(820, 640, 'LEADERBOARD', {
+      fontSize: '18px',
       color: '#ffffff',
       fontStyle: 'bold'
     })
     leaderboardText.setOrigin(0.5)
-    
+
     // Create Tutorial Button (small button in bottom left)
-    const tutorialButton = this.add.rectangle(100, 680, 150, 40, 0x444444)
+    const tutorialButton = this.add.rectangle(100, 700, 150, 35, 0x444444)
     tutorialButton.setInteractive({ useHandCursor: true })
     tutorialButton.on('pointerover', () => tutorialButton.setFillStyle(0x666666))
     tutorialButton.on('pointerout', () => tutorialButton.setFillStyle(0x444444))
     tutorialButton.on('pointerdown', () => {
       this.showTutorial()
     })
-    
-    const tutorialText = this.add.text(100, 680, 'HOW TO PLAY', {
-      fontSize: '18px',
+
+    const tutorialText = this.add.text(100, 700, 'HOW TO PLAY', {
+      fontSize: '16px',
       color: '#ffffff',
       fontStyle: 'bold'
     })
     tutorialText.setOrigin(0.5)
-    
+
     // Create Credits Button (bottom right, above Settings)
     const creditsButton = this.add.rectangle(1150, 600, 150, 40, 0x444444)
     creditsButton.setInteractive({ useHandCursor: true })
@@ -238,14 +254,14 @@ export default class MenuScene extends Phaser.Scene {
     creditsButton.on('pointerdown', () => {
       this.scene.start('CreditScene')
     })
-    
+
     const creditsText = this.add.text(1150, 600, 'CREDITS', {
       fontSize: '18px',
       color: '#ffffff',
       fontStyle: 'bold'
     })
     creditsText.setOrigin(0.5)
-    
+
     // Create Train ML AI Button (above Settings)
     const mlButton = this.add.rectangle(1150, 550, 180, 40, 0x00aa00)
     mlButton.setInteractive({ useHandCursor: true })
@@ -254,14 +270,14 @@ export default class MenuScene extends Phaser.Scene {
     mlButton.on('pointerdown', () => {
       this.showMLTraining()
     })
-    
+
     const mlText = this.add.text(1150, 550, '🧠 TRAIN ML AI', {
       fontSize: '16px',
       color: '#ffffff',
       fontStyle: 'bold'
     })
     mlText.setOrigin(0.5)
-    
+
     // Create Settings Button (bottom right, above API status)
     const settingsButton = this.add.rectangle(1150, 650, 150, 40, 0x444444)
     settingsButton.setInteractive({ useHandCursor: true })
@@ -270,14 +286,14 @@ export default class MenuScene extends Phaser.Scene {
     settingsButton.on('pointerdown', () => {
       this.showSettings()
     })
-    
+
     const settingsText = this.add.text(1150, 650, 'SETTINGS', {
       fontSize: '18px',
       color: '#ffffff',
       fontStyle: 'bold'
     })
     settingsText.setOrigin(0.5)
-    
+
     // Check if this is the first time playing
     const hasSeenTutorial = localStorage.getItem('hasSeenTutorial')
     if (!hasSeenTutorial) {
@@ -287,7 +303,7 @@ export default class MenuScene extends Phaser.Scene {
         localStorage.setItem('hasSeenTutorial', 'true')
       })
     }
-    
+
     // Add coin display in top right
     this.add.image(1150, 50, 'coin').setScale(0.5)
     this.add.text(1200, 50, `${this.coinCount}`, {
@@ -297,33 +313,34 @@ export default class MenuScene extends Phaser.Scene {
       stroke: '#000000',
       strokeThickness: 4
     }).setOrigin(0, 0.5)
-    
+
     // Add controls text (moved up)
-    const controls = this.add.text(640, 260, 'WASD/Arrows: Move | W/Up: Jump | Click: Shoot', {
+    const controls = this.add.text(640, 235, 'WASD/Arrows: Move | W/Up: Jump | Click: Shoot', {
       fontSize: '18px',
       color: '#aaaaaa'
     })
     controls.setOrigin(0.5)
-    
-    // Add credits
-    const credits = this.add.text(640, 700, 'Assets by Kenney.nl', {
+
+    // Add Kenney attribution at bottom center
+    const kenney = this.add.text(640, 705, 'Assets by Kenny.nl', {
       fontSize: '16px',
-      color: '#666666'
+      color: '#888888',
+      fontStyle: 'italic'
     })
-    credits.setOrigin(0.5)
+    kenney.setOrigin(0.5, 1)
   }
-  
+
   private showTutorial() {
     // Create dark overlay
     const overlay = this.add.rectangle(640, 360, 1280, 720, 0x000000, 0.85)
     overlay.setDepth(100)
     overlay.setInteractive() // Block clicks to menu
-    
+
     // Create tutorial panel
     const panel = this.add.rectangle(640, 360, 900, 550, 0x222222, 1)
     panel.setDepth(101)
     panel.setStrokeStyle(4, 0x00ff00)
-    
+
     // Tutorial title
     const title = this.add.text(640, 140, 'HOW TO PLAY', {
       fontSize: '48px',
@@ -334,11 +351,11 @@ export default class MenuScene extends Phaser.Scene {
     })
     title.setOrigin(0.5)
     title.setDepth(102)
-    
+
     // Controls section
     const controlsY = 220
     const lineHeight = 40
-    
+
     const controls = [
       { key: 'WASD / Arrow Keys', action: 'Move left and right' },
       { key: 'W / Up Arrow', action: 'Jump (press twice for double jump)' },
@@ -346,12 +363,12 @@ export default class MenuScene extends Phaser.Scene {
       { key: 'Mouse / Click', action: 'Aim and shoot' },
       { key: 'ESC / Home Button', action: 'Return to main menu' }
     ]
-    
+
     const controlTexts: Phaser.GameObjects.Text[] = []
-    
+
     controls.forEach((control, index) => {
       const y = controlsY + (index * lineHeight)
-      
+
       const keyText = this.add.text(300, y, control.key, {
         fontSize: '20px',
         color: '#ffff00',
@@ -360,7 +377,7 @@ export default class MenuScene extends Phaser.Scene {
       keyText.setOrigin(0, 0.5)
       keyText.setDepth(102)
       controlTexts.push(keyText)
-      
+
       const actionText = this.add.text(600, y, control.action, {
         fontSize: '20px',
         color: '#ffffff'
@@ -369,7 +386,7 @@ export default class MenuScene extends Phaser.Scene {
       actionText.setDepth(102)
       controlTexts.push(actionText)
     })
-    
+
     // Tips section
     const tipsY = 450
     const tips = this.add.text(640, tipsY, 'TIPS:\n• Collect coins to buy weapons and skins in the shop\n• Power-ups: Speed (yellow), Shield (blue), Extra Life (green)\n• Boss fights appear every 5 levels\n• Use checkpoints to save your progress', {
@@ -380,7 +397,7 @@ export default class MenuScene extends Phaser.Scene {
     })
     tips.setOrigin(0.5)
     tips.setDepth(102)
-    
+
     // Cheat codes section
     const cheatsY = 560
     const cheats = this.add.text(640, cheatsY, 'CHEAT CODES:\nF3: Toggle Debug Mode | F4: Jump to Boss Level | F5: Reset Defeated Bosses', {
@@ -392,7 +409,7 @@ export default class MenuScene extends Phaser.Scene {
     })
     cheats.setOrigin(0.5)
     cheats.setDepth(102)
-    
+
     // Close button
     const closeButton = this.add.rectangle(640, 620, 200, 50, 0x00aa00)
     closeButton.setDepth(102)
@@ -408,11 +425,11 @@ export default class MenuScene extends Phaser.Scene {
       cheats.destroy()
       closeButton.destroy()
       closeText.destroy()
-      
+
       // Destroy all control texts
       controlTexts.forEach(text => text.destroy())
     })
-    
+
     const closeText = this.add.text(640, 620, 'GOT IT!', {
       fontSize: '24px',
       color: '#ffffff',
@@ -427,12 +444,12 @@ export default class MenuScene extends Phaser.Scene {
     const overlay = this.add.rectangle(640, 360, 1280, 720, 0x000000, 0.85)
     overlay.setInteractive()
     overlay.setDepth(1000)
-    
+
     // Create dialog box
     const dialogBox = this.add.rectangle(640, 360, 600, 300, 0x222222)
     dialogBox.setStrokeStyle(4, 0x00ffff)
     dialogBox.setDepth(1001)
-    
+
     // Title
     const title = this.add.text(640, 260, 'ENTER YOUR NAME', {
       fontSize: '32px',
@@ -441,7 +458,7 @@ export default class MenuScene extends Phaser.Scene {
     })
     title.setOrigin(0.5)
     title.setDepth(1002)
-    
+
     // Instructions
     const instructions = this.add.text(640, 310, 'Type your name and press ENTER', {
       fontSize: '18px',
@@ -449,12 +466,12 @@ export default class MenuScene extends Phaser.Scene {
     })
     instructions.setOrigin(0.5)
     instructions.setDepth(1002)
-    
+
     // Input box background
     const inputBox = this.add.rectangle(640, 370, 400, 50, 0x000000)
     inputBox.setStrokeStyle(2, 0xffffff)
     inputBox.setDepth(1002)
-    
+
     // Current name display
     const currentName = localStorage.getItem('player_name') || ''
     let inputText = currentName
@@ -465,7 +482,7 @@ export default class MenuScene extends Phaser.Scene {
     })
     inputDisplay.setOrigin(0.5)
     inputDisplay.setDepth(1003)
-    
+
     // Blinking cursor
     let showCursor = true
     const cursorTimer = this.time.addEvent({
@@ -476,7 +493,7 @@ export default class MenuScene extends Phaser.Scene {
       },
       loop: true
     })
-    
+
     // Cancel button
     const cancelButton = this.add.rectangle(540, 450, 150, 50, 0x880000)
     cancelButton.setStrokeStyle(2, 0xff0000)
@@ -498,7 +515,7 @@ export default class MenuScene extends Phaser.Scene {
       saveText.destroy()
       this.input.keyboard?.off('keydown')
     })
-    
+
     const cancelText = this.add.text(540, 450, 'CANCEL', {
       fontSize: '20px',
       color: '#ffffff',
@@ -506,7 +523,7 @@ export default class MenuScene extends Phaser.Scene {
     })
     cancelText.setOrigin(0.5)
     cancelText.setDepth(1003)
-    
+
     // Save button
     const saveButton = this.add.rectangle(740, 450, 150, 50, 0x008800)
     saveButton.setStrokeStyle(2, 0x00ff00)
@@ -514,7 +531,7 @@ export default class MenuScene extends Phaser.Scene {
     saveButton.setDepth(1002)
     saveButton.on('pointerover', () => saveButton.setFillStyle(0x00cc00))
     saveButton.on('pointerout', () => saveButton.setFillStyle(0x008800))
-    
+
     const saveText = this.add.text(740, 450, 'SAVE', {
       fontSize: '20px',
       color: '#ffffff',
@@ -522,18 +539,18 @@ export default class MenuScene extends Phaser.Scene {
     })
     saveText.setOrigin(0.5)
     saveText.setDepth(1003)
-    
+
     const saveName = () => {
       if (inputText.trim().length > 0) {
         localStorage.setItem('player_name', inputText.trim())
         console.log('✅ Player name saved:', inputText.trim())
-        
+
         // Update name display on menu
         const nameTextObj = this.children.getByName('playerNameText') as Phaser.GameObjects.Text
         if (nameTextObj) {
           nameTextObj.setText(inputText.trim())
         }
-        
+
         // Show confirmation
         const confirm = this.add.text(640, 510, '✓ Name saved!', {
           fontSize: '18px',
@@ -542,7 +559,7 @@ export default class MenuScene extends Phaser.Scene {
         })
         confirm.setOrigin(0.5)
         confirm.setDepth(1003)
-        
+
         this.time.delayedCall(1000, () => {
           cursorTimer.remove()
           overlay.destroy()
@@ -560,9 +577,9 @@ export default class MenuScene extends Phaser.Scene {
         })
       }
     }
-    
+
     saveButton.on('pointerdown', saveName)
-    
+
     // Handle keyboard input
     this.input.keyboard?.on('keydown', (event: KeyboardEvent) => {
       if (event.key === 'Enter') {
@@ -585,15 +602,15 @@ export default class MenuScene extends Phaser.Scene {
     const centerX = 640
     const centerY = 360
     const scale = 1.5
-    
+
     // Create the blackhole core (event horizon)
     const core = this.add.circle(centerX, centerY, 60 * scale, 0x000000, 1)
     core.setDepth(-100)
-    
+
     // Create the inner shadow/gradient ring
     const innerRing = this.add.circle(centerX, centerY, 90 * scale, 0x1a0a2e, 0.9)
     innerRing.setDepth(-99)
-    
+
     // Create accretion disk rings (multiple layers for depth)
     const diskLayers = [
       { radius: 120, color: 0x8b2ff4, alpha: 0.6 },
@@ -602,11 +619,11 @@ export default class MenuScene extends Phaser.Scene {
       { radius: 210, color: 0x2a0594, alpha: 0.3 },
       { radius: 240, color: 0x1a0474, alpha: 0.2 }
     ]
-    
+
     diskLayers.forEach(layer => {
       const ring = this.add.circle(centerX, centerY, layer.radius * scale, layer.color, layer.alpha)
       ring.setDepth(-98)
-      
+
       // Add rotation animation to disk
       this.tweens.add({
         targets: ring,
@@ -616,18 +633,18 @@ export default class MenuScene extends Phaser.Scene {
         ease: 'Linear'
       })
     })
-    
+
     // Create gravitational lensing effect using graphics
     const graphics = this.add.graphics()
     graphics.setDepth(-97)
-    
+
     // Draw light distortion rings
     for (let i = 0; i < 5; i++) {
       const radius = 270 + (i * 40)
       graphics.lineStyle(2 - (i * 0.3), 0xff6b2f, 0.15 - (i * 0.02))
       graphics.strokeCircle(centerX, centerY, radius * scale)
     }
-    
+
     // Create particle emitter for matter being pulled in
     const particles = this.add.particles(centerX, centerY, 'coin', {
       speed: { min: 30, max: 60 },
@@ -646,7 +663,7 @@ export default class MenuScene extends Phaser.Scene {
       moveToY: centerY
     })
     particles.setDepth(-96)
-    
+
     // Add pulsing glow effect to core
     this.tweens.add({
       targets: [core, innerRing],
@@ -656,23 +673,23 @@ export default class MenuScene extends Phaser.Scene {
       repeat: -1,
       ease: 'Sine.easeInOut'
     })
-    
+
     // Add some energy jets shooting out from poles (like a real blackhole)
     const jetGraphics = this.add.graphics()
     jetGraphics.setDepth(-95)
-    
+
     // Top jet
     jetGraphics.fillStyle(0x4a88ff, 0.3)
     jetGraphics.fillRect(centerX - 15 * scale, centerY - 300 * scale, 30 * scale, 240 * scale)
     jetGraphics.fillStyle(0x88bbff, 0.4)
     jetGraphics.fillRect(centerX - 9 * scale, centerY - 300 * scale, 18 * scale, 240 * scale)
-    
+
     // Bottom jet
     jetGraphics.fillStyle(0x4a88ff, 0.3)
     jetGraphics.fillRect(centerX - 15 * scale, centerY + 60 * scale, 30 * scale, 240 * scale)
     jetGraphics.fillStyle(0x88bbff, 0.4)
     jetGraphics.fillRect(centerX - 9 * scale, centerY + 60 * scale, 18 * scale, 240 * scale)
-    
+
     // Animate jet intensity
     this.tweens.add({
       targets: jetGraphics,
@@ -682,7 +699,7 @@ export default class MenuScene extends Phaser.Scene {
       repeat: -1,
       ease: 'Sine.easeInOut'
     })
-    
+
     // Add some stars in the background
     for (let i = 0; i < 100; i++) {
       const x = Phaser.Math.Between(0, 1280)
@@ -690,7 +707,7 @@ export default class MenuScene extends Phaser.Scene {
       const size = Phaser.Math.Between(1, 3)
       const star = this.add.circle(x, y, size, 0xffffff, Phaser.Math.FloatBetween(0.3, 0.9))
       star.setDepth(-101)
-      
+
       // Twinkle effect
       this.tweens.add({
         targets: star,
@@ -770,7 +787,7 @@ export default class MenuScene extends Phaser.Scene {
     const musicToggle = this.add.rectangle(720, startY, 100, 40, musicEnabled ? 0x00aa00 : 0xaa0000)
     musicToggle.setDepth(102)
     musicToggle.setInteractive({ useHandCursor: true })
-    
+
     const musicToggleText = this.add.text(720, startY, musicEnabled ? 'ON' : 'OFF', {
       fontSize: '20px',
       color: '#ffffff',
@@ -789,8 +806,8 @@ export default class MenuScene extends Phaser.Scene {
 
     const musicSliderBg = this.add.rectangle(640, startY + 35, 200, 10, 0x444444)
     musicSliderBg.setDepth(102)
-    
-    const musicSliderFill = this.add.rectangle(640 - 100 + musicVolume * 200, startY + 35, musicVolume * 200, 10, 0x00aaff)
+
+    const musicSliderFill = this.add.rectangle(540, startY + 35, musicVolume * 200, 10, 0x00aaff)
     musicSliderFill.setOrigin(0, 0.5)
     musicSliderFill.setDepth(102)
 
@@ -810,7 +827,7 @@ export default class MenuScene extends Phaser.Scene {
     const soundToggle = this.add.rectangle(720, startY + lineHeight, 100, 40, soundEnabled ? 0x00aa00 : 0xaa0000)
     soundToggle.setDepth(102)
     soundToggle.setInteractive({ useHandCursor: true })
-    
+
     const soundToggleText = this.add.text(720, startY + lineHeight, soundEnabled ? 'ON' : 'OFF', {
       fontSize: '20px',
       color: '#ffffff',
@@ -829,8 +846,8 @@ export default class MenuScene extends Phaser.Scene {
 
     const soundSliderBg = this.add.rectangle(640, startY + lineHeight + 35, 200, 10, 0x444444)
     soundSliderBg.setDepth(102)
-    
-    const soundSliderFill = this.add.rectangle(640 - 100 + soundVolume * 200, startY + lineHeight + 35, soundVolume * 200, 10, 0x00aaff)
+
+    const soundSliderFill = this.add.rectangle(540, startY + lineHeight + 35, soundVolume * 200, 10, 0x00aaff)
     soundSliderFill.setOrigin(0, 0.5)
     soundSliderFill.setDepth(102)
 
@@ -868,7 +885,7 @@ export default class MenuScene extends Phaser.Scene {
       closeButton.destroy()
       closeText.destroy()
       this.input.off('drag')
-      
+
       // Open controls menu
       this.showControlSettings()
     })
@@ -965,7 +982,7 @@ export default class MenuScene extends Phaser.Scene {
     // Get training data info
     const trainingDataStr = localStorage.getItem('ml_training_data')
     const frameCount = trainingDataStr ? JSON.parse(trainingDataStr).length : 0
-    
+
     // Get model info
     const modelMetadata = localStorage.getItem('ml-model-metadata')
     let modelInfo = { trained: false, epochs: 0, timestamp: 0 }
@@ -985,7 +1002,7 @@ export default class MenuScene extends Phaser.Scene {
     // Create panel with rounded corners effect (gradient border)
     const panelBorder = this.add.rectangle(640, 360, 700, 550, 0x00aaff, 1)
     panelBorder.setDepth(101)
-    
+
     const panel = this.add.rectangle(640, 360, 690, 540, 0x1a1a1a, 1)
     panel.setDepth(101)
 
@@ -1055,11 +1072,11 @@ export default class MenuScene extends Phaser.Scene {
     })
     statusText.setOrigin(0.5)
     statusText.setDepth(102)
-    
+
     // Model status
-    const modelStatusText = this.add.text(640, 228, 
-      modelInfo.trained 
-        ? `Model: Trained (${modelInfo.epochs} epochs, ${new Date(modelInfo.timestamp).toLocaleDateString()})` 
+    const modelStatusText = this.add.text(640, 228,
+      modelInfo.trained
+        ? `Model: Trained (${modelInfo.epochs} epochs, ${new Date(modelInfo.timestamp).toLocaleDateString()})`
         : 'Model: Not trained yet',
       {
         fontSize: '13px',
@@ -1074,7 +1091,7 @@ export default class MenuScene extends Phaser.Scene {
     instructionBox.setDepth(102)
     instructionBox.setStrokeStyle(2, 0x333333)
 
-    const instructions = this.add.text(640, 305, 
+    const instructions = this.add.text(640, 305,
       '1. Play normally  2. Press R to record  3. Record 200+ frames\n' +
       '4. Click TRAIN MODEL below  5. Use O in-game for ML AI',
       {
@@ -1138,7 +1155,7 @@ export default class MenuScene extends Phaser.Scene {
         try {
           // Create a temporary ML AI player for training
           const mlAI = new MLAIPlayer(this as any)
-          
+
           // Train with progress callbacks (100 epochs now)
           await mlAI.train((epoch: number, logs: any) => {
             progressFill.width = (620 * epoch) / 100
@@ -1152,7 +1169,7 @@ export default class MenuScene extends Phaser.Scene {
           trainButton.setStrokeStyle(3, 0x00ff00)
           progressText.setText('✓ Model trained! Press O in-game to enable ML AI')
           progressFill.setFillStyle(0x00ff00)
-          
+
           // Auto-close after 3 seconds
           this.time.delayedCall(3000, () => {
             overlay.destroy()
@@ -1235,21 +1252,54 @@ export default class MenuScene extends Phaser.Scene {
       const currentSettings = ControlManager.getControlSettings()
       let inputMethod = currentSettings.inputMethod
       let gamepadMapping = { ...currentSettings.gamepadMapping }
-      let waitingForButton: 'jump' | 'shoot' | null = null
+      // Initialize gamepad plugin if not already started
+      if (!this.input.gamepad) {
+        console.log('🎮 Gamepad plugin missing, creating new instance...')
+        this.input.gamepad = new Phaser.Input.Gamepad.GamepadPlugin(this.input)
+      } else {
+        console.log('🎮 Gamepad plugin already exists')
+      }
+
+      // Function to count actual connected gamepads
+      const getGamepadCount = (silent: boolean = true): number => {
+        if (!this.input.gamepad) return 0
+
+        // Check browser's native gamepad API
+        const nativeGamepads = navigator.getGamepads ? navigator.getGamepads() : []
+        let count = 0
+        for (const gp of nativeGamepads) {
+          if (gp !== null) count++
+        }
+
+        if (!silent) {
+          console.log(`🎮 Native gamepad count: ${count}`)
+          console.log(`🎮 Phaser gamepad total: ${this.input.gamepad.total}`)
+        }
+
+        // Use the higher of the two counts
+        return Math.max(count, this.input.gamepad.total)
+      }
+
+      // Detect connected gamepads (verbose first check)
+      let gamepadCount = getGamepadCount(false)
+
+      console.log(`🎮 Final detected gamepad count: ${gamepadCount}`)
 
       // Create dark overlay
       const overlay = this.add.rectangle(640, 360, 1280, 720, 0x000000, 0.85)
       overlay.setDepth(100)
       overlay.setInteractive()
 
-      // Create settings panel
-      const panel = this.add.rectangle(640, 360, 750, 600, 0x222222, 1)
+      // Create settings panel (taller if 2 gamepads detected)
+      const panelHeight = gamepadCount >= 2 ? 700 : 600
+      const panel = this.add.rectangle(640, 360, 750, panelHeight, 0x222222, 1)
       panel.setDepth(101)
       panel.setStrokeStyle(4, 0x00aaff)
 
       // Title
-      const title = this.add.text(640, 100, 'CONTROL SETTINGS', {
-        fontSize: '42px',
+      const titleText = gamepadCount >= 2 ? 'CONTROL SETTINGS (2 GAMEPADS)' : 'CONTROL SETTINGS'
+      const title = this.add.text(640, 100, titleText, {
+        fontSize: gamepadCount >= 2 ? '36px' : '42px',
         color: '#00aaff',
         fontStyle: 'bold',
         stroke: '#000000',
@@ -1304,7 +1354,33 @@ export default class MenuScene extends Phaser.Scene {
 
         if (inputMethod !== 'gamepad') return
 
-        // Jump info (D-pad Up is always used for jump)
+        // Show gamepad connection status
+        const statusText = this.add.text(640, startY + lineHeight - 20,
+          gamepadCount === 0 ? '⚠️ No gamepads detected' :
+            gamepadCount === 1 ? '🎮 1 gamepad connected' :
+              '🎮 2 gamepads connected', {
+          fontSize: '18px',
+          color: gamepadCount === 0 ? '#ffaa00' : '#88ff88',
+          align: 'center'
+        })
+        statusText.setOrigin(0.5)
+        statusText.setDepth(102)
+        mappingContainer.push(statusText)
+
+        if (gamepadCount === 0) {
+          const helpText = this.add.text(640, startY + lineHeight + 20,
+            'Please connect a gamepad and press any button', {
+            fontSize: '16px',
+            color: '#aaaaaa',
+            align: 'center'
+          })
+          helpText.setOrigin(0.5)
+          helpText.setDepth(102)
+          mappingContainer.push(helpText)
+          return
+        }
+
+        // Jump info (Left stick up or A button for jump)
         const jumpLabel = this.add.text(320, startY + lineHeight, 'Jump:', {
           fontSize: '22px',
           color: '#ffffff'
@@ -1313,7 +1389,7 @@ export default class MenuScene extends Phaser.Scene {
         jumpLabel.setDepth(102)
         mappingContainer.push(jumpLabel)
 
-        const jumpInfoText = this.add.text(700, startY + lineHeight, 'D-Pad Up', {
+        const jumpInfoText = this.add.text(700, startY + lineHeight, 'Left Stick Up / A', {
           fontSize: '18px',
           color: '#88ff88'
         })
@@ -1330,30 +1406,39 @@ export default class MenuScene extends Phaser.Scene {
         shootLabel.setDepth(102)
         mappingContainer.push(shootLabel)
 
-        const shootButtonBg = this.add.rectangle(700, startY + lineHeight * 2, 200, 40, 0x444444)
-        shootButtonBg.setDepth(102)
-        shootButtonBg.setInteractive({ useHandCursor: true })
-        mappingContainer.push(shootButtonBg)
-
-        const shootButtonText = this.add.text(700, startY + lineHeight * 2, 
-          waitingForButton === 'shoot' ? 'Press a button...' : ControlManager.getButtonName(gamepadMapping.shoot), {
+        const shootInfoText = this.add.text(700, startY + lineHeight * 2, 'Right Trigger (RT/R2)', {
           fontSize: '18px',
-          color: waitingForButton === 'shoot' ? '#ffaa00' : '#ffffff'
+          color: '#88ff88'
         })
-        shootButtonText.setOrigin(0.5)
-        shootButtonText.setDepth(102)
-        mappingContainer.push(shootButtonText)
+        shootInfoText.setOrigin(0.5)
+        shootInfoText.setDepth(102)
+        mappingContainer.push(shootInfoText)
 
-        shootButtonBg.on('pointerdown', () => {
-          waitingForButton = 'shoot'
-          shootButtonText.setText('Press a button...')
-          shootButtonText.setColor('#ffaa00')
+        // Aim info
+        const aimLabel = this.add.text(320, startY + lineHeight * 3, 'Aim:', {
+          fontSize: '22px',
+          color: '#ffffff'
         })
+        aimLabel.setOrigin(0, 0.5)
+        aimLabel.setDepth(102)
+        mappingContainer.push(aimLabel)
 
-        // Info text
-        const infoText = this.add.text(640, startY + lineHeight * 3 + 20, 
-          'Click a button field above, then press\nthe gamepad button you want to use', {
-          fontSize: '16px',
+        const aimInfoText = this.add.text(700, startY + lineHeight * 3, 'Right Stick', {
+          fontSize: '18px',
+          color: '#88ff88'
+        })
+        aimInfoText.setOrigin(0.5)
+        aimInfoText.setDepth(102)
+        mappingContainer.push(aimInfoText)
+
+        // Info text for dual gamepad
+        let infoTextContent = 'Move: Left Stick | Jump: Left Stick Up / A Button\nShoot: Right Trigger (RT/R2) | Aim: Right Stick'
+        if (gamepadCount >= 2) {
+          infoTextContent += '\n\nBoth gamepads use the same controls for co-op mode'
+        }
+
+        const infoText = this.add.text(640, startY + lineHeight * 4 + 20, infoTextContent, {
+          fontSize: '14px',
           color: '#aaaaaa',
           align: 'center'
         })
@@ -1361,28 +1446,45 @@ export default class MenuScene extends Phaser.Scene {
         infoText.setDepth(102)
         mappingContainer.push(infoText)
 
-        // Gamepad button listener
+        // Gamepad test listener - show active gamepad inputs
         const gamepadListener = () => {
-          if (waitingForButton && this.input.gamepad && this.input.gamepad.total > 0) {
-            const pad = this.input.gamepad.getPad(0)
-            if (pad) {
-              for (let i = 0; i < pad.buttons.length; i++) {
-                if (pad.buttons[i].pressed) {
-                  if (waitingForButton === 'shoot') {
-                    gamepadMapping.shoot = i
-                    shootButtonText.setText(ControlManager.getButtonName(i))
-                    shootButtonText.setColor('#ffffff')
-                  }
-                  waitingForButton = null
-                  return
-                }
-              }
-            }
+          // Update gamepad count dynamically using native API
+          const newCount = getGamepadCount()
+
+          if (newCount !== gamepadCount) {
+            // Gamepad connection changed, refresh UI
+            gamepadCount = newCount
+            console.log(`🎮 Gamepad count changed to: ${newCount}`)
+            createMappingUI()
           }
         }
 
+        // Add window event listener for gamepad connection
+        const connectionHandler = (e: GamepadEvent) => {
+          console.log('🎮 Gamepad connected event fired:', e.gamepad)
+          const gp = e.gamepad
+          console.log(`Gamepad connected at index ${gp.index}: ${gp.id}. ${gp.buttons.length} buttons, ${gp.axes.length} axes.`)
+          gamepadListener()
+        }
+
+        const disconnectionHandler = (e: GamepadEvent) => {
+          console.log('🎮 Gamepad disconnected event fired:', e.gamepad)
+          gamepadListener()
+        }
+
+        window.addEventListener('gamepadconnected', connectionHandler)
+        window.addEventListener('gamepaddisconnected', disconnectionHandler)
+
         this.events.on('update', gamepadListener)
-        mappingContainer.push({ destroy: () => this.events.off('update', gamepadListener) } as any)
+
+        // Cleanup function
+        mappingContainer.push({
+          destroy: () => {
+            this.events.off('update', gamepadListener)
+            window.removeEventListener('gamepadconnected', connectionHandler)
+            window.removeEventListener('gamepaddisconnected', disconnectionHandler)
+          }
+        } as any)
       }
 
       // Input method toggle
@@ -1403,8 +1505,9 @@ export default class MenuScene extends Phaser.Scene {
       // Create initial mapping UI
       createMappingUI()
 
-      // Save & Close button
-      const saveButton = this.add.rectangle(640, 580, 200, 50, 0x00aa00)
+      // Save & Close button (adjust position based on panel height)
+      const saveButtonY = gamepadCount >= 2 ? 630 : 580
+      const saveButton = this.add.rectangle(640, saveButtonY, 200, 50, 0x00aa00)
       saveButton.setDepth(102)
       saveButton.setInteractive({ useHandCursor: true })
       saveButton.on('pointerover', () => saveButton.setFillStyle(0x00dd00))
@@ -1449,7 +1552,7 @@ export default class MenuScene extends Phaser.Scene {
         })
       })
 
-      const saveText = this.add.text(640, 580, 'SAVE', {
+      const saveText = this.add.text(640, saveButtonY, 'SAVE', {
         fontSize: '24px',
         color: '#ffffff',
         fontStyle: 'bold'

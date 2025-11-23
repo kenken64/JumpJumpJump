@@ -8,6 +8,7 @@ import LeaderboardScene from './scenes/LeaderboardScene'
 import InventoryScene from './scenes/InventoryScene'
 import BossGalleryScene from './scenes/BossGalleryScene'
 import CreditScene from './scenes/CreditScene'
+import CoopLobbyScene from './scenes/CoopLobbyScene'
 
 function App() {
   const gameRef = useRef<HTMLDivElement>(null)
@@ -40,7 +41,7 @@ function App() {
           crossOrigin: 'anonymous',
           maxParallelDownloads: 10
         },
-        scene: [MenuScene, GameScene, ShopScene, LeaderboardScene, InventoryScene, BossGalleryScene, CreditScene],
+        scene: [MenuScene, GameScene, ShopScene, LeaderboardScene, InventoryScene, BossGalleryScene, CreditScene, CoopLobbyScene],
         scale: {
           mode: Phaser.Scale.FIT,
           autoCenter: Phaser.Scale.CENTER_BOTH,

@@ -57,8 +57,8 @@ export default class GameScene extends Phaser.Scene {
   private lastGeneratedX: number = 0
   private spikes!: Phaser.Physics.Arcade.StaticGroup
   private worldGenerator!: WorldGenerator
-  private spikePositions: Array<{x: number, y: number, width: number}> = []
-  private checkpoints: Array<{x: number, marker: Phaser.GameObjects.Rectangle}> = []
+  private spikePositions: Array<{ x: number, y: number, width: number }> = []
+  private checkpoints: Array<{ x: number, marker: Phaser.GameObjects.Rectangle }> = []
   private lastCheckpointX: number = 0
   private currentCheckpoint: number = 0
   private checkpointInterval: number = 2000 // 20 meters = 2000 pixels
@@ -85,32 +85,48 @@ export default class GameScene extends Phaser.Scene {
   private levelCompleteShown: boolean = false // Prevent multiple level complete triggers
   private audioManager!: AudioManager
   private musicManager!: MusicManager
-  
+
   // Debug mode
   private debugMode: boolean = false
   private debugText: Phaser.GameObjects.Text | null = null
   private fpsText: Phaser.GameObjects.Text | null = null
   private coordText: Phaser.GameObjects.Text | null = null
-  
+
   // AI Player
   private aiPlayer!: AIPlayer
   private aiEnabled: boolean = false
   private aiStatusText: Phaser.GameObjects.Text | null = null
-  
+
   // ML AI Player
   private mlAIPlayer!: MLAIPlayer
   private mlAIEnabled: boolean = false
-  private mlAIDecision: { moveLeft: boolean; moveRight: boolean; jump: boolean; shoot: boolean } = { 
-    moveLeft: false, 
-    moveRight: false, 
-    jump: false, 
-    shoot: false 
+  private mlAIDecision: { moveLeft: boolean; moveRight: boolean; jump: boolean; shoot: boolean } = {
+    moveLeft: false,
+    moveRight: false,
+    jump: false,
+    shoot: false
   }
   private gameplayRecorder!: GameplayRecorder
   private isRecording: boolean = false
 
+  // Co-op multiplayer
+  private isCoopMode: boolean = false
+  private player2!: Phaser.Physics.Arcade.Sprite
+  private gun2!: Phaser.GameObjects.Image
+  private bullets2!: Phaser.Physics.Arcade.Group
+
   constructor() {
     super('GameScene')
+  }
+
+  init(data?: any) {
+    // Check if launching in co-op mode
+    if (data && data.mode === 'coop') {
+      this.isCoopMode = true
+      console.log('🎮 Co-op mode enabled!')
+    } else {
+      this.isCoopMode = false
+    }
   }
 
   preload() {
@@ -126,23 +142,23 @@ export default class GameScene extends Phaser.Scene {
     this.load.image('alienBeige_jump', '/assets/kenney_platformer-art-extended-enemies/Alien sprites/alienBeige_jump.png')
     this.load.image('alienBeige_hurt', '/assets/kenney_platformer-art-extended-enemies/Alien sprites/alienBeige_hurt.png')
     this.load.image('alienBeige_duck', '/assets/kenney_platformer-art-extended-enemies/Alien sprites/alienBeige_duck.png')
-    
+
     // Load purchasable skins
     this.load.image('alienBlue_stand', '/assets/kenney_platformer-art-extended-enemies/Alien sprites/alienBlue_stand.png')
     this.load.image('alienBlue_walk1', '/assets/kenney_platformer-art-extended-enemies/Alien sprites/alienBlue_walk1.png')
     this.load.image('alienBlue_walk2', '/assets/kenney_platformer-art-extended-enemies/Alien sprites/alienBlue_walk2.png')
     this.load.image('alienBlue_jump', '/assets/kenney_platformer-art-extended-enemies/Alien sprites/alienBlue_jump.png')
-    
+
     this.load.image('alienGreen_stand', '/assets/kenney_platformer-art-extended-enemies/Alien sprites/alienGreen_stand.png')
     this.load.image('alienGreen_walk1', '/assets/kenney_platformer-art-extended-enemies/Alien sprites/alienGreen_walk1.png')
     this.load.image('alienGreen_walk2', '/assets/kenney_platformer-art-extended-enemies/Alien sprites/alienGreen_walk2.png')
     this.load.image('alienGreen_jump', '/assets/kenney_platformer-art-extended-enemies/Alien sprites/alienGreen_jump.png')
-    
+
     this.load.image('alienPink_stand', '/assets/kenney_platformer-art-extended-enemies/Alien sprites/alienPink_stand.png')
     this.load.image('alienPink_walk1', '/assets/kenney_platformer-art-extended-enemies/Alien sprites/alienPink_walk1.png')
     this.load.image('alienPink_walk2', '/assets/kenney_platformer-art-extended-enemies/Alien sprites/alienPink_walk2.png')
     this.load.image('alienPink_jump', '/assets/kenney_platformer-art-extended-enemies/Alien sprites/alienPink_jump.png')
-    
+
     this.load.image('alienYellow_stand', '/assets/kenney_platformer-art-extended-enemies/Alien sprites/alienYellow_stand.png')
     this.load.image('alienYellow_walk1', '/assets/kenney_platformer-art-extended-enemies/Alien sprites/alienYellow_walk1.png')
     this.load.image('alienYellow_walk2', '/assets/kenney_platformer-art-extended-enemies/Alien sprites/alienYellow_walk2.png')
@@ -155,7 +171,7 @@ export default class GameScene extends Phaser.Scene {
     this.load.image('bee', '/assets/kenney_platformer-art-extended-enemies/Enemy sprites/bee.png')
     this.load.image('bee_fly', '/assets/kenney_platformer-art-extended-enemies/Enemy sprites/bee_fly.png')
     this.load.image('bee_dead', '/assets/kenney_platformer-art-extended-enemies/Enemy sprites/bee_dead.png')
-    
+
     // Medium enemies (slimes)
     this.load.image('slimeGreen', '/assets/kenney_platformer-art-extended-enemies/Enemy sprites/slimeGreen.png')
     this.load.image('slimeGreen_walk', '/assets/kenney_platformer-art-extended-enemies/Enemy sprites/slimeGreen_walk.png')
@@ -163,7 +179,7 @@ export default class GameScene extends Phaser.Scene {
     this.load.image('slimeBlue', '/assets/kenney_platformer-art-extended-enemies/Enemy sprites/slimeBlue.png')
     this.load.image('slimeBlue_walk', '/assets/kenney_platformer-art-extended-enemies/Enemy sprites/slimeBlue_walk.png')
     this.load.image('slimeBlue_dead', '/assets/kenney_platformer-art-extended-enemies/Enemy sprites/slimeBlue_dead.png')
-    
+
     // Large enemies (worms)
     this.load.image('wormGreen', '/assets/kenney_platformer-art-extended-enemies/Enemy sprites/wormGreen.png')
     this.load.image('wormGreen_walk', '/assets/kenney_platformer-art-extended-enemies/Enemy sprites/wormGreen_walk.png')
@@ -175,7 +191,7 @@ export default class GameScene extends Phaser.Scene {
     // Load platform beams
     this.load.image('beam', '/assets/kenney_platformer-art-requests/Tiles/beam.png')
     this.load.image('beamBolts', '/assets/kenney_platformer-art-requests/Tiles/beamBolts.png')
-    
+
     // Load additional terrain tiles for world generation
     this.load.image('metalCenter', '/assets/kenney_platformer-art-requests/Tiles/metalCenter.png')
     this.load.image('metalLeft', '/assets/kenney_platformer-art-requests/Tiles/metalLeft.png')
@@ -198,24 +214,24 @@ export default class GameScene extends Phaser.Scene {
 
     // Load metal blocks for fragments
     this.load.image('metalBlock', '/assets/kenney_platformer-art-requests/Tiles/metal.png')
-    
+
     // Load gun and bullet assets
     this.load.image('raygun', '/assets/kenney_platformer-art-requests/Tiles/raygun.png')
     this.load.image('laserBlue', '/assets/kenney_platformer-art-requests/Tiles/laserBlueHorizontal.png')
-    
+
     // Load coin (using gold shield as coin)
     this.load.image('coin', '/assets/kenney_platformer-art-requests/Tiles/shieldGold.png')
-    
+
     // Load particle (using laser burst for particles)
     this.load.image('particle', '/assets/kenney_platformer-art-requests/Tiles/laserYellowBurst.png')
-    
+
     // Load spikes
     this.load.image('spikes', '/assets/kenney_platformer-art-requests/Tiles/spikes.png')
-    
+
     // Load portal sprite
     this.load.image('portal', '/assets/kenney_sci-fi-rts/PNG/Default size/Structure/barricadeLarge.png')
     this.load.image('homeIcon', '/assets/kenney_ui-pack-space-expansion/PNG/Blue/Default/button_home.png')
-    
+
     // Load planet backgrounds
     this.load.image('planet00', '/assets/kenny_planets/Planets/planet00.png')
     this.load.image('planet01', '/assets/kenny_planets/Planets/planet01.png')
@@ -223,19 +239,19 @@ export default class GameScene extends Phaser.Scene {
     this.load.image('planet03', '/assets/kenny_planets/Planets/planet03.png')
     this.load.image('planet04', '/assets/kenny_planets/Planets/planet04.png')
     this.load.image('planet05', '/assets/kenny_planets/Planets/planet05.png')
-    
+
     // Load individual boss images (22 bosses)
     for (let i = 0; i < 22; i++) {
       const bossKey = `boss_${i.toString().padStart(2, '0')}`
       this.load.image(bossKey, `/assets/bosses_individual/boss_${i.toString().padStart(2, '0')}.png`)
     }
-    
+
     // Load power-up sprites
     this.load.image('powerSpeed', '/assets/kenney_platformer-art-requests/Tiles/powerupYellow.png')
     this.load.image('powerShield', '/assets/kenney_platformer-art-requests/Tiles/powerupBlue.png')
     this.load.image('powerLife', '/assets/kenney_platformer-art-requests/Tiles/powerupGreen.png')
     this.load.image('powerHealth', '/assets/pico-8/Transparent/Tiles/tile_0066.png')
-    
+
     // Load game music
     this.load.audio('gameMusic', '/assets/music/game.wav')
   }
@@ -248,10 +264,10 @@ export default class GameScene extends Phaser.Scene {
 
     // Create fallback textures for any missing assets
     this.createFallbackTextures()
-    
+
     // Create procedural textures for power-ups and items
     this.createProceduralTextures()
-    
+
     // Initialize audio context (safe initialization)
     try {
       this.audioContext = new AudioContext()
@@ -268,33 +284,33 @@ export default class GameScene extends Phaser.Scene {
       // Create a dummy audio context if not supported
       this.audioContext = { state: 'running' } as AudioContext
     }
-    
+
     // Initialize audio and music managers
     this.audioManager = new AudioManager(this.audioContext)
     this.musicManager = new MusicManager(this)
-    
+
     // Reset all state variables
     this.playerIsDead = false
     this.playerHealth = 100
     this.playerLives = 3
     this.debugMode = false  // Always reset debug mode on scene start/restart
     this.levelCompleteShown = false // Reset level complete flag
-    
+
     // Load coin count from localStorage
     const savedCoins = localStorage.getItem('playerCoins')
     this.coinCount = savedCoins ? parseInt(savedCoins) : 0
-    
+
     // Load equipped items from inventory
     const equippedWeapon = localStorage.getItem('equippedWeapon')
     const equippedSkin = localStorage.getItem('equippedSkin')
     this.equippedWeapon = equippedWeapon || 'raygun'
     this.equippedSkin = equippedSkin || 'alienBeige'
-    
+
     // Initialize power-up state
     this.hasSpeedBoost = false
     this.hasShield = false
     this.shieldSprite = null
-    
+
     this.worldGenerationX = 0
     this.lastGeneratedX = 0
     this.canDoubleJump = true
@@ -308,42 +324,42 @@ export default class GameScene extends Phaser.Scene {
     this.currentCheckpoint = 0
     this.levelEndMarker = null
     this.portal = null
-    
+
     // Create space background with blackhole effect
     this.cameras.main.setBackgroundColor('#0a0a1a')
     this.createBlackholeBackground()
-    
+
     // Add planet backgrounds with parallax scrolling
     const planet1 = this.add.image(200, 150, 'planet00')
     planet1.setScale(0.3)
     planet1.setScrollFactor(0.1)
     planet1.setAlpha(0.8)
-    
+
     const planet2 = this.add.image(800, 250, 'planet01')
     planet2.setScale(0.4)
     planet2.setScrollFactor(0.15)
     planet2.setAlpha(0.7)
-    
+
     const planet3 = this.add.image(1500, 180, 'planet02')
     planet3.setScale(0.35)
     planet3.setScrollFactor(0.12)
     planet3.setAlpha(0.75)
-    
+
     const planet4 = this.add.image(2500, 220, 'planet03')
     planet4.setScale(0.5)
     planet4.setScrollFactor(0.2)
     planet4.setAlpha(0.6)
-    
+
     const planet5 = this.add.image(3800, 160, 'planet04')
     planet5.setScale(0.45)
     planet5.setScrollFactor(0.18)
     planet5.setAlpha(0.65)
-    
+
     const planet6 = this.add.image(5200, 200, 'planet05')
     planet6.setScale(0.38)
     planet6.setScrollFactor(0.14)
     planet6.setAlpha(0.7)
-    
+
     // Add slow rotation to planets
     this.tweens.add({
       targets: [planet1, planet3, planet5],
@@ -352,7 +368,7 @@ export default class GameScene extends Phaser.Scene {
       repeat: -1,
       ease: 'Linear'
     })
-    
+
     this.tweens.add({
       targets: [planet2, planet4, planet6],
       angle: -360,
@@ -360,41 +376,41 @@ export default class GameScene extends Phaser.Scene {
       repeat: -1,
       ease: 'Linear'
     })
-    
+
     // Initialize boss variables
     this.boss = null
     this.bossActive = false
     this.bossHealthBar = null
     this.bossHealthBarBg = null
     this.bossNameText = null
-    
+
     // Load defeated boss levels from localStorage
     const savedDefeatedLevels = localStorage.getItem('defeatedBossLevels')
     if (savedDefeatedLevels) {
       this.defeatedBossLevels = new Set(JSON.parse(savedDefeatedLevels))
       console.log('📊 Loaded defeated boss levels:', Array.from(this.defeatedBossLevels))
     }
-    
+
     // Play game music using MusicManager
     this.musicManager.playGameMusic()
-    
+
     // Set world bounds (infinite to the right)
     this.physics.world.setBounds(0, 0, 100000, 1200)
     this.cameras.main.setBounds(0, 0, 100000, 1200)
 
     // Set world bounds
     this.physics.world.setBounds(0, 0, 100000, 1200)
-    
+
     // Set world gravity (microgravity)
     this.physics.world.gravity.y = 400
 
     // Create platforms with procedural generation
     this.platforms = this.physics.add.staticGroup()
     this.spikes = this.physics.add.staticGroup()
-    
+
     // Initialize WorldGenerator
     this.worldGenerator = new WorldGenerator(this, this.platforms, this.spikes, this.spikePositions)
-    
+
     console.log('Generating world...')
     this.worldGenerationX = this.worldGenerator.generateWorld()
     this.lastGeneratedX = this.worldGenerationX
@@ -431,11 +447,11 @@ export default class GameScene extends Phaser.Scene {
     this.player.setBounce(0.1)
     this.player.setCollideWorldBounds(true)
     this.player.setGravityY(0) // Start with no gravity
-    
+
     console.log('Player created at:', this.player.x, this.player.y)
     console.log('Floor is at Y:', 650)
     console.log('Player is', 650 - 550, 'pixels above floor')
-    
+
     // Ensure physics body is enabled and properly sized
     if (this.player.body) {
       const body = this.player.body as Phaser.Physics.Arcade.Body
@@ -455,9 +471,9 @@ export default class GameScene extends Phaser.Scene {
     } else {
       console.error('ERROR: Player has no body!')
     }
-    
+
     this.player.play('player_idle') // Start with idle animation
-    
+
     // Enable gravity after a short delay to ensure platforms are loaded
     this.time.delayedCall(100, () => {
       if (this.player && this.player.body) {
@@ -470,7 +486,7 @@ export default class GameScene extends Phaser.Scene {
         console.log('Total player gravity:', (this.player.body as Phaser.Physics.Arcade.Body).gravity.y + this.physics.world.gravity.y)
       }
     })
-    
+
     // Give player 1 second of invincibility on spawn
     this.player.setData('lastHitTime', this.time.now)
     this.hasShield = true
@@ -478,7 +494,7 @@ export default class GameScene extends Phaser.Scene {
     this.shieldSprite.setScale(1.5)
     this.shieldSprite.setAlpha(0.6)
     this.shieldSprite.setDepth(5)
-    
+
     // Shield animation
     this.tweens.add({
       targets: this.shieldSprite,
@@ -486,7 +502,40 @@ export default class GameScene extends Phaser.Scene {
       duration: 3000,
       repeat: 0 // Only one rotation for spawn shield
     })
-    
+
+    // Player start dialogue
+    const dialogueText = this.add.text(this.player.x, this.player.y - 60, "Lets ROCK and ROLL !", {
+      fontSize: '16px',
+      color: '#ffffff',
+      backgroundColor: '#000000',
+      padding: { x: 8, y: 4 },
+      fontStyle: 'bold'
+    })
+    dialogueText.setOrigin(0.5)
+    dialogueText.setDepth(100)
+
+    // Make dialogue follow player
+    const updateDialogue = () => {
+      if (dialogueText.active && this.player.active) {
+        dialogueText.setPosition(this.player.x, this.player.y - 60)
+      }
+    }
+    this.events.on('update', updateDialogue)
+
+    // Fade out and destroy dialogue
+    this.time.delayedCall(3000, () => {
+      this.tweens.add({
+        targets: dialogueText,
+        alpha: 0,
+        y: dialogueText.y - 20,
+        duration: 1000,
+        onComplete: () => {
+          dialogueText.destroy()
+          this.events.off('update', updateDialogue)
+        }
+      })
+    })
+
     // Remove spawn shield after 1 second
     this.time.delayedCall(1000, () => {
       this.hasShield = false
@@ -523,6 +572,52 @@ export default class GameScene extends Phaser.Scene {
       maxSize: 30
     })
 
+    // Create Player 2 for co-op mode
+    if (this.isCoopMode) {
+      const player2Skin = 'alienBlue' // Player 2 uses blue alien skin
+
+      // Create player 2 sprite
+      this.player2 = this.physics.add.sprite(450, 550, `${player2Skin}_stand`)
+      this.player2.setBounce(0.1)
+      this.player2.setCollideWorldBounds(true)
+      this.player2.setGravityY(0)
+      this.player2.setDepth(10)
+
+      if (this.player2.body) {
+        const body = this.player2.body as Phaser.Physics.Arcade.Body
+        body.enable = true
+        body.setSize(50, 80)
+        body.setOffset(10, 10)
+      }
+
+      this.player2.play('player_idle')
+
+      // Enable gravity after delay
+      this.time.delayedCall(100, () => {
+        if (this.player2 && this.player2.body) {
+          this.player2.setGravityY(200)
+        }
+      })
+
+      // Create player 2 gun
+      this.gun2 = this.add.image(0, 0, this.equippedWeapon)
+      if (this.equippedWeapon === 'sword') {
+        this.gun2.setOrigin(0.5, 0.9)
+      } else {
+        this.gun2.setOrigin(0, 0.5)
+      }
+      this.gun2.setScale(1.0)
+      this.gun2.setDepth(10)
+
+      // Create player 2 bullets
+      this.bullets2 = this.physics.add.group({
+        defaultKey: 'laserBlue',
+        maxSize: 30
+      })
+
+      console.log('\ud83c\udfae Player 2 created at:', this.player2.x, this.player2.y)
+    }
+
     // Create enemy animations - Flies
     this.anims.create({
       key: 'fly_idle',
@@ -536,7 +631,7 @@ export default class GameScene extends Phaser.Scene {
       frameRate: 8,
       repeat: -1
     })
-    
+
     // Bees
     this.anims.create({
       key: 'bee_idle',
@@ -550,7 +645,7 @@ export default class GameScene extends Phaser.Scene {
       frameRate: 8,
       repeat: -1
     })
-    
+
     // Slimes (medium)
     this.anims.create({
       key: 'slimeGreen_idle',
@@ -576,7 +671,7 @@ export default class GameScene extends Phaser.Scene {
       frameRate: 6,
       repeat: -1
     })
-    
+
     // Worms (large)
     this.anims.create({
       key: 'wormGreen_idle',
@@ -602,28 +697,28 @@ export default class GameScene extends Phaser.Scene {
       frameRate: 5,
       repeat: -1
     })
-    
+
     // Boss animations are created dynamically when boss spawns
 
     // Create enemies
     this.enemies = this.physics.add.group()
-    
+
     // Spawn enemies randomly across the world
     const numEnemies = 15
     for (let i = 0; i < numEnemies; i++) {
       const x = Phaser.Math.Between(300, 3000)
       const y = Phaser.Math.Between(200, 900)
-      
+
       this.spawnRandomEnemy(x, y, 1.0)
     }
 
     // Create block fragments group
     this.blockFragments = this.physics.add.group()
-    
+
     // Create coins group
     this.coins = this.physics.add.group()
     this.spawnCoins()
-    
+
     // Create power-ups group
     this.powerUps = this.physics.add.group()
     this.spawnPowerUps()
@@ -639,16 +734,16 @@ export default class GameScene extends Phaser.Scene {
       hasBody: !!p.body,
       bodyType: p.body ? p.body.constructor.name : 'none'
     })))
-    
+
     // CRITICAL: Enable physics debugging to see collision bodies
     console.log('=== ENABLING COLLISIONS ===')
     console.log('Physics world running:', this.physics.world.isPaused)
     console.log('Platforms in group:', this.platforms.getChildren().length)
-    
+
     // Verify all platforms have bodies
     const platformsWithBodies = this.platforms.getChildren().filter((p: any) => p.body !== null)
     console.log('Platforms with bodies:', platformsWithBodies.length)
-    
+
     // Create colliders with explicit active flag
     console.log('Creating colliders...')
     const playerCollider = this.physics.add.collider(this.player, this.platforms)
@@ -658,29 +753,47 @@ export default class GameScene extends Phaser.Scene {
       object1: playerCollider.object1,
       object2: playerCollider.object2
     })
-    
+
+    // Player 2 colliders for co-op mode
+    if (this.isCoopMode && this.player2) {
+      const player2Collider = this.physics.add.collider(this.player2, this.platforms)
+      player2Collider.active = true
+      console.log('\ud83c\udfae Player 2-Platform collider created')
+
+      this.physics.add.overlap(this.player2, this.enemies, this.handlePlayerEnemyCollision, undefined, this)
+      this.physics.add.overlap(this.bullets2, this.enemies, this.handleBulletEnemyCollision, undefined, this)
+      this.physics.add.overlap(this.player2, this.coins, this.collectCoin as any, undefined, this)
+      this.physics.add.overlap(this.player2, this.powerUps, this.collectPowerUp as any, undefined, this)
+      this.physics.add.collider(this.bullets2, this.platforms, this.handleBulletPlatformCollision, undefined, this)
+
+      // Friendly fire: Player 1 bullets can hit Player 2
+      this.physics.add.overlap(this.bullets, this.player2, this.handleFriendlyFire, undefined, this)
+      // Friendly fire: Player 2 bullets can hit Player 1
+      this.physics.add.overlap(this.bullets2, this.player, this.handleFriendlyFire, undefined, this)
+    }
+
     const enemyCollider = this.physics.add.collider(this.enemies, this.platforms)
     enemyCollider.active = true
     console.log('Enemy-Platform collider created and activated')
-    
+
     this.physics.add.collider(this.enemies, this.enemies) // Enemies collide with each other
     this.physics.add.collider(this.blockFragments, this.platforms)
     this.physics.add.collider(this.bullets, this.platforms, this.handleBulletPlatformCollision, undefined, this)
     this.physics.add.collider(this.coins, this.platforms)
     this.physics.add.collider(this.powerUps, this.platforms)
-    
+
     // Setup player-enemy collision with overlap detection
     this.physics.add.overlap(this.player, this.enemies, this.handlePlayerEnemyCollision, undefined, this)
-    
+
     // Setup bullet-enemy collision
     this.physics.add.overlap(this.bullets, this.enemies, this.handleBulletEnemyCollision, undefined, this)
-    
+
     // Setup coin collection
     this.physics.add.overlap(this.player, this.coins, this.collectCoin as any, undefined, this)
-    
+
     // Setup power-up collection
     this.physics.add.overlap(this.player, this.powerUps, this.collectPowerUp as any, undefined, this)
-    
+
     // No collider with spikes - we'll handle manually in update
 
     // Setup input
@@ -699,14 +812,14 @@ export default class GameScene extends Phaser.Scene {
         this.gamepad = this.input.gamepad.getPad(0)
         console.log('Gamepad already connected:', this.gamepad?.id)
       }
-      
+
       // Listen for new gamepad connections
       this.input.gamepad.on('connected', (pad: Phaser.Input.Gamepad.Gamepad) => {
         this.gamepad = pad
         console.log('Gamepad connected:', pad.id)
         this.showTip('gamepad', 'Gamepad connected! Left stick/D-pad: Move, A: Jump, RT: Shoot')
       })
-      
+
       // Listen for gamepad disconnections
       this.input.gamepad.on('disconnected', (pad: Phaser.Input.Gamepad.Gamepad) => {
         if (this.gamepad === pad) {
@@ -715,14 +828,14 @@ export default class GameScene extends Phaser.Scene {
         }
       })
     }
-    
+
     // Add debug toggle key
     const debugKey = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.F3)
     debugKey.on('down', () => {
       console.log('F3 pressed!')
       this.toggleDebugMode()
     })
-    
+
     // Test key to trigger game over (F8)
     const gameOverTestKey = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.F8)
     gameOverTestKey.on('down', () => {
@@ -730,7 +843,7 @@ export default class GameScene extends Phaser.Scene {
       this.playerLives = 0
       this.showGameOver()
     })
-    
+
     // Boss teleport key (F4) - cycles through boss levels
     const bossTeleportKey = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.F4)
     bossTeleportKey.on('down', () => {
@@ -738,12 +851,16 @@ export default class GameScene extends Phaser.Scene {
         // Find next boss level (5, 10, 15, 20, etc.)
         const nextBossLevel = Math.floor(this.currentLevel / 5) * 5 + 5
         console.log(`🎮 F4: Teleporting to boss level ${nextBossLevel}...`)
-        this.scene.restart({ gameMode: 'levels', level: nextBossLevel })
+        const bossData: any = { gameMode: 'levels', level: nextBossLevel }
+        if (this.isCoopMode) {
+          bossData.mode = 'coop'
+        }
+        this.scene.restart(bossData)
       } else {
         console.log('⚠️ F4: Boss teleport only works in level mode')
       }
     })
-    
+
     // Clear defeated bosses key (F5) - debug only
     const clearBossesKey = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.F5)
     clearBossesKey.on('down', () => {
@@ -756,38 +873,38 @@ export default class GameScene extends Phaser.Scene {
         console.log('⚠️ F5: Enable debug mode (F3) first to clear defeated bosses')
       }
     })
-    
+
     // ESC key to quit game and return to menu
     const escKey = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.ESC)
     escKey.on('down', () => {
       this.showQuitConfirmation()
     })
-    
+
     // P key to toggle AI player
     const aiToggleKey = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.P)
     aiToggleKey.on('down', () => {
       this.toggleAI()
     })
-    
+
     // Initialize AI player
     this.aiPlayer = new AIPlayer(this)
-    
+
     // Initialize ML AI and recorder
     this.mlAIPlayer = new MLAIPlayer(this)
     this.gameplayRecorder = new GameplayRecorder(this)
-    
+
     // R key to toggle recording
     const recordKey = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.R)
     recordKey.on('down', () => {
       this.toggleRecording()
     })
-    
+
     // O key to toggle ML AI (O for "observational AI")
     const mlAIToggleKey = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.O)
     mlAIToggleKey.on('down', () => {
       this.toggleMLAI()
     })
-    
+
     // Alternative debug key (Shift+D)
     const shiftKey = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.SHIFT)
     this.input.keyboard!.on('keydown-D', () => {
@@ -797,99 +914,257 @@ export default class GameScene extends Phaser.Scene {
       }
     })
 
-    // Camera follows player
-    this.cameras.main.startFollow(this.player, true, 0.1, 0.1)
-    
+    // Camera follows player (or both players in co-op)
+    if (this.isCoopMode) {
+      // In co-op, camera will be manually updated to follow center point
+      console.log('\ud83c\udfae Co-op camera: Will follow center between players')
+    } else {
+      this.cameras.main.startFollow(this.player, true, 0.1, 0.1)
+    }
+
     // Create UI elements
     this.createUI()
-    
+
     // Create debug UI (hidden by default)
     this.createDebugUI()
-    
+
     // Show tutorial tips after a delay
     this.time.delayedCall(2000, () => {
       this.showTip('welcome', 'Use WASD or Arrow Keys to move. Press W/Up to jump!')
     })
-    
+
     this.time.delayedCall(8000, () => {
       this.showTip('shooting', 'Click to aim and shoot enemies. Different weapons have different speeds!')
     })
   }
 
   private createUI() {
-    const startX = this.cameras.main.width - 20
-    const startY = 20
-    
-    // Top-right: Lives and Health
-    this.livesText = this.add.text(startX, startY, `Lives: ${this.playerLives}`, {
-      fontSize: '24px',
-      color: '#ffffff',
-      fontStyle: 'bold',
-      stroke: '#000000',
-      strokeThickness: 4
-    })
-    this.livesText.setOrigin(1, 0)
-    this.livesText.setScrollFactor(0)
-    
-    // Create health bar (below lives)
-    const healthBarWidth = 200
-    const healthBarHeight = 20
-    const healthBarY = startY + 35
-    
-    // Background (empty state)
-    this.healthBarBackground = this.add.rectangle(
-      startX - healthBarWidth,
-      healthBarY,
-      healthBarWidth,
-      healthBarHeight,
-      0x333333
-    )
-    this.healthBarBackground.setOrigin(0, 0)
-    this.healthBarBackground.setScrollFactor(0)
-    
-    // Fill (shows current health)
-    this.healthBarFill = this.add.rectangle(
-      startX - healthBarWidth,
-      healthBarY,
-      healthBarWidth,
-      healthBarHeight,
-      0x00ff00
-    )
-    this.healthBarFill.setOrigin(0, 0)
-    this.healthBarFill.setScrollFactor(0)
-    
-    // Create reload bar below health bar
-    const reloadBarY = healthBarY + healthBarHeight + 10
-    const reloadBarWidth = 60 // Match the max width used in update
-    const reloadBarHeight = 12
-    
-    // Background (empty state)
-    this.reloadBarBackground = this.add.rectangle(
-      startX - reloadBarWidth,
-      reloadBarY,
-      reloadBarWidth,
-      reloadBarHeight,
-      0x333333 // Dark gray
-    )
-    this.reloadBarBackground.setScrollFactor(0)
-    this.reloadBarBackground.setOrigin(0, 0)
-    
-    // Fill (shows reload progress)
-    this.reloadBarFill = this.add.rectangle(
-      startX - reloadBarWidth,
-      reloadBarY,
-      0, // Start at 0 width
-      reloadBarHeight,
-      0x00aaff // Blue
-    )
-    this.reloadBarFill.setScrollFactor(0)
-    this.reloadBarFill.setOrigin(0, 0)
-    
+    if (this.isCoopMode) {
+      // Co-op mode: Show two separate health bars at top-right
+      const rightX = this.cameras.main.width - 20
+      const topY = 20
+
+      // Player 1 (Green) - Top Right
+      const p1Label = this.add.text(rightX - 310, topY, 'P1', {
+        fontSize: '28px',
+        color: '#00ff00',
+        fontStyle: 'bold',
+        stroke: '#000000',
+        strokeThickness: 4
+      })
+      p1Label.setScrollFactor(0)
+      p1Label.setDepth(100)
+
+      const p1HealthBarBg = this.add.rectangle(rightX - 260, topY + 14, 200, 20, 0x333333)
+      p1HealthBarBg.setOrigin(0, 0.5)
+      p1HealthBarBg.setScrollFactor(0)
+      p1HealthBarBg.setDepth(100)
+
+      this.healthBarFill = this.add.rectangle(rightX - 260, topY + 14, 200, 20, 0x00ff00)
+      this.healthBarFill.setOrigin(0, 0.5)
+      this.healthBarFill.setScrollFactor(0)
+      this.healthBarFill.setDepth(101)
+
+      this.livesText = this.add.text(rightX - 50, topY + 14, `x${this.playerLives}`, {
+        fontSize: '24px',
+        color: '#ffffff',
+        fontStyle: 'bold',
+        stroke: '#000000',
+        strokeThickness: 4
+      })
+      this.livesText.setOrigin(0, 0.5)
+      this.livesText.setScrollFactor(0)
+      this.livesText.setDepth(100)
+
+      // Player 2 (Cyan) - Below Player 1
+      const p2Y = topY + 45
+      const p2Label = this.add.text(rightX - 310, p2Y, 'P2', {
+        fontSize: '28px',
+        color: '#00ffff',
+        fontStyle: 'bold',
+        stroke: '#000000',
+        strokeThickness: 4
+      })
+      p2Label.setScrollFactor(0)
+      p2Label.setDepth(100)
+
+      const p2HealthBarBg = this.add.rectangle(rightX - 260, p2Y + 14, 200, 20, 0x333333)
+      p2HealthBarBg.setOrigin(0, 0.5)
+      p2HealthBarBg.setScrollFactor(0)
+      p2HealthBarBg.setDepth(100)
+      p2HealthBarBg.setName('p2HealthBarBg')
+
+      const p2HealthBarFill = this.add.rectangle(rightX - 260, p2Y + 14, 200, 20, 0x00ffff)
+      p2HealthBarFill.setOrigin(0, 0.5)
+      p2HealthBarFill.setScrollFactor(0)
+      p2HealthBarFill.setDepth(101)
+      p2HealthBarFill.setName('p2HealthBarFill')
+
+      const p2LivesText = this.add.text(rightX - 50, p2Y + 14, `x${this.playerLives}`, {
+        fontSize: '24px',
+        color: '#ffffff',
+        fontStyle: 'bold',
+        stroke: '#000000',
+        strokeThickness: 4
+      })
+      p2LivesText.setOrigin(0, 0.5)
+      p2LivesText.setScrollFactor(0)
+      p2LivesText.setDepth(100)
+      p2LivesText.setName('p2LivesText')
+
+      // Store references for player 2
+      this.player2.setData('healthBarFill', p2HealthBarFill)
+      this.player2.setData('livesText', p2LivesText)
+      this.player2.setData('health', 100)
+      this.player2.setData('lives', 3)
+      this.player2.setData('coins', 0)
+      this.player2.setData('score', 0)
+
+      this.healthBarBackground = p1HealthBarBg
+
+      // Add separate score/coin displays for co-op mode below health bars
+      const scoreY = p2Y + 50
+
+      // Player 1 Score/Coins
+      const p1ScoreText = this.add.text(rightX - 310, scoreY, 'Score: 0', {
+        fontSize: '18px',
+        color: '#00ff00',
+        fontStyle: 'bold',
+        stroke: '#000000',
+        strokeThickness: 3
+      })
+      p1ScoreText.setScrollFactor(0)
+      p1ScoreText.setDepth(100)
+      p1ScoreText.setName('p1ScoreText')
+
+      const p1CoinIcon = this.add.text(rightX - 180, scoreY, '🪙', {
+        fontSize: '18px'
+      })
+      p1CoinIcon.setScrollFactor(0)
+      p1CoinIcon.setDepth(100)
+
+      const p1CoinText = this.add.text(rightX - 160, scoreY, '0', {
+        fontSize: '18px',
+        color: '#ffff00',
+        fontStyle: 'bold',
+        stroke: '#000000',
+        strokeThickness: 3
+      })
+      p1CoinText.setScrollFactor(0)
+      p1CoinText.setDepth(100)
+      p1CoinText.setName('p1CoinText')
+
+      // Player 2 Score/Coins
+      const p2ScoreTextObj = this.add.text(rightX - 310, scoreY + 25, 'Score: 0', {
+        fontSize: '18px',
+        color: '#00ffff',
+        fontStyle: 'bold',
+        stroke: '#000000',
+        strokeThickness: 3
+      })
+      p2ScoreTextObj.setScrollFactor(0)
+      p2ScoreTextObj.setDepth(100)
+      p2ScoreTextObj.setName('p2ScoreText')
+
+      const p2CoinIcon = this.add.text(rightX - 180, scoreY + 25, '🪙', {
+        fontSize: '18px'
+      })
+      p2CoinIcon.setScrollFactor(0)
+      p2CoinIcon.setDepth(100)
+
+      const p2CoinText = this.add.text(rightX - 160, scoreY + 25, '0', {
+        fontSize: '18px',
+        color: '#ffff00',
+        fontStyle: 'bold',
+        stroke: '#000000',
+        strokeThickness: 3
+      })
+      p2CoinText.setScrollFactor(0)
+      p2CoinText.setDepth(100)
+      p2CoinText.setName('p2CoinText')
+    } else {
+      // Single player mode: Original UI at top-right
+      const startX = this.cameras.main.width - 20
+      const startY = 20
+
+      // Top-right: Lives and Health
+      this.livesText = this.add.text(startX, startY, `Lives: ${this.playerLives}`, {
+        fontSize: '24px',
+        color: '#ffffff',
+        fontStyle: 'bold',
+        stroke: '#000000',
+        strokeThickness: 4
+      })
+      this.livesText.setOrigin(1, 0)
+      this.livesText.setScrollFactor(0)
+
+      // Create health bar (below lives)
+      const healthBarWidth = 200
+      const healthBarHeight = 20
+      const healthBarY = startY + 35
+
+      // Background (empty state)
+      this.healthBarBackground = this.add.rectangle(
+        startX - healthBarWidth,
+        healthBarY,
+        healthBarWidth,
+        healthBarHeight,
+        0x333333
+      )
+      this.healthBarBackground.setOrigin(0, 0)
+      this.healthBarBackground.setScrollFactor(0)
+
+      // Fill (shows current health)
+      this.healthBarFill = this.add.rectangle(
+        startX - healthBarWidth,
+        healthBarY,
+        healthBarWidth,
+        healthBarHeight,
+        0x00ff00
+      )
+      this.healthBarFill.setOrigin(0, 0)
+      this.healthBarFill.setScrollFactor(0)
+
+      // Create reload bar below health bar (single player only)
+      const reloadBarY = healthBarY + healthBarHeight + 10
+      const reloadBarWidth = 60
+      const reloadBarHeight = 12
+
+      this.reloadBarBackground = this.add.rectangle(
+        startX - reloadBarWidth,
+        reloadBarY,
+        reloadBarWidth,
+        reloadBarHeight,
+        0x333333
+      )
+      this.reloadBarBackground.setScrollFactor(0)
+      this.reloadBarBackground.setOrigin(0, 0)
+
+      this.reloadBarFill = this.add.rectangle(
+        startX - reloadBarWidth,
+        reloadBarY,
+        0,
+        reloadBarHeight,
+        0x00aaff
+      )
+      this.reloadBarFill.setScrollFactor(0)
+      this.reloadBarFill.setOrigin(0, 0)
+    }
+
+    // Reload bars for co-op mode (optional - can be added later if needed)
+    if (this.isCoopMode) {
+      // For now, skip reload bars in co-op to keep UI clean
+      this.reloadBarBackground = this.add.rectangle(0, 0, 0, 0, 0x000000)
+      this.reloadBarBackground.setVisible(false)
+      this.reloadBarFill = this.add.rectangle(0, 0, 0, 0, 0x000000)
+      this.reloadBarFill.setVisible(false)
+    }
+
     // Top-left: Coins and Score (compact)
     this.coinIcon = this.add.image(25, 20, 'coin')
     this.coinIcon.setScrollFactor(0)
     this.coinIcon.setScale(0.35)
-    
+
     this.coinText = this.add.text(50, 12, '0', {
       fontSize: '24px',
       color: '#FFD700',
@@ -898,7 +1173,7 @@ export default class GameScene extends Phaser.Scene {
       strokeThickness: 3
     })
     this.coinText.setScrollFactor(0)
-    
+
     this.scoreText = this.add.text(20, 40, 'Score: 0', {
       fontSize: '22px',
       color: '#00ff00',
@@ -907,7 +1182,7 @@ export default class GameScene extends Phaser.Scene {
       strokeThickness: 3
     })
     this.scoreText.setScrollFactor(0)
-    
+
     // High score (compact, below score)
     this.highScore = parseInt(localStorage.getItem('jumpjump_highscore') || '0')
     this.highScoreText = this.add.text(20, 65, `Best: ${this.highScore}`, {
@@ -918,7 +1193,7 @@ export default class GameScene extends Phaser.Scene {
       strokeThickness: 2
     })
     this.highScoreText.setScrollFactor(0)
-    
+
     // Level display
     const levelDisplayText = this.gameMode === 'endless' ? 'ENDLESS MODE' : `LEVEL ${this.currentLevel}`
     this.levelText = this.add.text(640, 20, levelDisplayText, {
@@ -931,7 +1206,7 @@ export default class GameScene extends Phaser.Scene {
     this.levelText.setOrigin(0.5, 0)
     this.levelText.setScrollFactor(0)
     this.levelText.setDepth(100)
-    
+
     // AI status indicator (top center, below level)
     this.aiStatusText = this.add.text(640, 55, '', {
       fontSize: '18px',
@@ -944,18 +1219,18 @@ export default class GameScene extends Phaser.Scene {
     this.aiStatusText.setScrollFactor(0)
     this.aiStatusText.setDepth(100)
     this.aiStatusText.setVisible(false)
-    
+
     // Create home button (bottom-left corner) - prominent red circle
     const homeButtonX = 60
     const homeButtonY = 660
-    
+
     // Create a red circle button (always use circle, ignore icon)
     const homeButton = this.add.circle(homeButtonX, homeButtonY, 35, 0xff0000, 0.8)
     homeButton.setStrokeStyle(3, 0xffffff)
     homeButton.setDepth(1000) // High depth to be visible
     homeButton.setScrollFactor(0)
     homeButton.setInteractive({ useHandCursor: true })
-    
+
     // Add HOME text inside circle
     const homeText = this.add.text(homeButtonX, homeButtonY, 'HOME', {
       fontSize: '16px',
@@ -965,7 +1240,7 @@ export default class GameScene extends Phaser.Scene {
     homeText.setOrigin(0.5)
     homeText.setScrollFactor(0)
     homeText.setDepth(1001)
-    
+
     homeButton.on('pointerover', () => {
       homeButton.setFillStyle(0xff3333, 1)
       homeButton.setScale(1.1)
@@ -979,7 +1254,7 @@ export default class GameScene extends Phaser.Scene {
     homeButton.on('pointerdown', () => {
       this.showQuitConfirmation()
     })
-    
+
     // Create particle emitters
     this.jumpParticles = this.add.particles(0, 0, 'particle', {
       speed: { min: 50, max: 150 },
@@ -991,7 +1266,7 @@ export default class GameScene extends Phaser.Scene {
       tint: 0xaaaaaa
     })
     this.jumpParticles.stop()
-    
+
     this.landParticles = this.add.particles(0, 0, 'particle', {
       speed: { min: 30, max: 100 },
       angle: { min: 60, max: 120 },
@@ -1002,7 +1277,7 @@ export default class GameScene extends Phaser.Scene {
       tint: 0x888888
     })
     this.landParticles.stop()
-    
+
     this.coinParticles = this.add.particles(0, 0, 'particle', {
       speed: { min: 80, max: 200 },
       angle: { min: 0, max: 360 },
@@ -1040,7 +1315,7 @@ export default class GameScene extends Phaser.Scene {
       coin.setScale(0.5)
       coin.setBounce(0.3)
       coin.setCollideWorldBounds(true)
-      
+
       // Add floating animation
       this.tweens.add({
         targets: coin,
@@ -1050,7 +1325,7 @@ export default class GameScene extends Phaser.Scene {
         repeat: -1,
         ease: 'Sine.easeInOut'
       })
-      
+
       // Add rotation animation
       this.tweens.add({
         targets: coin,
@@ -1065,28 +1340,52 @@ export default class GameScene extends Phaser.Scene {
   private collectCoin(_player: Phaser.Physics.Arcade.Sprite, coin: Phaser.Physics.Arcade.Sprite) {
     // Remove coin
     coin.destroy()
-    
-    // Increment counter
-    this.coinCount++
-    this.coinText.setText(this.coinCount.toString())
-    
-    // Update score (coins are worth 10 points each)
-    this.updateScore(10)
-    
-    // Save coins to localStorage
-    localStorage.setItem('playerCoins', this.coinCount.toString())
-    
+
+    // Determine which player collected the coin
+
+    const isPlayer2 = this.isCoopMode && _player === this.player2
+
+    if (this.isCoopMode && isPlayer2) {
+      // Player 2 collected coin - track separately
+      const p2Coins = (_player.getData('coins') || 0) + 1
+      const p2Score = (_player.getData('score') || 0) + 10
+      _player.setData('coins', p2Coins)
+      _player.setData('score', p2Score)
+
+      // Update Player 2's UI (if exists)
+      const p2CoinText = this.children.getByName('p2CoinText') as Phaser.GameObjects.Text
+      const p2ScoreText = this.children.getByName('p2ScoreText') as Phaser.GameObjects.Text
+      if (p2CoinText) p2CoinText.setText(p2Coins.toString())
+      if (p2ScoreText) p2ScoreText.setText(`Score: ${p2Score}`)
+    } else {
+      // Player 1 collected coin - use existing tracking
+      this.coinCount++
+      this.updateScore(10)
+
+      // Update coin text (handle both single player and co-op)
+      if (this.isCoopMode) {
+        const p1CoinText = this.children.getByName('p1CoinText') as Phaser.GameObjects.Text
+        if (p1CoinText) p1CoinText.setText(this.coinCount.toString())
+      } else {
+        this.coinText.setText(this.coinCount.toString())
+      }
+    }
+
+    // Save total coins to localStorage (combined for shop access)
+    const totalCoins = this.coinCount + (this.player2?.getData('coins') || 0)
+    localStorage.setItem('playerCoins', totalCoins.toString())
+
     // Show shop tip when player reaches 50 coins for the first time
     if (this.coinCount === 50) {
       this.showTip('shop', 'You have 50 coins! Visit the Shop from the menu to buy weapons and skins!')
     }
-    
+
     // Play coin sound
     this.audioManager.playCoinSound()
-    
+
     // Play collection particle effect
     this.coinParticles.emitParticleAt(coin.x, coin.y)
-    
+
     // Scale animation on coin icon
     this.tweens.add({
       targets: this.coinIcon,
@@ -1101,18 +1400,18 @@ export default class GameScene extends Phaser.Scene {
     // Spawn power-ups at random positions on platforms
     const powerUpTypes = ['powerSpeed', 'powerShield', 'powerLife', 'powerHealth', 'powerHealth']
     const numPowerUps = 10
-    
+
     for (let i = 0; i < numPowerUps; i++) {
       const x = Phaser.Math.Between(1000, 8000)
       const y = 500
       const type = Phaser.Math.RND.pick(powerUpTypes)
-      
+
       const powerUp = this.powerUps.create(x, y, type)
       powerUp.setScale(0.6)
       powerUp.setBounce(0.2)
       powerUp.setCollideWorldBounds(true)
       powerUp.setData('type', type)
-      
+
       // Add floating animation
       this.tweens.add({
         targets: powerUp,
@@ -1122,7 +1421,7 @@ export default class GameScene extends Phaser.Scene {
         repeat: -1,
         ease: 'Sine.easeInOut'
       })
-      
+
       // Add glow effect
       this.tweens.add({
         targets: powerUp,
@@ -1137,26 +1436,26 @@ export default class GameScene extends Phaser.Scene {
 
   private collectPowerUp(_player: Phaser.Physics.Arcade.Sprite, powerUp: Phaser.Physics.Arcade.Sprite) {
     const type = powerUp.getData('type')
-    
+
     // Remove power-up
     powerUp.destroy()
-    
+
     // Show tip on first power-up
     if (this.shownTips.size < 5) {
       this.showTip('powerups', 'Power-ups: Yellow=Speed, Blue=Shield, Green=Life, Heart=Health')
     }
-    
+
     // Apply power-up effect
     if (type === 'powerSpeed') {
       this.hasSpeedBoost = true
-      
+
       // Show notification
       const text = this.add.text(this.player.x, this.player.y - 50, 'SPEED BOOST!', {
         fontSize: '24px',
         color: '#ffff00'
       })
       text.setOrigin(0.5)
-      
+
       this.tweens.add({
         targets: text,
         y: text.y - 50,
@@ -1164,20 +1463,20 @@ export default class GameScene extends Phaser.Scene {
         duration: 2000,
         onComplete: () => text.destroy()
       })
-      
+
       // Remove after 10 seconds
       this.time.delayedCall(10000, () => {
         this.hasSpeedBoost = false
       })
     } else if (type === 'powerShield') {
       this.hasShield = true
-      
+
       // Create shield sprite that follows player
       this.shieldSprite = this.add.sprite(this.player.x, this.player.y, 'powerShield')
       this.shieldSprite.setScale(1.5)
       this.shieldSprite.setAlpha(0.6)
       this.shieldSprite.setDepth(5)
-      
+
       // Shield animation
       this.tweens.add({
         targets: this.shieldSprite,
@@ -1186,14 +1485,14 @@ export default class GameScene extends Phaser.Scene {
         repeat: -1,
         ease: 'Linear'
       })
-      
+
       // Show notification
       const text = this.add.text(this.player.x, this.player.y - 50, 'SHIELD ACTIVE!', {
         fontSize: '24px',
         color: '#00ffff'
       })
       text.setOrigin(0.5)
-      
+
       this.tweens.add({
         targets: text,
         y: text.y - 50,
@@ -1201,7 +1500,7 @@ export default class GameScene extends Phaser.Scene {
         duration: 2000,
         onComplete: () => text.destroy()
       })
-      
+
       // Remove after 15 seconds
       this.time.delayedCall(15000, () => {
         this.hasShield = false
@@ -1214,25 +1513,25 @@ export default class GameScene extends Phaser.Scene {
       // Restore health
       const healthRestored = 30
       this.playerHealth = Math.min(100, this.playerHealth + healthRestored)
-      
+
       // Update health bar width
       const healthPercent = this.playerHealth / 100
       const maxWidth = 200
       this.healthBarFill.width = maxWidth * healthPercent
-      
+
       // Flash health bar white then back to green
       this.healthBarFill.setFillStyle(0xffffff)
       this.time.delayedCall(100, () => {
         this.healthBarFill.setFillStyle(0x00ff00)
       })
-      
+
       // Show notification
       const text = this.add.text(this.player.x, this.player.y - 50, `+${healthRestored} HEALTH!`, {
         fontSize: '24px',
         color: '#00ff00'
       })
       text.setOrigin(0.5)
-      
+
       this.tweens.add({
         targets: text,
         y: text.y - 50,
@@ -1243,17 +1542,17 @@ export default class GameScene extends Phaser.Scene {
     } else if (type === 'powerLife') {
       // Add extra life
       this.playerLives++
-      
+
       // Update lives display
       this.livesText.setText(`Lives: ${this.playerLives}`)
-      
+
       // Show notification
       const text = this.add.text(this.player.x, this.player.y - 50, '+1 LIFE!', {
         fontSize: '24px',
         color: '#00ff00'
       })
       text.setOrigin(0.5)
-      
+
       this.tweens.add({
         targets: text,
         y: text.y - 50,
@@ -1268,13 +1567,13 @@ export default class GameScene extends Phaser.Scene {
     // Only show each tip once
     if (this.shownTips.has(tipId)) return
     this.shownTips.add(tipId)
-    
+
     // Create tip banner at top of screen
     const banner = this.add.rectangle(640, 100, 700, 80, 0x000000, 0.8)
     banner.setScrollFactor(0)
     banner.setDepth(200)
     banner.setStrokeStyle(2, 0xffff00)
-    
+
     const tipText = this.add.text(640, 85, '💡 TIP', {
       fontSize: '18px',
       color: '#ffff00',
@@ -1283,7 +1582,7 @@ export default class GameScene extends Phaser.Scene {
     tipText.setOrigin(0.5)
     tipText.setScrollFactor(0)
     tipText.setDepth(201)
-    
+
     const messageText = this.add.text(640, 115, message, {
       fontSize: '16px',
       color: '#ffffff',
@@ -1293,19 +1592,19 @@ export default class GameScene extends Phaser.Scene {
     messageText.setOrigin(0.5)
     messageText.setScrollFactor(0)
     messageText.setDepth(201)
-    
+
     // Slide in animation
     banner.setY(50)
     tipText.setY(35)
     messageText.setY(65)
-    
+
     this.tweens.add({
       targets: [banner, tipText, messageText],
       y: '+=50',
       duration: 300,
       ease: 'Back.easeOut'
     })
-    
+
     // Auto-dismiss after 5 seconds
     this.time.delayedCall(5000, () => {
       this.tweens.add({
@@ -1339,7 +1638,7 @@ export default class GameScene extends Phaser.Scene {
         coin.setScale(0.5)
         coin.setCollideWorldBounds(true)
         coin.body.setAllowGravity(true)
-        
+
         // Fade in animation
         coin.setAlpha(0)
         this.tweens.add({
@@ -1359,7 +1658,7 @@ export default class GameScene extends Phaser.Scene {
     for (let i = 0; i < numCoins; i++) {
       let x = Phaser.Math.Between(startX + 100, endX - 100)
       let y = Phaser.Math.Between(300, 600)  // Keep coins above ground platform at Y=650
-      
+
       // Check if coin would spawn on spikes, retry if so
       let retries = 0
       while (retries < 5 && this.isOnSpikes(x, y)) {
@@ -1367,15 +1666,15 @@ export default class GameScene extends Phaser.Scene {
         y = Phaser.Math.Between(300, 600)  // Keep coins above ground platform at Y=650
         retries++
       }
-      
+
       // Skip if still on spikes after retries
       if (this.isOnSpikes(x, y)) continue
-      
+
       const coin = this.coins.create(x, y, 'coin')
       coin.setScale(0.5)
       coin.setBounce(0.3)
       coin.setCollideWorldBounds(true)
-      
+
       // Add floating animation
       this.tweens.add({
         targets: coin,
@@ -1385,7 +1684,7 @@ export default class GameScene extends Phaser.Scene {
         repeat: -1,
         ease: 'Sine.easeInOut'
       })
-      
+
       // Add rotation animation
       this.tweens.add({
         targets: coin,
@@ -1400,20 +1699,20 @@ export default class GameScene extends Phaser.Scene {
   private spawnEnemiesInArea(startX: number, endX: number) {
     // Don't spawn enemies on the starting platform (first 500 pixels)
     if (startX < 500) return
-    
+
     // Scale difficulty based on level
-    const difficultyMultiplier = this.gameMode === 'endless' 
-      ? 1 + Math.floor(this.player.x / 5000) * 0.2 
+    const difficultyMultiplier = this.gameMode === 'endless'
+      ? 1 + Math.floor(this.player.x / 5000) * 0.2
       : 1 + (this.currentLevel - 1) * 0.3
-    
+
     const baseEnemies = 2
     const maxEnemies = Math.min(5, baseEnemies + Math.floor(difficultyMultiplier))
     const numEnemies = Phaser.Math.Between(baseEnemies, maxEnemies)
-    
+
     for (let i = 0; i < numEnemies; i++) {
       const x = Phaser.Math.Between(startX + 100, endX - 100)
       const y = Phaser.Math.Between(200, 900)
-      
+
       this.spawnRandomEnemy(x, y, difficultyMultiplier)
     }
   }
@@ -1426,7 +1725,7 @@ export default class GameScene extends Phaser.Scene {
     let scale: number
     let baseHealth: number
     let coinReward: number
-    
+
     if (rand < 0.4) {
       // Small enemies (40% chance) - flies or bees
       enemyType = Math.random() < 0.5 ? 'fly' : 'bee'
@@ -1449,7 +1748,7 @@ export default class GameScene extends Phaser.Scene {
       baseHealth = 8
       coinReward = 15
     }
-    
+
     const enemy = this.enemies.create(x, y, enemyType)
     enemy.setScale(scale)
     enemy.setBounce(0.3)
@@ -1468,7 +1767,7 @@ export default class GameScene extends Phaser.Scene {
     enemy.setData('maxHealth', Math.floor(baseHealth * difficultyMultiplier))
     enemy.setData('spawnX', x)
     enemy.setData('spawnY', y)
-    
+
     enemy.body!.setSize(enemy.width * 0.7, enemy.height * 0.7)
     enemy.body!.setOffset(enemy.width * 0.15, enemy.height * 0.15)
     enemy.body!.setMass(1)
@@ -1480,40 +1779,40 @@ export default class GameScene extends Phaser.Scene {
   private findNextUndefeatedBoss(startIndex: number): number | null {
     const playerName = localStorage.getItem('player_name') || 'Guest'
     const totalBosses = 24
-    
+
     // Check all bosses starting from startIndex
     for (let i = 0; i < totalBosses; i++) {
       const checkIndex = (startIndex + i) % totalBosses
       const bossKey = `${playerName}_boss_${checkIndex}`
       const isDefeated = localStorage.getItem(bossKey) === 'defeated'
-      
+
       if (!isDefeated) {
         console.log('✅ Found undefeated boss:', checkIndex)
         return checkIndex
       }
     }
-    
+
     console.log('🏆 All bosses defeated! Starting over from boss 0')
     return 0 // If all bosses defeated, start over
   }
 
   private async spawnBoss(x: number, forcedBossIndex?: number) {
     if (this.bossActive || this.boss) return
-    
+
     this.bossActive = true
     const bossY = 350 // Higher position to hover above ground
-    
+
     // Show boss warning tip
     this.showTip('boss', '⚠️ BOSS FIGHT! Shoot the boss to defeat it and earn 100 coins!')
-    
+
     // Play boss spawn sound
     this.audioManager.playBossSound()
-    
+
     // Calculate which boss to use based on level (0-21 different bosses)
     // Level 5 = boss 0, Level 10 = boss 1, Level 15 = boss 2, etc.
     const defaultBossIndex = Math.floor((this.currentLevel / 5) - 1) % 22
     const bossIndex = forcedBossIndex !== undefined ? forcedBossIndex : defaultBossIndex
-    
+
     // Fetch boss data from backend
     let bossName = 'BOSS'
     try {
@@ -1525,22 +1824,22 @@ export default class GameScene extends Phaser.Scene {
     } catch (error) {
       console.error('Failed to fetch boss data:', error)
     }
-    
+
     // Use individual boss image
     const bossKey = `boss_${bossIndex.toString().padStart(2, '0')}`
-    
+
     // Create boss sprite using individual image (hovering)
     this.boss = this.physics.add.sprite(x, bossY, bossKey)
-    
+
     // Scale boss to appropriate size (around 200-250px)
     const targetSize = 250
     const scale = Math.min(targetSize / this.boss.width, targetSize / this.boss.height)
     this.boss.setScale(scale)
-    
+
     this.boss.setDepth(10) // In front of player and enemies
     this.boss.setCollideWorldBounds(true)
     this.boss.setData('bossKey', bossKey) // Store boss image key
-    
+
     // Set hitbox for hovering boss (no gravity)
     if (this.boss.body) {
       const body = this.boss.body as Phaser.Physics.Arcade.Body
@@ -1549,7 +1848,7 @@ export default class GameScene extends Phaser.Scene {
       body.setAllowGravity(false) // Disable gravity - boss hovers
       body.setImmovable(false) // Allow collisions with bullets
     }
-    
+
     // Boss stats
     const bossMaxHealth = 50 + (this.currentLevel * 20)
     this.boss.setData('health', bossMaxHealth)
@@ -1558,16 +1857,16 @@ export default class GameScene extends Phaser.Scene {
     this.boss.setData('attackCooldown', 2000)
     this.boss.setData('phase', 1)
     this.boss.setData('bossIndex', bossIndex) // Store boss index for defeat tracking
-    
+
     // Create boss health bar (moved down to avoid level text overlap)
     this.bossHealthBarBg = this.add.rectangle(640, 80, 500, 30, 0x000000, 0.7)
     this.bossHealthBarBg.setScrollFactor(0)
     this.bossHealthBarBg.setDepth(999)
-    
+
     this.bossHealthBar = this.add.rectangle(640, 80, 500, 30, 0xff0000, 1)
     this.bossHealthBar.setScrollFactor(0)
     this.bossHealthBar.setDepth(1000)
-    
+
     // Display boss name from backend
     this.bossNameText = this.add.text(640, 80, bossName, {
       fontSize: '20px',
@@ -1579,10 +1878,10 @@ export default class GameScene extends Phaser.Scene {
     this.bossNameText.setOrigin(0.5)
     this.bossNameText.setScrollFactor(0)
     this.bossNameText.setDepth(1001)
-    
+
     // Add collision with player bullets
     this.physics.add.overlap(this.bullets, this.boss, this.handleBulletBossCollision as any, undefined, this)
-    
+
     // Add collision with player (damage player)
     this.physics.add.overlap(this.player, this.boss, () => {
       if (!this.playerIsDead && !this.debugMode) {
@@ -1593,10 +1892,10 @@ export default class GameScene extends Phaser.Scene {
 
   private updateBoss() {
     if (!this.boss || !this.boss.active || !this.bossActive) return
-    
+
     const bossHealth = this.boss.getData('health')
     const bossMaxHealth = this.boss.getData('maxHealth')
-    
+
     // Update health bar
     if (this.bossHealthBar) {
       const healthPercent = bossHealth / bossMaxHealth
@@ -1606,14 +1905,14 @@ export default class GameScene extends Phaser.Scene {
       this.bossHealthBar.x = 640 - (500 - newWidth) / 2
       console.log('Boss health updated:', bossHealth, '/', bossMaxHealth, 'Bar width:', newWidth)
     }
-    
+
     // Boss AI - hovers and follows player horizontally
     const lastAttack = this.boss.getData('lastAttack')
     const attackCooldown = this.boss.getData('attackCooldown')
-    
+
     const horizontalDistance = this.player.x - this.boss.x
     const moveSpeed = 120 // Moderate hovering speed
-    
+
     // Horizontal movement toward player
     if (Math.abs(horizontalDistance) > 150) {
       if (horizontalDistance > 0) {
@@ -1626,11 +1925,11 @@ export default class GameScene extends Phaser.Scene {
     } else {
       this.boss.setVelocityX(0)
     }
-    
+
     // Gentle hovering motion (vertical bobbing)
     const hoverY = 350 + Math.sin(this.time.now / 1000) * 30
     this.boss.setVelocityY((hoverY - this.boss.y) * 2)
-    
+
     // Attack patterns - alternate between 360 spray and homing
     if (this.time.now - lastAttack > attackCooldown) {
       const attackType = Math.random() < 0.5 ? '360' : 'homing'
@@ -1641,21 +1940,21 @@ export default class GameScene extends Phaser.Scene {
 
   private bossAttack(attackType: string = '360') {
     if (!this.boss) return
-    
+
     // Play attack animation
     const attackKey = this.boss.getData('attackKey')
     if (attackKey && this.anims.exists(attackKey)) {
       this.boss.play(attackKey)
     }
-    
+
     // Play boss attack sound
     this.audioManager.playBossAttackSound()
-    
+
     if (attackType === '360') {
       // 360-degree spray attack - 12 projectiles in a circle
       for (let i = 0; i < 12; i++) {
         const angle = (Math.PI * 2 * i) / 12
-        
+
         const projectile = this.physics.add.sprite(this.boss!.x, this.boss!.y, 'laserBlue')
         projectile.setTint(0xff0000)
         projectile.setScale(1.5)
@@ -1665,14 +1964,14 @@ export default class GameScene extends Phaser.Scene {
         )
         projectile.setRotation(angle)
         projectile.setData('attackType', '360')
-        
+
         // Disable physics body to prevent collisions with platforms
         if (projectile.body) {
           projectile.body.setAllowGravity(false)
           const body = projectile.body as Phaser.Physics.Arcade.Body
           body.setSize(0, 0) // Disable collision with world
         }
-        
+
         // Damage player on hit (disabled in debug mode)
         this.physics.add.overlap(this.player, projectile, () => {
           if (!this.playerIsDead && !this.debugMode) {
@@ -1680,7 +1979,7 @@ export default class GameScene extends Phaser.Scene {
             projectile.destroy()
           }
         })
-        
+
         // Destroy after 4 seconds
         this.time.delayedCall(4000, () => {
           if (projectile.active) projectile.destroy()
@@ -1695,7 +1994,7 @@ export default class GameScene extends Phaser.Scene {
           projectile.setScale(1.8)
           projectile.setData('attackType', 'homing')
           projectile.setData('spawnTime', this.time.now)
-          
+
           // Damage player on hit (disabled in debug mode)
           this.physics.add.overlap(this.player, projectile, () => {
             if (!this.playerIsDead && !this.debugMode) {
@@ -1703,12 +2002,12 @@ export default class GameScene extends Phaser.Scene {
               projectile.destroy()
             }
           })
-          
+
           // Destroy after 5 seconds
           this.time.delayedCall(5000, () => {
             if (projectile.active) projectile.destroy()
           })
-          
+
           // Update homing projectile in update loop
           const updateHomingEvent = this.time.addEvent({
             delay: 50,
@@ -1737,31 +2036,31 @@ export default class GameScene extends Phaser.Scene {
   private handleBulletBossCollision(bullet: any, boss: any) {
     const bulletSprite = bullet as Phaser.Physics.Arcade.Sprite
     const bossSprite = boss as Phaser.Physics.Arcade.Sprite
-    
+
     const isRocket = bulletSprite.getData('isRocket')
-    
+
     // If it's a rocket, create explosion
     if (isRocket) {
       this.createExplosion(bulletSprite.x, bulletSprite.y)
     }
-    
+
     console.log('Boss hit! Current health:', bossSprite.getData('health'))
-    
+
     // Destroy bullet
     bulletSprite.destroy()
-    
+
     // Damage boss (rockets do 3x damage: 30 instead of 10)
     const damage = isRocket ? 30 : 10
     let health = bossSprite.getData('health')
     health -= damage
     bossSprite.setData('health', health)
-    
+
     // Flash effect
     bossSprite.setTint(0xff0000)
     this.time.delayedCall(100, () => {
       bossSprite.clearTint()
     })
-    
+
     // Check if boss defeated
     if (health <= 0) {
       this.defeatBoss()
@@ -1771,17 +2070,17 @@ export default class GameScene extends Phaser.Scene {
   private createExplosion(x: number, y: number) {
     // Create explosion visual effect
     const explosionRadius = 80
-    
+
     // Orange flash circle
     const flash = this.add.circle(x, y, explosionRadius, 0xff6600, 1)
     flash.setDepth(1000)
-    
+
     // Explosion particles
     for (let i = 0; i < 12; i++) {
       const angle = (Math.PI * 2 / 12) * i
       const particle = this.add.circle(x, y, 8, 0xff4400, 1)
       particle.setDepth(1000)
-      
+
       this.tweens.add({
         targets: particle,
         x: x + Math.cos(angle) * explosionRadius * 1.5,
@@ -1793,7 +2092,7 @@ export default class GameScene extends Phaser.Scene {
         onComplete: () => particle.destroy()
       })
     }
-    
+
     // Flash animation
     this.tweens.add({
       targets: flash,
@@ -1803,20 +2102,20 @@ export default class GameScene extends Phaser.Scene {
       ease: 'Power2',
       onComplete: () => flash.destroy()
     })
-    
+
     // Damage nearby enemies with splash damage
     const splashRadius = explosionRadius * 1.2
     this.enemies.children.entries.forEach((enemy: any) => {
       if (!enemy.active) return
       const enemySprite = enemy as Phaser.Physics.Arcade.Sprite
       const distance = Phaser.Math.Distance.Between(x, y, enemySprite.x, enemySprite.y)
-      
+
       if (distance < splashRadius) {
         // Splash damage (3 damage for splash hits)
         let health = enemySprite.getData('health')
         health -= 3
         enemySprite.setData('health', health)
-        
+
         // Visual feedback
         enemySprite.setTint(0xff6600)
         this.time.delayedCall(100, () => {
@@ -1824,14 +2123,14 @@ export default class GameScene extends Phaser.Scene {
             enemySprite.clearTint()
           }
         })
-        
+
         // Knockback
         const knockbackAngle = Phaser.Math.Angle.Between(x, y, enemySprite.x, enemySprite.y)
         enemySprite.setVelocity(
           Math.cos(knockbackAngle) * 300,
           Math.sin(knockbackAngle) * 300
         )
-        
+
         // Check if enemy died from splash
         if (health <= 0) {
           const coinReward = enemySprite.getData('coinReward')
@@ -1850,30 +2149,30 @@ export default class GameScene extends Phaser.Scene {
 
   private defeatBoss() {
     if (!this.boss) return
-    
+
     this.bossActive = false
-    
+
     // Get player name and boss index
     const playerName = localStorage.getItem('player_name') || 'Guest'
     const bossIndex = this.boss.getData('bossIndex') || 0
     const bossKey = `${playerName}_boss_${bossIndex}`
-    
+
     // Save defeated boss with player-specific key
     localStorage.setItem(bossKey, 'defeated')
     console.log('💾 Boss defeated by', playerName, '- Boss Index:', bossIndex)
-    
+
     // Also track in current session
     this.defeatedBossLevels.add(this.currentLevel)
     localStorage.setItem('defeatedBossLevels', JSON.stringify(Array.from(this.defeatedBossLevels)))
     console.log('💾 Saved defeated boss level:', this.currentLevel)
-    
+
     // Reward coins
     const coinReward = 100
     this.dropCoins(this.boss.x, this.boss.y, coinReward)
-    
+
     // Award huge score bonus for defeating boss
     this.updateScore(1000)
-    
+
     // Death animation
     this.tweens.add({
       targets: this.boss,
@@ -1887,7 +2186,7 @@ export default class GameScene extends Phaser.Scene {
         }
       }
     })
-    
+
     // Remove health bar
     if (this.bossHealthBar) {
       this.bossHealthBar.destroy()
@@ -1901,7 +2200,7 @@ export default class GameScene extends Phaser.Scene {
       this.bossNameText.destroy()
       this.bossNameText = null
     }
-    
+
     // Victory message
     const victoryText = this.add.text(640, 300, 'BOSS DEFEATED!\\n+100 Coins', {
       fontSize: '48px',
@@ -1912,7 +2211,7 @@ export default class GameScene extends Phaser.Scene {
     victoryText.setOrigin(0.5)
     victoryText.setScrollFactor(0)
     victoryText.setDepth(1002)
-    
+
     this.tweens.add({
       targets: victoryText,
       alpha: 0,
@@ -1926,10 +2225,10 @@ export default class GameScene extends Phaser.Scene {
     // Create visual checkpoint marker (green pole)
     const marker = this.add.rectangle(x, 600, 30, 400, 0x00ff00, 0.7)
     marker.setOrigin(0.5, 1)
-    
+
     // Add glow effect
     const glow = this.add.circle(x, 400, 40, 0x00ff00, 0.3)
-    
+
     // Pulse animation
     this.tweens.add({
       targets: [marker, glow],
@@ -1940,7 +2239,7 @@ export default class GameScene extends Phaser.Scene {
       repeat: -1,
       ease: 'Sine.easeInOut'
     })
-    
+
     // Add checkpoint text
     const text = this.add.text(x, 350, 'CHECKPOINT', {
       fontSize: '24px',
@@ -1950,7 +2249,7 @@ export default class GameScene extends Phaser.Scene {
       strokeThickness: 4
     })
     text.setOrigin(0.5)
-    
+
     this.checkpoints.push({ x, marker })
   }
 
@@ -1960,16 +2259,16 @@ export default class GameScene extends Phaser.Scene {
       const checkpoint = this.checkpoints[i]
       if (this.player.x >= checkpoint.x && i > this.currentCheckpoint) {
         this.currentCheckpoint = i
-        
+
         // Visual feedback
         this.cameras.main.flash(200, 0, 255, 0)
-        
+
         // Sound effect (screen shake)
         this.cameras.main.shake(150, 0.003)
-        
+
         // Heal player a bit
         this.playerHealth = Math.min(this.maxHealth, this.playerHealth + 20)
-        
+
         // Show notification
         const notif = this.add.text(this.cameras.main.centerX, 200, 'CHECKPOINT REACHED!\n+20 HP', {
           fontSize: '32px',
@@ -1981,7 +2280,7 @@ export default class GameScene extends Phaser.Scene {
         })
         notif.setOrigin(0.5)
         notif.setScrollFactor(0)
-        
+
         this.tweens.add({
           targets: notif,
           alpha: 0,
@@ -1990,7 +2289,7 @@ export default class GameScene extends Phaser.Scene {
           ease: 'Power2',
           onComplete: () => notif.destroy()
         })
-        
+
         break
       }
     }
@@ -1998,7 +2297,7 @@ export default class GameScene extends Phaser.Scene {
 
   private createLevelEndMarker() {
     const endX = this.levelLength
-    
+
     // Create portal sprite
     this.portal = this.physics.add.sprite(endX, 450, 'portal')
     this.portal.setScale(1.5)
@@ -2006,11 +2305,11 @@ export default class GameScene extends Phaser.Scene {
     if (this.portal.body) {
       (this.portal.body as Phaser.Physics.Arcade.Body).setAllowGravity(false)
     }
-    
+
     // Portal glow effect
     const glow1 = this.add.circle(endX, 450, 80, 0x00ffff, 0.3)
     const glow2 = this.add.circle(endX, 450, 100, 0x0088ff, 0.2)
-    
+
     // Pulsing animation
     this.tweens.add({
       targets: [glow1, glow2],
@@ -2021,7 +2320,7 @@ export default class GameScene extends Phaser.Scene {
       repeat: -1,
       ease: 'Sine.easeInOut'
     })
-    
+
     // Rotating animation for portal
     this.tweens.add({
       targets: this.portal,
@@ -2030,7 +2329,7 @@ export default class GameScene extends Phaser.Scene {
       repeat: -1,
       ease: 'Linear'
     })
-    
+
     // Add text above portal
     const text = this.add.text(endX, 320, 'PORTAL\nEnter to\nNext Level', {
       fontSize: '24px',
@@ -2041,7 +2340,7 @@ export default class GameScene extends Phaser.Scene {
       align: 'center'
     })
     text.setOrigin(0.5)
-    
+
     // Text floating animation
     this.tweens.add({
       targets: text,
@@ -2051,7 +2350,7 @@ export default class GameScene extends Phaser.Scene {
       repeat: -1,
       ease: 'Sine.easeInOut'
     })
-    
+
     // Add collision detection
     this.physics.add.overlap(this.player, this.portal, () => {
       if (this.portal && this.portal.active) {
@@ -2059,21 +2358,21 @@ export default class GameScene extends Phaser.Scene {
         this.enterPortal()
       }
     })
-    
+
     this.levelEndMarker = this.add.rectangle(endX, 600, 50, 400, 0xffff00, 0) // Invisible marker for reference
   }
 
   private enterPortal() {
     if (this.playerIsDead) return
     this.playerIsDead = true
-    
+
     // Save coins before transitioning
     localStorage.setItem('playerCoins', this.coinCount.toString())
-    
+
     // Portal entry effect
     this.cameras.main.flash(500, 0, 255, 255)
     this.player.setTint(0x00ffff)
-    
+
     // Scale down player into portal
     this.tweens.add({
       targets: this.player,
@@ -2082,19 +2381,26 @@ export default class GameScene extends Phaser.Scene {
       duration: 500,
       ease: 'Power2'
     })
-    
+
     // Wait for animation then transition
     this.time.delayedCall(600, () => {
-      this.scene.restart({ gameMode: 'levels', level: this.currentLevel + 1 })
+      const nextLevelData: any = { gameMode: 'levels', level: this.currentLevel + 1 }
+      if (this.isCoopMode) {
+        nextLevelData.mode = 'coop'
+      }
+      this.scene.restart(nextLevelData)
     })
   }
 
   private checkLevelComplete() {
     if (!this.levelEndMarker) return
     if (this.levelCompleteShown) return // Prevent multiple triggers
-    
-    // Check if player reached the end
-    if (this.player.x >= this.levelLength) {
+
+    // Check if any player reached the end (in co-op, one player triggers completion for both)
+    const player1ReachedEnd = this.player.x >= this.levelLength
+    const player2ReachedEnd = this.isCoopMode && this.player2 && this.player2.x >= this.levelLength
+
+    if (player1ReachedEnd || player2ReachedEnd) {
       this.levelCompleteShown = true
       this.showLevelComplete()
     }
@@ -2102,15 +2408,18 @@ export default class GameScene extends Phaser.Scene {
 
   private showLevelComplete() {
     this.playerIsDead = true // Stop player movement
-    
-    // Stop player
+
+    // Stop both players
     this.player.setVelocity(0, 0)
-    
+    if (this.isCoopMode && this.player2) {
+      this.player2.setVelocity(0, 0)
+    }
+
     // Create completion screen
     const bg = this.add.rectangle(640, 360, 1280, 720, 0x000000, 0.8)
     bg.setScrollFactor(0)
     bg.setDepth(1000)
-    
+
     const title = this.add.text(640, 200, 'LEVEL COMPLETE!', {
       fontSize: '72px',
       color: '#ffff00',
@@ -2121,8 +2430,8 @@ export default class GameScene extends Phaser.Scene {
     title.setOrigin(0.5)
     title.setScrollFactor(0)
     title.setDepth(1001)
-    
-    const stats = this.add.text(640, 320, 
+
+    const stats = this.add.text(640, 320,
       `Coins Collected: ${this.coinCount}\nLives Remaining: ${this.playerLives}\n\nNext Level: ${this.currentLevel + 1}`, {
       fontSize: '32px',
       color: '#ffffff',
@@ -2134,7 +2443,7 @@ export default class GameScene extends Phaser.Scene {
     stats.setOrigin(0.5)
     stats.setScrollFactor(0)
     stats.setDepth(1001)
-    
+
     const nextText = this.add.text(640, 520, 'Press SPACE for Next Level\nPress E for Endless Mode', {
       fontSize: '24px',
       color: '#00ff00',
@@ -2145,7 +2454,7 @@ export default class GameScene extends Phaser.Scene {
     nextText.setOrigin(0.5)
     nextText.setScrollFactor(0)
     nextText.setDepth(1001)
-    
+
     // Blinking animation
     this.tweens.add({
       targets: nextText,
@@ -2154,7 +2463,7 @@ export default class GameScene extends Phaser.Scene {
       yoyo: true,
       repeat: -1
     })
-    
+
     // Home button
     const homeButton = this.add.text(640, 600, 'HOME', {
       fontSize: '32px',
@@ -2168,35 +2477,63 @@ export default class GameScene extends Phaser.Scene {
     homeButton.setScrollFactor(0)
     homeButton.setDepth(1001)
     homeButton.setInteractive({ useHandCursor: true })
-    
+
     homeButton.on('pointerover', () => {
       homeButton.setStyle({ backgroundColor: '#0088ff' })
     })
-    
+
     homeButton.on('pointerout', () => {
       homeButton.setStyle({ backgroundColor: '#0066cc' })
     })
-    
+
     homeButton.on('pointerdown', () => {
       this.tweens.killAll()
       this.scene.start('MenuScene')
     })
-    
+
     // Input handlers
     this.input.keyboard!.once('keydown-SPACE', () => {
       this.tweens.killAll()
-      this.scene.restart({ gameMode: 'levels', level: this.currentLevel + 1 })
+      const nextLevelData: any = { gameMode: 'levels', level: this.currentLevel + 1 }
+      if (this.isCoopMode) {
+        nextLevelData.mode = 'coop'
+      }
+      this.scene.restart(nextLevelData)
     })
-    
+
     this.input.keyboard!.once('keydown-E', () => {
       this.tweens.killAll()
-      this.scene.restart({ gameMode: 'endless', level: 1 })
+      const endlessData: any = { gameMode: 'endless', level: 1 }
+      if (this.isCoopMode) {
+        endlessData.mode = 'coop'
+      }
+      this.scene.restart(endlessData)
     })
-    
+
     this.input.keyboard!.once('keydown-M', () => {
       this.tweens.killAll()
       this.scene.start('MenuScene')
     })
+
+    // Gamepad support for level progression (co-op mode)
+    if (this.isCoopMode) {
+      const checkGamepadProgress = () => {
+        const gamepads = this.input.gamepad?.gamepads || []
+        for (const gamepad of gamepads) {
+          if (gamepad.A) {
+            this.tweens.killAll()
+            const nextLevelData: any = { gameMode: 'levels', level: this.currentLevel + 1, mode: 'coop' }
+            this.scene.restart(nextLevelData)
+            return
+          }
+        }
+        // Check again next frame if level complete screen is still showing
+        if (this.levelCompleteShown) {
+          this.time.delayedCall(100, checkGamepadProgress)
+        }
+      }
+      this.time.delayedCall(100, checkGamepadProgress)
+    }
   }
 
   update() {
@@ -2205,22 +2542,35 @@ export default class GameScene extends Phaser.Scene {
       const body = this.player.body as Phaser.Physics.Arcade.Body
       console.log('Player Y:', Math.round(this.player.y), 'VelocityY:', Math.round(body.velocity.y), 'Touching.down:', body.touching.down, 'Blocked.down:', body.blocked.down)
     }
-    
+
     // Track farthest X position player has reached
     if (this.player.x > this.farthestPlayerX) {
       this.farthestPlayerX = this.player.x
     }
-    
+
+    // Co-op mode: Update camera to follow both players
+    if (this.isCoopMode && this.player2) {
+      const avgX = (this.player.x + this.player2.x) / 2
+      const avgY = (this.player.y + this.player2.y) / 2
+      this.cameras.main.scrollX = avgX - 640
+      this.cameras.main.scrollY = Phaser.Math.Clamp(avgY - 360, 0, 1200 - 720)
+    }
+
     // Player movement
     this.handlePlayerMovement()
-    
+
+    // Player 2 movement (co-op mode)
+    if (this.isCoopMode && this.player2) {
+      this.handlePlayer2Movement()
+    }
+
     // Record gameplay if recording is enabled
     if (this.isRecording && !this.aiEnabled && !this.mlAIEnabled) {
       const controlSettings = ControlManager.getControlSettings()
       const useGamepad = controlSettings.inputMethod === 'gamepad'
       const pointer = this.input.activePointer
       const worldPoint = this.cameras.main.getWorldPoint(pointer.x, pointer.y)
-      
+
       this.gameplayRecorder.recordFrame(this.time.now, {
         moveLeft: this.wasd.a.isDown || this.cursors.left!.isDown,
         moveRight: this.wasd.d.isDown || this.cursors.right!.isDown,
@@ -2229,7 +2579,7 @@ export default class GameScene extends Phaser.Scene {
         aimX: worldPoint.x,
         aimY: worldPoint.y
       })
-      
+
       // Update frame count display every 30 frames (~0.5 seconds at 60fps)
       if (this.time.now % 500 < 20) {
         const currentFrames = this.gameplayRecorder.getCurrentFrameCount()
@@ -2237,56 +2587,61 @@ export default class GameScene extends Phaser.Scene {
         this.aiStatusText?.setText(`🎥 RECORDING (${currentFrames} frames this session, ${totalFrames} total)`)
       }
     }
-    
+
     // Update shield sprite position if active
     if (this.hasShield && this.shieldSprite) {
       this.shieldSprite.setPosition(this.player.x, this.player.y)
     }
-    
+
     // Generate new world chunks as player moves forward
     if (this.player.x > this.lastGeneratedX - 1600) {
       // Check if we need to stop generation (levels mode only)
       const shouldGenerate = this.gameMode === 'endless' || this.worldGenerationX < this.levelLength
-      
+
       if (shouldGenerate) {
         this.worldGenerator.generateChunk(this.worldGenerationX)
         this.worldGenerationX += 800
         this.lastGeneratedX = this.worldGenerationX
-        
+
         // Spawn coins in new area
         this.spawnCoinsInArea(this.worldGenerationX - 800, this.worldGenerationX)
-        
+
         // Spawn enemies in new area with difficulty scaling
         this.spawnEnemiesInArea(this.worldGenerationX - 800, this.worldGenerationX)
       } else if (!this.levelEndMarker) {
         // Create level end marker
         this.createLevelEndMarker()
       }
-      
+
       // Generate checkpoints every 20 meters
       if (this.player.x > this.lastCheckpointX + this.checkpointInterval) {
         this.createCheckpoint(this.lastCheckpointX + this.checkpointInterval)
         this.lastCheckpointX += this.checkpointInterval
       }
     }
-    
+
     // Update gun position and aiming
     this.handleGunAiming()
-    
+
     // Handle shooting
     this.handleShooting()
-    
+
+    // Player 2 gun and shooting (co-op mode)
+    if (this.isCoopMode && this.player2) {
+      this.handlePlayer2GunAndShooting()
+    }
+
     // Update bullets manually (no physics)
     this.updateBullets()
-    
+
     // Enemy AI
     this.handleEnemyAI()
-    
+
     // Boss AI
     if (this.bossActive) {
       this.updateBoss()
     }
-    
+
     // Spawn boss at certain levels (levels 5, 10, 15, etc.) - only if not already defeated by this player
     if (this.gameMode === 'levels' && !this.bossActive && !this.boss && !this.defeatedBossLevels.has(this.currentLevel)) {
       if (this.currentLevel % 5 === 0 && this.player.x > this.levelLength - 3000 && this.player.x < this.levelLength - 2800) {
@@ -2295,9 +2650,9 @@ export default class GameScene extends Phaser.Scene {
         const defaultBossIndex = Math.floor((this.currentLevel / 5) - 1) % 24
         const bossKey = `${playerName}_boss_${defaultBossIndex}`
         const alreadyDefeated = localStorage.getItem(bossKey) === 'defeated'
-        
+
         console.log('🎮 Level', this.currentLevel, '- Default Boss Index:', defaultBossIndex, '- Already defeated:', alreadyDefeated)
-        
+
         if (!alreadyDefeated) {
           // Spawn the default boss for this level
           this.spawnBoss(this.levelLength - 2500)
@@ -2314,21 +2669,21 @@ export default class GameScene extends Phaser.Scene {
 
     // Update stomp mechanic
     this.handleStompMechanic()
-    
+
     // Check spike collision with custom hitbox
     this.checkSpikeCollision()
-    
+
     // Check for checkpoint activation
     this.checkCheckpoints()
-    
+
     // Check for level completion (only in levels mode)
     if (this.gameMode === 'levels') {
       this.checkLevelComplete()
     }
-    
+
     // Update UI
     this.updateUI()
-    
+
     // Update debug UI
     if (this.debugMode) {
       this.updateDebugUI()
@@ -2342,12 +2697,12 @@ export default class GameScene extends Phaser.Scene {
     if (currentMeter > lastMeter) {
       this.updateScore(1) // 1 point per meter
     }
-    
-    // Update health bar
+
+    // Update Player 1 health bar
     const healthPercent = this.playerHealth / this.maxHealth
     const healthBarMaxWidth = 200
     this.healthBarFill.width = healthBarMaxWidth * healthPercent
-    
+
     // Change color based on health
     if (healthPercent > 0.6) {
       this.healthBarFill.setFillStyle(0x00ff00) // Green
@@ -2356,14 +2711,44 @@ export default class GameScene extends Phaser.Scene {
     } else {
       this.healthBarFill.setFillStyle(0xff0000) // Red
     }
-    
+
     // Update lives text
-    this.livesText.setText(`Lives: ${this.playerLives}`)
-    
+    if (this.isCoopMode) {
+      this.livesText.setText(`x${this.playerLives}`)
+    } else {
+      this.livesText.setText(`Lives: ${this.playerLives}`)
+    }
+
+    // Update Player 2 health bar in co-op mode
+    if (this.isCoopMode && this.player2) {
+      const p2Health = this.player2.getData('health') || 100
+      const p2HealthPercent = p2Health / 100
+      const p2HealthBarFill = this.player2.getData('healthBarFill') as Phaser.GameObjects.Rectangle
+      const p2LivesText = this.player2.getData('livesText') as Phaser.GameObjects.Text
+
+      if (p2HealthBarFill) {
+        p2HealthBarFill.width = healthBarMaxWidth * p2HealthPercent
+
+        // Change color based on health
+        if (p2HealthPercent > 0.6) {
+          p2HealthBarFill.setFillStyle(0x00ffff) // Cyan
+        } else if (p2HealthPercent > 0.3) {
+          p2HealthBarFill.setFillStyle(0xffaa00) // Orange
+        } else {
+          p2HealthBarFill.setFillStyle(0xff0000) // Red
+        }
+      }
+
+      if (p2LivesText) {
+        const p2Lives = this.player2.getData('lives') || 3
+        p2LivesText.setText(`x${p2Lives}`)
+      }
+    }
+
     // Update reload bar
     const currentTime = this.time.now
     const timeSinceLastShot = currentTime - this.lastShotTime
-    
+
     // Get weapon-specific cooldown
     let shootCooldown = 1000 // Default raygun
     if (this.equippedWeapon === 'laserGun') {
@@ -2373,10 +2758,10 @@ export default class GameScene extends Phaser.Scene {
     } else if (this.equippedWeapon === 'bazooka') {
       shootCooldown = 2000 // Slow but powerful
     }
-    
+
     // Calculate reload progress (0 to 1)
     const reloadProgress = Math.min(timeSinceLastShot / shootCooldown, 1)
-    
+
     // Update reload bar width
     const reloadBarMaxWidth = 60
     this.reloadBarFill.width = reloadBarMaxWidth * reloadProgress
@@ -2385,10 +2770,10 @@ export default class GameScene extends Phaser.Scene {
   private handlePlayerMovement() {
     // Skip if player is dead
     if (this.playerIsDead) return
-    
+
     let speed = 200
     const jumpVelocity = -500 // Higher jump due to microgravity
-    
+
     // Apply speed boost if active
     if (this.hasSpeedBoost) {
       speed = speed * 1.5 // 50% faster
@@ -2396,7 +2781,7 @@ export default class GameScene extends Phaser.Scene {
 
     // Check if player is on ground - simplified check
     const onGround = this.player.body!.touching.down
-    
+
     // Detect landing and emit particles
     if (onGround && !this.wasOnGround) {
       this.landParticles.emitParticleAt(this.player.x, this.player.y + 30)
@@ -2414,7 +2799,7 @@ export default class GameScene extends Phaser.Scene {
     let aiLeft = false
     let aiRight = false
     let aiJump = false
-    
+
     if (this.aiEnabled) {
       const aiDecision = this.aiPlayer.getDecision(this.time.now)
       aiLeft = aiDecision.moveLeft
@@ -2425,12 +2810,12 @@ export default class GameScene extends Phaser.Scene {
       aiLeft = this.mlAIDecision.moveLeft
       aiRight = this.mlAIDecision.moveRight
       aiJump = this.mlAIDecision.jump
-      
+
       // Debug log every 60 frames (~1 second)
       if (Math.random() < 0.016) {
         console.log('ML AI applying decision:', { aiLeft, aiRight, aiJump })
       }
-      
+
       // Update ML AI decision asynchronously for next frame
       this.mlAIPlayer.getDecision().then(aiDecision => {
         this.mlAIDecision = aiDecision
@@ -2438,37 +2823,37 @@ export default class GameScene extends Phaser.Scene {
         console.error('ML AI decision error:', error)
       })
     }
-    
+
     // Get gamepad input (only if input method is gamepad and AI is disabled)
     const controlSettings = ControlManager.getControlSettings()
     const useGamepad = !this.aiEnabled && !this.mlAIEnabled && controlSettings.inputMethod === 'gamepad'
-    
+
     let gamepadLeft = false
     let gamepadRight = false
     let gamepadJump = false
-    
+
     if (useGamepad && this.gamepad) {
       const mapping = controlSettings.gamepadMapping
-      
+
       // Left stick or D-pad for movement
       const leftStickX = this.gamepad.leftStick.x
       const leftStickY = this.gamepad.leftStick.y
       const dpadLeft = this.gamepad.left
       const dpadRight = this.gamepad.right
       const dpadUp = this.gamepad.up
-      
+
       if (mapping.moveLeftStick && (leftStickX < -0.3)) {
         gamepadLeft = true
       } else if (mapping.moveLeftStick && (leftStickX > 0.3)) {
         gamepadRight = true
       }
-      
+
       if (mapping.moveDpad && dpadLeft) {
         gamepadLeft = true
       } else if (mapping.moveDpad && dpadRight) {
         gamepadRight = true
       }
-      
+
       // Jump is D-pad Up or Left Stick Up when using gamepad
       gamepadJump = dpadUp || (mapping.moveLeftStick && leftStickY < -0.3)
     }
@@ -2477,7 +2862,7 @@ export default class GameScene extends Phaser.Scene {
     const moveSpeed = this.debugMode ? speed * 2 : speed  // 2x speed in debug mode
     const keyboardLeft = !this.aiEnabled && !this.mlAIEnabled && !useGamepad && (this.wasd.a.isDown || this.cursors.left!.isDown)
     const keyboardRight = !this.aiEnabled && !this.mlAIEnabled && !useGamepad && (this.wasd.d.isDown || this.cursors.right!.isDown)
-    
+
     if (keyboardLeft || gamepadLeft || aiLeft) {
       this.player.setVelocityX(-moveSpeed)
       this.player.setFlipX(true)
@@ -2499,12 +2884,12 @@ export default class GameScene extends Phaser.Scene {
 
     // Check for continuous left stick up for jetpack behavior
     const isJetpacking = useGamepad && this.gamepad && controlSettings.gamepadMapping.moveLeftStick && this.gamepad.leftStick.y < -0.5
-    
+
     // Track gamepad jump button state for "just pressed" detection
     const wasGamepadJumpPressed = this.player.getData('wasGamepadJumpPressed') || false
     const gamepadJustPressed = gamepadJump && !wasGamepadJumpPressed
     this.player.setData('wasGamepadJumpPressed', gamepadJump)
-    
+
     // Track AI jump button state for "just pressed" detection
     const wasAIJumpPressed = this.player.getData('wasAIJumpPressed') || false
     const aiJustPressed = aiJump && !wasAIJumpPressed
@@ -2512,7 +2897,7 @@ export default class GameScene extends Phaser.Scene {
 
     // Jump (W or Up arrow or Gamepad button or AI) - or fly up in debug mode
     const keyboardJump = !this.aiEnabled && !this.mlAIEnabled && !useGamepad && (Phaser.Input.Keyboard.JustDown(this.wasd.w) || Phaser.Input.Keyboard.JustDown(this.cursors.up!))
-    
+
     if (this.debugMode && !this.aiEnabled && !this.mlAIEnabled && !useGamepad && this.wasd.w.isDown) {
       // Debug flight mode - fly up
       this.player.setVelocityY(-400)
@@ -2526,7 +2911,7 @@ export default class GameScene extends Phaser.Scene {
       }
     } else if (keyboardJump || gamepadJustPressed || aiJustPressed) {
       console.log('Jump pressed! onGround:', onGround, 'canDoubleJump:', this.canDoubleJump, 'hasDoubleJumped:', this.hasDoubleJumped)
-      
+
       if (onGround) {
         // First jump from ground
         console.log('Ground jump!')
@@ -2546,7 +2931,7 @@ export default class GameScene extends Phaser.Scene {
         this.jumpParticles.emitParticleAt(this.player.x, this.player.y + 30)
         this.hasDoubleJumped = true
         this.stompStartY = this.player.y
-        
+
         // Add spin effect for double jump
         this.tweens.add({
           targets: this.player,
@@ -2568,7 +2953,7 @@ export default class GameScene extends Phaser.Scene {
     else if (Phaser.Input.Keyboard.JustDown(this.wasd.s) && !onGround && !this.isStomping) {
       const jumpHeight = this.stompStartY - this.player.y
       const doubleJumpHeight = Math.abs(jumpVelocity * 2) / this.physics.world.gravity.y * Math.abs(jumpVelocity)
-      
+
       if (jumpHeight >= doubleJumpHeight * 0.6) {
         this.isStomping = true
         this.player.setVelocityY(800) // Fast downward velocity
@@ -2580,7 +2965,7 @@ export default class GameScene extends Phaser.Scene {
     if (this.isStomping && this.player.body!.touching.down) {
       // Player landed with stomp
       this.isStomping = false
-      
+
       // Create screen shake
       this.cameras.main.shake(200, 0.01)
 
@@ -2631,10 +3016,10 @@ export default class GameScene extends Phaser.Scene {
             otherEnemy.x,
             otherEnemy.y
           )
-          
+
           const horizontalDistance = Math.abs(enemy.x - otherEnemy.x)
           const verticalDistance = Math.abs(enemy.y - otherEnemy.y)
-          
+
           // Prevent horizontal overlap
           const minHorizontalDistance = 70
           if (horizontalDistance < minHorizontalDistance && distanceBetween > 0) {
@@ -2643,7 +3028,7 @@ export default class GameScene extends Phaser.Scene {
             const pushX = Math.cos(angle) * force
             enemy.setVelocityX(enemy.body!.velocity.x + pushX)
           }
-          
+
           // Prevent vertical stacking - if enemy is directly above or below another
           if (verticalDistance < 60 && horizontalDistance < 50) {
             // If this enemy is above another, push it horizontally away
@@ -2673,17 +3058,17 @@ export default class GameScene extends Phaser.Scene {
         const direction = this.player.x > enemy.x ? 1 : -1
         const enemyOnGround = enemy.body!.touching.down
         const horizontalDistance = Math.abs(this.player.x - enemy.x)
-        
+
         // Check if enemy is blocked (touching wall in the direction they want to move)
         const isBlockedRight = enemy.body!.blocked.right || enemy.body!.touching.right
         const isBlockedLeft = enemy.body!.blocked.left || enemy.body!.touching.left
         const isBlocked = (direction === 1 && isBlockedRight) || (direction === -1 && isBlockedLeft)
-        
+
         // Check if enemy hasn't moved much (stuck detection)
         const lastX = enemy.getData('lastX') || enemy.x
         const movementDelta = Math.abs(enemy.x - lastX)
         let stuckTimer = enemy.getData('stuckTimer') || 0
-        
+
         // Update stuck timer if not moving much
         if (movementDelta < 5 && enemyOnGround) {
           stuckTimer += this.game.loop.delta / 1000
@@ -2692,23 +3077,23 @@ export default class GameScene extends Phaser.Scene {
         }
         enemy.setData('lastX', enemy.x)
         enemy.setData('stuckTimer', stuckTimer)
-        
+
         // If enemy is stuck or blocked, use avoidance behavior
         if ((isBlocked || stuckTimer > 0.3) && enemyOnGround) {
           // Jump to try to get over obstacle
           if (enemyOnGround) {
             enemy.setVelocityY(-400)
           }
-          
+
           // Alternate between trying direct path and going around
           const avoidanceMode = enemy.getData('avoidanceMode') || 0
-          
+
           if (stuckTimer > 1) {
             // Been stuck too long, try going the other way
             const alternateDir = direction * -1
             enemy.setVelocityX(alternateDir * speed)
             enemy.setFlipX(alternateDir === -1)
-            
+
             // Switch avoidance mode after 2 seconds
             if (stuckTimer > 2) {
               enemy.setData('stuckTimer', 0)
@@ -2724,10 +3109,10 @@ export default class GameScene extends Phaser.Scene {
           enemy.setVelocityX(direction * speed)
           enemy.setFlipX(direction === -1) // Flip when moving left
         }
-        
+
         const enemyType = enemy.getData('enemyType')
         enemy.play(`${enemyType}_move`, true)
-        
+
         // Reset idle timer when chasing
         enemy.setData('idleTimer', 0)
 
@@ -2743,25 +3128,25 @@ export default class GameScene extends Phaser.Scene {
         let idleTimer = enemy.getData('idleTimer')
         let wanderTimer = enemy.getData('wanderTimer')
         let wanderDirection = enemy.getData('wanderDirection')
-        
+
         // Update timers
         idleTimer += deltaTime
         wanderTimer += deltaTime
-        
+
         // Change wander direction every 2-4 seconds
         if (wanderTimer > Phaser.Math.Between(2, 4)) {
           wanderDirection = Phaser.Math.Between(-1, 1) // -1 (left), 0 (idle), or 1 (right)
           enemy.setData('wanderDirection', wanderDirection)
           wanderTimer = 0
         }
-        
+
         // Force movement if idle for more than 1 second
         if (idleTimer > 1 && wanderDirection === 0) {
           wanderDirection = Phaser.Math.Between(0, 1) === 0 ? -1 : 1
           enemy.setData('wanderDirection', wanderDirection)
           idleTimer = 0
         }
-        
+
         // Apply wander movement
         if (wanderDirection !== 0) {
           enemy.setVelocityX(wanderDirection * speed * 0.5) // Half speed when wandering
@@ -2774,7 +3159,7 @@ export default class GameScene extends Phaser.Scene {
           const enemyType = enemy.getData('enemyType')
           enemy.play(`${enemyType}_idle`, true)
         }
-        
+
         // Save updated timers
         enemy.setData('idleTimer', idleTimer)
         enemy.setData('wanderTimer', wanderTimer)
@@ -2784,15 +3169,15 @@ export default class GameScene extends Phaser.Scene {
 
   private damagePlayer(damage: number) {
     if (this.playerIsDead) return
-    
+
     const currentTime = this.time.now
     const lastHitTime = this.player.getData('lastHitTime') || 0
     const invincibilityDuration = 1000
-    
+
     if (currentTime - lastHitTime < invincibilityDuration) {
       return // Still invincible
     }
-    
+
     // Check for shield - if active, don't take damage and deactivate shield
     if (this.hasShield) {
       this.hasShield = false
@@ -2811,14 +3196,14 @@ export default class GameScene extends Phaser.Scene {
           }
         })
       }
-      
+
       // Show shield break text
       const text = this.add.text(this.player.x, this.player.y - 50, 'SHIELD BROKEN!', {
         fontSize: '20px',
         color: '#ff0000'
       })
       text.setOrigin(0.5)
-      
+
       this.tweens.add({
         targets: text,
         y: text.y - 30,
@@ -2826,27 +3211,27 @@ export default class GameScene extends Phaser.Scene {
         duration: 1500,
         onComplete: () => text.destroy()
       })
-      
+
       return // Shield absorbed the damage
     }
-    
+
     // Debug mode god mode - no damage
     if (this.debugMode) {
       return
     }
-    
+
     // Play damage sound
     this.audioManager.playDamageSound()
-    
+
     this.player.setData('lastHitTime', currentTime)
     this.playerHealth -= damage
-    
+
     if (this.playerHealth <= 0) {
       this.playerHealth = 0
       this.handlePlayerDeath()
       return
     }
-    
+
     // Flash effect
     this.player.setTint(0xff0000)
     this.time.delayedCall(100, () => {
@@ -2861,8 +3246,13 @@ export default class GameScene extends Phaser.Scene {
     const playerSprite = player as Phaser.Physics.Arcade.Sprite
     const enemySprite = enemy as Phaser.Physics.Arcade.Sprite
 
+    // Determine which player was hit
+    const isPlayer1 = playerSprite === this.player
+    const isPlayer2 = this.isCoopMode && playerSprite === this.player2
+
     // Skip if player is already dead
-    if (this.playerIsDead) return
+    if (isPlayer1 && this.playerIsDead) return
+    if (isPlayer2 && playerSprite.getData('isDead')) return
 
     // Check if player has invincibility frames
     const lastHitTime = playerSprite.getData('lastHitTime') || 0
@@ -2872,54 +3262,62 @@ export default class GameScene extends Phaser.Scene {
     if (currentTime - lastHitTime < invincibilityDuration) {
       return // Player is still invincible
     }
-    
+
     // Debug mode god mode - no damage
     if (this.debugMode) {
       return
     }
 
     // Check if player has shield - absorb damage and destroy shield
-    if (this.hasShield) {
+    const hasShield = isPlayer1 ? this.hasShield : playerSprite.getData('hasShield')
+    if (hasShield) {
       // Shield absorbs the hit
-      this.hasShield = false
-      
-      // Visual feedback - shield breaking
-      if (this.shieldSprite) {
-        // Flash and destroy shield
-        this.tweens.add({
-          targets: this.shieldSprite,
-          scale: 2,
-          alpha: 0,
-          duration: 200,
-          ease: 'Power2',
-          onComplete: () => {
-            if (this.shieldSprite) {
-              this.shieldSprite.destroy()
-              this.shieldSprite = null
-            }
-          }
-        })
+      if (isPlayer1) {
+        this.hasShield = false
+      } else {
+        playerSprite.setData('hasShield', false)
       }
-      
+
       // Bounce enemy away
       const bounceDirection = enemySprite.x > playerSprite.x ? 1 : -1
       enemySprite.setVelocityX(bounceDirection * 300)
       enemySprite.setVelocityY(-300)
-      
+
       // No damage to player
       return
     }
 
     // Player takes damage
-    this.playerHealth -= 20
-    playerSprite.setData('lastHitTime', currentTime)
+    if (isPlayer1) {
+      this.playerHealth -= 20
+      if (this.playerHealth <= 0) {
+        this.playerHealth = 0
+        this.handlePlayerDeath()
+        return
+      }
+    } else if (isPlayer2) {
+      const p2Health = playerSprite.getData('health') || 100
+      playerSprite.setData('health', Math.max(0, p2Health - 20))
 
-    // Check if player died
-    if (this.playerHealth <= 0) {
-      this.playerHealth = 0
-      this.handlePlayerDeath()
-      return
+      if (p2Health - 20 <= 0) {
+        // Player 2 dies
+        const p2Lives = playerSprite.getData('lives') || 3
+        playerSprite.setData('lives', p2Lives - 1)
+
+        if (p2Lives - 1 <= 0) {
+          // Player 2 game over
+          playerSprite.setData('isDead', true)
+          playerSprite.setAlpha(0.3)
+        } else {
+          // Respawn player 2
+          playerSprite.setPosition(this.player.x + 50, this.player.y)
+          playerSprite.setData('health', 100)
+        }
+        return
+      }
     }
+
+    playerSprite.setData('lastHitTime', currentTime)
 
     // Flash player red
     playerSprite.setTint(0xff0000)
@@ -2935,15 +3333,15 @@ export default class GameScene extends Phaser.Scene {
 
     // Check if enemy is above player
     const enemyAbovePlayer = enemySprite.y < playerSprite.y - 20 // Enemy is at least 20px above player
-    
+
     // Determine bounce direction
     const bounceDirection = enemySprite.x > playerSprite.x ? 1 : -1
-    
+
     if (enemyAbovePlayer) {
       // Enemy is above - bounce diagonally upward (top right or left)
       enemySprite.setVelocityX(bounceDirection * 300) // Stronger horizontal bounce
       enemySprite.setVelocityY(-400) // Strong upward bounce
-      
+
       // Mark that this enemy bounced from above
       enemySprite.setData('lastBounceFromAbove', currentTime)
     } else {
@@ -2955,22 +3353,118 @@ export default class GameScene extends Phaser.Scene {
     // Also push player back slightly
     const playerPushDirection = bounceDirection * -1
     playerSprite.setVelocityX(playerPushDirection * 150)
-    
+
     // Don't reset double jump - player maintains their jump state
     // This prevents infinite jumping after getting hit
-    
+
     // Screen shake effect
     this.cameras.main.shake(100, 0.005)
   }
 
+  private handleFriendlyFire(
+    player: any,
+    bullet: any
+  ) {
+    const playerSprite = player as Phaser.Physics.Arcade.Sprite
+    const bulletSprite = bullet as Phaser.Physics.Arcade.Sprite
+
+    // Determine which player was hit
+    const isPlayer1 = playerSprite === this.player
+    const isPlayer2 = this.isCoopMode && playerSprite === this.player2
+
+    // Skip if player is already dead
+    if (isPlayer1 && this.playerIsDead) return
+    if (isPlayer2 && playerSprite.getData('isDead')) return
+
+    // Check if player has invincibility frames
+    const lastHitTime = playerSprite.getData('lastHitTime') || 0
+    const currentTime = this.time.now
+    const invincibilityDuration = 1000 // 1 second of invincibility
+
+    if (currentTime - lastHitTime < invincibilityDuration) {
+      bulletSprite.destroy()
+      return
+    }
+
+    // Debug mode god mode - no damage
+    if (this.debugMode) {
+      bulletSprite.destroy()
+      return
+    }
+
+    // Check if player has shield - absorb damage and destroy shield
+    const hasShield = isPlayer1 ? this.hasShield : playerSprite.getData('hasShield')
+    if (hasShield) {
+      if (isPlayer1) {
+        this.hasShield = false
+      } else {
+        playerSprite.setData('hasShield', false)
+      }
+      bulletSprite.destroy()
+      return
+    }
+
+    // Player takes damage (10 damage from friendly fire - less than enemy hit)
+    const damage = 10
+
+    if (isPlayer1) {
+      this.playerHealth -= damage
+      if (this.playerHealth <= 0) {
+        this.playerHealth = 0
+        this.handlePlayerDeath()
+        bulletSprite.destroy()
+        return
+      }
+    } else if (isPlayer2) {
+      const p2Health = playerSprite.getData('health') || 100
+      playerSprite.setData('health', Math.max(0, p2Health - damage))
+
+      if (p2Health - damage <= 0) {
+        // Player 2 dies
+        const p2Lives = playerSprite.getData('lives') || 3
+        playerSprite.setData('lives', p2Lives - 1)
+
+        if (p2Lives - 1 <= 0) {
+          // Player 2 game over
+          playerSprite.setData('isDead', true)
+          playerSprite.setAlpha(0.3)
+        } else {
+          // Respawn player 2
+          playerSprite.setPosition(this.player.x + 50, this.player.y)
+          playerSprite.setData('health', 100)
+        }
+        bulletSprite.destroy()
+        return
+      }
+    }
+
+    playerSprite.setData('lastHitTime', currentTime)
+
+    // Flash player yellow (different from enemy red)
+    playerSprite.setTint(0xffff00)
+    this.time.delayedCall(100, () => {
+      playerSprite.setTint(0xffffff)
+    })
+
+    // Small knockback from bullet direction
+    const knockbackDirection = bulletSprite.body && (bulletSprite.body as Phaser.Physics.Arcade.Body).velocity.x > 0 ? 1 : -1
+    playerSprite.setVelocityX(knockbackDirection * 100)
+
+    // Destroy bullet
+    bulletSprite.destroy()
+
+    // Small screen shake
+    this.cameras.main.shake(50, 0.003)
+  }
+
   private handlePlayerDeath() {
     this.playerIsDead = true
-    
+
     // Stop player movement
     this.player.setVelocity(0, 0)
     this.player.setGravityY(0)
     this.player.body!.enable = false
-    
+
     // Hide gun and shield if active
     this.gun.setVisible(false)
     if (this.hasShield && this.shieldSprite) {
@@ -2978,22 +3472,22 @@ export default class GameScene extends Phaser.Scene {
       this.shieldSprite = null
       this.hasShield = false
     }
-    
+
     // Change to duck/sit sprite (sad pose)
     this.player.setTexture(`${this.equippedSkin}_duck`)
-    
+
     // Turn player red
     this.player.setTint(0xff0000)
-    
+
     // Play death sound
-      this.audioManager.playDeathSound()    // Create particle burst
+    this.audioManager.playDeathSound()    // Create particle burst
     const particleCount = 25
     for (let i = 0; i < particleCount; i++) {
       const angle = (Math.PI * 2 / particleCount) * i
       const speed = Phaser.Math.Between(100, 300)
       const particle = this.add.circle(this.player.x, this.player.y, 4, 0xff0000)
       particle.setDepth(20)
-      
+
       this.tweens.add({
         targets: particle,
         x: this.player.x + Math.cos(angle) * speed,
@@ -3005,7 +3499,7 @@ export default class GameScene extends Phaser.Scene {
         onComplete: () => particle.destroy()
       })
     }
-    
+
     // Fade out player with spin
     this.tweens.add({
       targets: this.player,
@@ -3019,11 +3513,11 @@ export default class GameScene extends Phaser.Scene {
       onComplete: () => {
         // Fade to black
         this.cameras.main.fadeOut(500, 0, 0, 0)
-        
+
         this.time.delayedCall(500, () => {
           // Lose a life
           this.playerLives--
-          
+
           if (this.playerLives <= 0) {
             // Game Over
             this.showGameOver()
@@ -3040,10 +3534,10 @@ export default class GameScene extends Phaser.Scene {
     // Reset player position to last checkpoint
     const checkpointX = this.checkpoints[this.currentCheckpoint]?.x || this.playerSpawnX
     this.player.setPosition(checkpointX, this.playerSpawnY)
-    
+
     // Fade in from black
     this.cameras.main.fadeIn(500, 0, 0, 0)
-    
+
     // Start with player invisible and small
     this.player.setAlpha(0)
     this.player.setScale(0)
@@ -3052,15 +3546,15 @@ export default class GameScene extends Phaser.Scene {
     this.player.body!.enable = true
     this.player.angle = 0
     this.player.clearTint()
-    
+
     // Checkpoint glow effect
     if (this.checkpoints[this.currentCheckpoint]) {
       const checkpoint = this.checkpoints[this.currentCheckpoint]
-      
+
       // Create glow ring at checkpoint position
       const glowRing = this.add.circle(checkpoint.x, 600, 50, 0x00ff00, 0.3)
       glowRing.setDepth(1)
-      
+
       this.tweens.add({
         targets: glowRing,
         scale: 2,
@@ -3070,7 +3564,7 @@ export default class GameScene extends Phaser.Scene {
         onComplete: () => glowRing.destroy()
       })
     }
-    
+
     // Scale up spawn animation
     this.tweens.add({
       targets: this.player,
@@ -3083,13 +3577,13 @@ export default class GameScene extends Phaser.Scene {
         this.player.play('player_idle')
       }
     })
-    
+
     // Reset health to full
     this.playerHealth = this.maxHealth
     this.playerIsDead = false
     this.gun.setVisible(true)
     this.lastShotTime = 0
-    
+
     // Give player 1 second of invincibility on respawn
     this.player.setData('lastHitTime', this.time.now)
     this.hasShield = true
@@ -3097,7 +3591,7 @@ export default class GameScene extends Phaser.Scene {
     this.shieldSprite.setScale(1.5)
     this.shieldSprite.setAlpha(0.6)
     this.shieldSprite.setDepth(5)
-    
+
     // Shield animation
     this.tweens.add({
       targets: this.shieldSprite,
@@ -3105,7 +3599,7 @@ export default class GameScene extends Phaser.Scene {
       duration: 3000,
       repeat: 0
     })
-    
+
     // Remove spawn shield after 1 second
     this.time.delayedCall(1000, () => {
       this.hasShield = false
@@ -3124,10 +3618,10 @@ export default class GameScene extends Phaser.Scene {
         })
       }
     })
-    
+
     // Update lives display
     this.livesText.setText(`Lives: ${this.playerLives}`)
-    
+
     // Flash camera white
     this.cameras.main.flash(500, 255, 255, 255)
   }
@@ -3137,22 +3631,22 @@ export default class GameScene extends Phaser.Scene {
     console.log('Current Score:', this.score)
     console.log('Current Coins:', this.coinCount)
     console.log('Enemies Defeated:', this.enemiesDefeated)
-    
+
     this.physics.pause()
-    
+
     // Fade camera back in from black
     this.cameras.main.fadeIn(500, 0, 0, 0)
-    
+
     // Submit score to backend (non-blocking)
     this.submitScoreToBackend().catch(err => {
       console.log('Score submission failed (backend may be offline):', err)
     })
-    
+
     // Dark overlay background
     const overlay = this.add.rectangle(640, 360, 1280, 720, 0x000000, 0.85)
     overlay.setScrollFactor(0)
     overlay.setDepth(2000)
-    
+
     // Game over panel
     const panelWidth = 600
     const panelHeight = 500
@@ -3160,7 +3654,7 @@ export default class GameScene extends Phaser.Scene {
     panel.setStrokeStyle(4, 0xff0000)
     panel.setScrollFactor(0)
     panel.setDepth(2001)
-    
+
     // Game over title
     const gameOverText = this.add.text(640, 150, 'GAME OVER', {
       fontSize: '64px',
@@ -3172,9 +3666,9 @@ export default class GameScene extends Phaser.Scene {
     gameOverText.setOrigin(0.5)
     gameOverText.setScrollFactor(0)
     gameOverText.setDepth(2002)
-    
+
     // Stats
-    const statsText = this.add.text(640, 300, 
+    const statsText = this.add.text(640, 300,
       `Level: ${this.currentLevel}\nScore: ${this.score}\nCoins: ${this.coinCount}\nEnemies: ${this.enemiesDefeated}\nDistance: ${Math.floor(this.player.x / 70)}m`, {
       fontSize: '28px',
       color: '#ffffff',
@@ -3187,14 +3681,14 @@ export default class GameScene extends Phaser.Scene {
     statsText.setOrigin(0.5)
     statsText.setScrollFactor(0)
     statsText.setDepth(2002)
-    
+
     // Restart Button
     const restartBtn = this.add.rectangle(540, 480, 200, 60, 0x00aa00)
     restartBtn.setStrokeStyle(3, 0x00ff00)
     restartBtn.setScrollFactor(0)
     restartBtn.setDepth(2002)
     restartBtn.setInteractive({ useHandCursor: true })
-    
+
     const restartText = this.add.text(540, 480, 'RESTART', {
       fontSize: '28px',
       color: '#ffffff',
@@ -3203,14 +3697,14 @@ export default class GameScene extends Phaser.Scene {
     restartText.setOrigin(0.5)
     restartText.setScrollFactor(0)
     restartText.setDepth(2003)
-    
+
     // Home Button
     const homeBtn = this.add.rectangle(740, 480, 200, 60, 0x0066cc)
     homeBtn.setStrokeStyle(3, 0x0099ff)
     homeBtn.setScrollFactor(0)
     homeBtn.setDepth(2002)
     homeBtn.setInteractive({ useHandCursor: true })
-    
+
     const homeText = this.add.text(740, 480, 'MENU', {
       fontSize: '28px',
       color: '#ffffff',
@@ -3219,7 +3713,7 @@ export default class GameScene extends Phaser.Scene {
     homeText.setOrigin(0.5)
     homeText.setScrollFactor(0)
     homeText.setDepth(2003)
-    
+
     // Button hover effects
     restartBtn.on('pointerover', () => {
       restartBtn.setFillStyle(0x00ff00)
@@ -3229,7 +3723,7 @@ export default class GameScene extends Phaser.Scene {
       restartBtn.setFillStyle(0x00aa00)
       restartBtn.setScale(1)
     })
-    
+
     homeBtn.on('pointerover', () => {
       homeBtn.setFillStyle(0x0099ff)
       homeBtn.setScale(1.05)
@@ -3238,29 +3732,37 @@ export default class GameScene extends Phaser.Scene {
       homeBtn.setFillStyle(0x0066cc)
       homeBtn.setScale(1)
     })
-    
+
     // Button click handlers
     restartBtn.on('pointerdown', () => {
       this.tweens.killAll()
-      this.scene.restart()
+      const restartData: any = { gameMode: this.gameMode, level: this.currentLevel }
+      if (this.isCoopMode) {
+        restartData.mode = 'coop'
+      }
+      this.scene.restart(restartData)
     })
-    
+
     homeBtn.on('pointerdown', () => {
       this.tweens.killAll()
       this.scene.start('MenuScene')
     })
-    
+
     // Keyboard shortcuts
     this.input.keyboard!.once('keydown-SPACE', () => {
       this.tweens.killAll()
-      this.scene.restart()
+      const restartData: any = { gameMode: this.gameMode, level: this.currentLevel }
+      if (this.isCoopMode) {
+        restartData.mode = 'coop'
+      }
+      this.scene.restart(restartData)
     })
-    
+
     this.input.keyboard!.once('keydown-M', () => {
       this.tweens.killAll()
       this.scene.start('MenuScene')
     })
-    
+
     // Pulsing animation on title
     this.tweens.add({
       targets: gameOverText,
@@ -3272,16 +3774,78 @@ export default class GameScene extends Phaser.Scene {
     })
   }
 
+  private handlePlayer2Movement() {
+    // Get gamepad 2
+    const gamepads = this.input.gamepad?.gamepads || []
+    const gamepad2 = gamepads.length > 1 ? gamepads[1] : null
+
+    if (!gamepad2 || !this.player2) return
+
+    const speed = 200
+    const jumpVelocity = -500
+    const onGround = this.player2.body!.touching.down
+
+    // Reset double jump when on ground
+    const canDoubleJump = this.player2.getData('canDoubleJump') !== false
+    const hasDoubleJumped = this.player2.getData('hasDoubleJumped') || false
+
+    if (onGround) {
+      this.player2.setData('canDoubleJump', true)
+      this.player2.setData('hasDoubleJumped', false)
+    }
+
+    // Movement with left stick
+    const leftStickX = gamepad2.leftStick.x
+    const dpadLeft = gamepad2.left
+    const dpadRight = gamepad2.right
+
+    if (leftStickX < -0.3 || dpadLeft) {
+      this.player2.setVelocityX(-speed)
+      this.player2.setFlipX(true)
+      if (onGround) this.player2.play('player_walk', true)
+    } else if (leftStickX > 0.3 || dpadRight) {
+      this.player2.setVelocityX(speed)
+      this.player2.setFlipX(false)
+      if (onGround) this.player2.play('player_walk', true)
+    } else {
+      this.player2.setVelocityX(0)
+      if (onGround) this.player2.play('player_idle', true)
+    }
+
+    // Jump with A button OR left analog stick up
+    const leftStickY = gamepad2.leftStick.y
+    const dpadUp = gamepad2.up
+
+    const wasJumpPressed = this.player2.getData('wasJumpPressed') || false
+    const jumpPressed = gamepad2.A || leftStickY < -0.5 || dpadUp || false
+    const jumpJustPressed = jumpPressed && !wasJumpPressed
+    this.player2.setData('wasJumpPressed', jumpPressed)
+
+    if (jumpJustPressed) {
+      if (onGround) {
+        this.player2.setVelocityY(jumpVelocity)
+        this.player2.play('player_jump', true)
+        this.audioManager.playJumpSound()
+        this.player2.setData('canDoubleJump', true)
+      } else if (canDoubleJump && !hasDoubleJumped) {
+        this.player2.setVelocityY(jumpVelocity)
+        this.player2.play('player_jump', true)
+        this.audioManager.playJumpSound(true)
+        this.player2.setData('hasDoubleJumped', true)
+      }
+    }
+  }
+
   private handleGunAiming() {
     // Skip if player is dead
     if (this.playerIsDead) return
-    
+
     const controlSettings = ControlManager.getControlSettings()
     const useGamepad = !this.aiEnabled && controlSettings.inputMethod === 'gamepad'
-    
+
     let aimX: number
     let aimY: number
-    
+
     // AI aiming takes priority
     if (this.aiEnabled) {
       const aiDecision = this.aiPlayer.getDecision(this.time.now)
@@ -3293,7 +3857,7 @@ export default class GameScene extends Phaser.Scene {
       const rightStickX = this.gamepad.rightStick.x
       const rightStickY = this.gamepad.rightStick.y
       const stickMagnitude = Math.sqrt(rightStickX * rightStickX + rightStickY * rightStickY)
-      
+
       // If right stick is being used (magnitude > 0.2), use gamepad aiming with reduced sensitivity
       if (stickMagnitude > 0.2) {
         // Use right stick direction for aiming with reduced sensitivity (0.5x)
@@ -3312,7 +3876,7 @@ export default class GameScene extends Phaser.Scene {
       aimX = worldPoint.x
       aimY = worldPoint.y
     }
-    
+
     // Calculate angle to aim point
     const angleToMouse = Phaser.Math.Angle.Between(
       this.player.x,
@@ -3320,26 +3884,26 @@ export default class GameScene extends Phaser.Scene {
       aimX,
       aimY
     )
-    
+
     // For sword, position 23 degrees ahead of player relative to aim direction
     let gunAngle = angleToMouse
     if (this.equippedWeapon === 'sword') {
       gunAngle = angleToMouse + Phaser.Math.DegToRad(23)
     }
-    
+
     // Position gun around player center with distance
     const distanceFromPlayer = 30 // Distance from player center
     const gunX = this.player.x + Math.cos(gunAngle) * distanceFromPlayer
     const gunY = this.player.y + Math.sin(gunAngle) * distanceFromPlayer
     this.gun.setPosition(gunX, gunY)
-    
+
     // Flip gun sprite vertically if pointing upward to prevent upside-down appearance
     if (gunAngle > Math.PI / 2 || gunAngle < -Math.PI / 2) {
       this.gun.setScale(1.0, -1.0) // Flip Y
     } else {
       this.gun.setScale(1.0, 1.0) // Normal
     }
-    
+
     // Apply rotation directly without any clamping
     this.gun.setRotation(gunAngle)
   }
@@ -3347,13 +3911,13 @@ export default class GameScene extends Phaser.Scene {
   private handleShooting() {
     // Skip if player is dead
     if (this.playerIsDead) return
-    
+
     const controlSettings = ControlManager.getControlSettings()
     const useGamepad = !this.aiEnabled && controlSettings.inputMethod === 'gamepad'
-    
+
     const pointer = this.input.activePointer
     const currentTime = this.time.now
-    
+
     // Check AI shoot decision
     let aiShoot = false
     if (this.aiEnabled) {
@@ -3362,25 +3926,25 @@ export default class GameScene extends Phaser.Scene {
     } else if (this.mlAIEnabled) {
       aiShoot = this.mlAIDecision.shoot
     }
-    
+
     // Check gamepad shoot button from mapping
     let gamepadShoot = false
     if (useGamepad && this.gamepad) {
       const shootButton = controlSettings.gamepadMapping.shoot
       gamepadShoot = this.gamepad.buttons[shootButton]?.pressed || false
     }
-    
+
     // Right mouse button for special attack (sword blade throw) - keyboard only
     if (!useGamepad && pointer.rightButtonDown() && this.equippedWeapon === 'sword' && currentTime - this.lastShotTime > 2000) {
       this.throwSwordBlade()
       this.lastShotTime = currentTime
       return // Skip normal attack
     }
-    
+
     // Weapon-specific cooldowns and behavior
     let shootCooldown = 500 // Default raygun cooldown (reduced from 1000)
     let bulletSpeed = 600
-    
+
     if (this.equippedWeapon === 'laserGun') {
       shootCooldown = 150 // Laser gun fires very fast (reduced from 300)
       bulletSpeed = 800 // Faster bullets too
@@ -3391,12 +3955,12 @@ export default class GameScene extends Phaser.Scene {
       shootCooldown = 1000 // Bazooka fire rate (reduced from 2000)
       bulletSpeed = 400 // Slower rockets
     }
-    
+
     // Check for mouse button press or gamepad shoot button or AI shoot
     const mouseShoot = !this.aiEnabled && !this.mlAIEnabled && !useGamepad && pointer.isDown
     if ((mouseShoot || gamepadShoot || aiShoot) && currentTime - this.lastShotTime > shootCooldown) {
       this.lastShotTime = currentTime
-      
+
       if (this.equippedWeapon === 'sword') {
         // Get current angle to mouse
         const worldPoint = this.cameras.main.getWorldPoint(pointer.x, pointer.y)
@@ -3406,17 +3970,17 @@ export default class GameScene extends Phaser.Scene {
           worldPoint.x,
           worldPoint.y
         )
-        
+
         // Sword swing animation - smooth arc swing with motion trail
         const startAngle = angleToMouse + Phaser.Math.DegToRad(-60)
         const endAngle = angleToMouse + Phaser.Math.DegToRad(60)
-        
+
         // Immediately set starting position
         this.gun.setRotation(startAngle)
-        
+
         // Create trail effect with multiple ghost images
         const trailImages: Phaser.GameObjects.Image[] = []
-        
+
         // Animate the sword swinging through the arc
         this.tweens.add({
           targets: this.gun,
@@ -3433,9 +3997,9 @@ export default class GameScene extends Phaser.Scene {
               trailImage.setTint(0xff00ff) // Purple trail
               trailImage.setAlpha(0.4)
               trailImage.setDepth(this.gun.depth - 1)
-              
+
               trailImages.push(trailImage)
-              
+
               // Fade out trail image
               this.tweens.add({
                 targets: trailImage,
@@ -3453,7 +4017,7 @@ export default class GameScene extends Phaser.Scene {
               if (img && img.active) img.destroy()
             })
             trailImages.length = 0
-            
+
             // Return to normal position (23 degrees ahead)
             this.tweens.add({
               targets: this.gun,
@@ -3463,24 +4027,24 @@ export default class GameScene extends Phaser.Scene {
             })
           }
         })
-        
+
         // Melee attack: damage enemies in front of player
         const meleeRange = 80
         const meleeDirection = Math.cos(angleToMouse) > 0 ? 1 : -1
         const meleeX = this.player.x + (meleeDirection * meleeRange)
         const meleeY = this.player.y
-        
+
         // Check if any enemies are in melee range
         this.enemies.children.entries.forEach((enemy: any) => {
           const enemySprite = enemy as Phaser.Physics.Arcade.Sprite
           const distance = Phaser.Math.Distance.Between(meleeX, meleeY, enemySprite.x, enemySprite.y)
-          
+
           if (distance < meleeRange) {
             // Damage enemy (5 damage, same as bullet)
             let enemyHealth = enemySprite.getData('health') || 1
             enemyHealth -= 5
             enemySprite.setData('health', enemyHealth)
-            
+
             // Visual feedback: flash and knockback
             enemySprite.clearTint() // Clear any existing tint first
             enemySprite.setTint(0xff0000)
@@ -3494,11 +4058,11 @@ export default class GameScene extends Phaser.Scene {
               }
             })
             enemySprite.setData('tintTimer', tintTimer)
-            
+
             // Knockback
             const knockbackForce = 300
             enemySprite.setVelocityX(meleeDirection * knockbackForce)
-            
+
             // Check if enemy died
             if (enemyHealth <= 0) {
               const spawnX = enemySprite.getData('spawnX')
@@ -3506,10 +4070,10 @@ export default class GameScene extends Phaser.Scene {
               const enemyType = enemySprite.getData('enemyType')
               const coinReward = enemySprite.getData('coinReward')
               const scale = enemySprite.scaleX
-              
+
               // Drop coins
               this.dropCoins(enemySprite.x, enemySprite.y, coinReward)
-              
+
               // Award score for defeating enemy
               this.enemiesDefeated++
               const enemySize = enemySprite.getData('enemySize')
@@ -3517,7 +4081,7 @@ export default class GameScene extends Phaser.Scene {
               if (enemySize === 'medium') scoreReward = 100
               if (enemySize === 'large') scoreReward = 200
               this.updateScore(scoreReward)
-              
+
               // Death animation
               enemySprite.setVelocity(0, 0)
               const deadTexture = `${enemyType}_dead`
@@ -3525,7 +4089,7 @@ export default class GameScene extends Phaser.Scene {
                 enemySprite.setTexture(deadTexture)
               }
               enemySprite.setTint(0xff0000)
-              
+
               // Fade out and sink down
               this.tweens.add({
                 targets: enemySprite,
@@ -3538,33 +4102,33 @@ export default class GameScene extends Phaser.Scene {
                   enemySprite.destroy()
                 }
               })
-              
+
               // Respawn after 20 seconds only if location is ahead of player's progress
               this.time.delayedCall(20000, () => {
                 // Don't respawn if player has already passed this area
                 if (spawnX < this.farthestPlayerX - 500) {
                   return // Skip respawn in explored areas
                 }
-                
-                const difficultyMultiplier = this.gameMode === 'endless' 
-                  ? 1 + Math.floor(this.player.x / 5000) * 0.2 
+
+                const difficultyMultiplier = this.gameMode === 'endless'
+                  ? 1 + Math.floor(this.player.x / 5000) * 0.2
                   : 1 + (this.currentLevel - 1) * 0.3
                 this.spawnRandomEnemy(spawnX, spawnY, difficultyMultiplier)
               })
             }
           }
         })
-        
+
         // Check if boss is in melee range
         if (this.boss && this.boss.active && this.bossActive) {
           const distance = Phaser.Math.Distance.Between(meleeX, meleeY, this.boss.x, this.boss.y)
-          
+
           if (distance < 150) { // Boss is bigger, larger melee range
             // Damage boss (20 damage for melee on boss)
             let bossHealth = this.boss.getData('health')
             bossHealth -= 20
             this.boss.setData('health', bossHealth)
-            
+
             // Visual feedback
             this.boss.setTint(0xff0000)
             this.time.delayedCall(100, () => {
@@ -3572,37 +4136,37 @@ export default class GameScene extends Phaser.Scene {
                 this.boss.clearTint()
               }
             })
-            
+
             // Knockback
             const knockbackForce = 200
             this.boss.setVelocityX(meleeDirection * knockbackForce)
-            
+
             // Check if boss defeated
             if (bossHealth <= 0) {
               this.defeatBoss()
             }
           }
         }
-        
+
         // Flash gun sprite for visual feedback
         this.gun.setTint(0xffffff)
         this.time.delayedCall(100, () => {
           this.gun.clearTint()
         })
-        
+
         // Play melee sound
         this.audioManager.playMeleeSound()
       } else {
         // Ranged weapons: shoot bullets
         // Play shoot sound
         this.audioManager.playShootSound()
-        
+
         // Calculate gun tip position at the moment of firing
         const gunLength = 40 // Length from gun origin to tip
         const gunAngle = this.gun.rotation
         const bulletStartX = this.gun.x + Math.cos(gunAngle) * gunLength
         const bulletStartY = this.gun.y + Math.sin(gunAngle) * gunLength
-        
+
         // Choose bullet texture based on weapon
         let bulletTexture = 'laserBlue'
         let isRocket = false
@@ -3612,10 +4176,10 @@ export default class GameScene extends Phaser.Scene {
           bulletTexture = 'rocket'
           isRocket = true
         }
-        
+
         // Create bullet at gun mouth
         const bullet = this.bullets.get(bulletStartX, bulletStartY, bulletTexture)
-        
+
         if (bullet) {
           bullet.setActive(true)
           bullet.setVisible(true)
@@ -3623,10 +4187,10 @@ export default class GameScene extends Phaser.Scene {
           bullet.setRotation(gunAngle)
           bullet.setAlpha(1)
           bullet.setData('isRocket', isRocket)
-          
+
           // Disable physics for this bullet - use data to track movement
           bullet.body!.setEnable(false)
-          
+
           // Store bullet direction and speed locked at time of firing
           bullet.setData('velocityX', Math.cos(gunAngle) * bulletSpeed)
           bullet.setData('velocityY', Math.sin(gunAngle) * bulletSpeed)
@@ -3641,7 +4205,7 @@ export default class GameScene extends Phaser.Scene {
   private isOnSpikes(x: number, y: number): boolean {
     for (const spike of this.spikePositions) {
       if (x >= spike.x && x <= spike.x + spike.width &&
-          Math.abs(y - spike.y) < 100) {
+        Math.abs(y - spike.y) < 100) {
         return true
       }
     }
@@ -3650,12 +4214,12 @@ export default class GameScene extends Phaser.Scene {
 
   private checkSpikeCollision() {
     if (this.playerIsDead) return
-    
+
     // Check if player's feet (bottom) touch spike tips (top)
     const playerBottom = this.player.y + (this.player.height / 2)
     const playerLeft = this.player.x - (this.player.width / 4)
     const playerRight = this.player.x + (this.player.width / 4)
-    
+
     // Check if player has invincibility frames
     const lastHitTime = this.player.getData('lastHitTime') || 0
     const currentTime = this.time.now
@@ -3664,22 +4228,22 @@ export default class GameScene extends Phaser.Scene {
     if (currentTime - lastHitTime < invincibilityDuration) {
       return // Player is still invincible
     }
-    
+
     this.spikes.children.entries.forEach((spike: any) => {
       const spikeSprite = spike as Phaser.Physics.Arcade.Sprite
       const spikeTop = spikeSprite.y - (spikeSprite.height / 2) + 10 // Only top 10px are dangerous
       const spikeLeft = spikeSprite.x - (spikeSprite.width / 2)
       const spikeRight = spikeSprite.x + (spikeSprite.width / 2)
-      
+
       // Check if player's feet overlap with spike tips
       if (playerBottom >= spikeTop && playerBottom <= spikeTop + 20 &&
-          playerRight >= spikeLeft && playerLeft <= spikeRight) {
-        
+        playerRight >= spikeLeft && playerLeft <= spikeRight) {
+
         // Debug mode god mode - no damage
         if (this.debugMode) {
           return
         }
-        
+
         // Player takes damage
         this.playerHealth -= 15
         this.player.setData('lastHitTime', currentTime)
@@ -3702,65 +4266,158 @@ export default class GameScene extends Phaser.Scene {
             })
           })
         })
-        
+
         // Knockback effect
         this.player.setVelocityY(-300)
-        
+
         // Screen shake effect
         this.cameras.main.shake(100, 0.005)
       }
     })
   }
 
+  private handlePlayer2GunAndShooting() {
+    if (!this.isCoopMode || !this.player2 || !this.gun2) return
+
+    // Get gamepad 2
+    const gamepads = this.input.gamepad?.gamepads || []
+    const gamepad2 = gamepads.length > 1 ? gamepads[1] : null
+    if (!gamepad2) return
+
+    // Aim with right stick
+    const rightStickX = gamepad2.rightStick.x
+    const rightStickY = gamepad2.rightStick.y
+    const stickMagnitude = Math.sqrt(rightStickX * rightStickX + rightStickY * rightStickY)
+
+    let aimX: number
+    let aimY: number
+
+    if (stickMagnitude > 0.3) {
+      // Use right stick for aiming
+      const aimAngle = Math.atan2(rightStickY, rightStickX)
+      const aimDistance = 200
+      aimX = this.player2.x + Math.cos(aimAngle) * aimDistance
+      aimY = this.player2.y + Math.sin(aimAngle) * aimDistance
+    } else {
+      // Aim forward based on facing direction
+      aimX = this.player2.x + (this.player2.flipX ? -100 : 100)
+      aimY = this.player2.y
+    }
+
+    // Update gun position and rotation
+    const angleToPointer = Phaser.Math.Angle.Between(this.player2.x, this.player2.y, aimX, aimY)
+    const gunDistance = 20
+    this.gun2.x = this.player2.x + Math.cos(angleToPointer) * gunDistance
+    this.gun2.y = this.player2.y + Math.sin(angleToPointer) * gunDistance
+    this.gun2.setRotation(angleToPointer)
+
+    if (aimX < this.player2.x) {
+      this.gun2.setFlipY(true)
+    } else {
+      this.gun2.setFlipY(false)
+    }
+
+    // Shooting with RT (R2) button
+    const shootPressed = gamepad2.R2 > 0.5 || (gamepad2.buttons[5] && gamepad2.buttons[5].pressed)
+    const fireRate = this.equippedWeapon === 'raygun' ? 200 : 500
+    const lastShotTime = this.player2.getData('lastShotTime') || 0
+    const currentTime = this.time.now
+
+    if (shootPressed && currentTime - lastShotTime > fireRate) {
+      // Match Player 1 bullet creation logic
+      const gunLength = 40
+      const gunAngle = this.gun2.rotation
+      const bulletStartX = this.gun2.x + Math.cos(gunAngle) * gunLength
+      const bulletStartY = this.gun2.y + Math.sin(gunAngle) * gunLength
+
+      // Choose bullet texture based on weapon (same as Player 1)
+      let bulletTexture = 'laserBlue'
+      let isRocket = false
+      if (this.equippedWeapon === 'laserGun') {
+        bulletTexture = 'laserGreen'
+      } else if (this.equippedWeapon === 'bazooka') {
+        bulletTexture = 'rocket'
+        isRocket = true
+      }
+
+      const bulletSpeed = isRocket ? 500 : 800
+      const bullet = this.bullets2.get(bulletStartX, bulletStartY, bulletTexture)
+
+      if (bullet) {
+        bullet.setActive(true)
+        bullet.setVisible(true)
+        bullet.setScale(0.5, 0.5)
+        bullet.setRotation(gunAngle)
+        bullet.setAlpha(1)
+        bullet.setData('isRocket', isRocket)
+
+        // Disable physics for this bullet - use data to track movement (same as Player 1)
+        bullet.body!.setEnable(false)
+
+        // Store bullet direction and speed locked at time of firing
+        bullet.setData('velocityX', Math.cos(gunAngle) * bulletSpeed)
+        bullet.setData('velocityY', Math.sin(gunAngle) * bulletSpeed)
+        bullet.setData('createdTime', currentTime)
+        bullet.setData('initialScaleX', 0.5)
+        bullet.setData('angle', gunAngle)
+
+        this.audioManager.playShootSound()
+        this.player2.setData('lastShotTime', currentTime)
+      }
+    }
+  }
+
   private updateBullets() {
     const currentTime = this.time.now
     const bulletLifetime = 3000 // 3 seconds
     const fadeStartTime = 2500 // Start fading at 2.5 seconds
-    
+
+    // Update Player 1 bullets
     this.bullets.children.entries.forEach((bullet: any) => {
       if (!bullet.active) return
-      
+
       const sprite = bullet as Phaser.Physics.Arcade.Sprite
       const createdTime = sprite.getData('createdTime')
       const age = currentTime - createdTime
-      
-      // Move bullet manually
+
+      // Move bullet manually using delta time
       const velX = sprite.getData('velocityX')
       const velY = sprite.getData('velocityY')
-      sprite.x += velX * 0.016 // Assuming ~60fps
-      sprite.y += velY * 0.016
-      
+      const delta = this.game.loop.delta / 1000 // Convert to seconds
+      sprite.x += velX * delta
+      sprite.y += velY * delta
+
       // Keep rotation locked to firing angle (no slanting)
       const lockedAngle = sprite.getData('angle')
       sprite.setRotation(lockedAngle)
-      
+
       // Manual collision detection with enemies
       this.enemies.children.entries.forEach((enemy: any) => {
         if (!enemy.active) return
         const enemySprite = enemy as Phaser.Physics.Arcade.Sprite
         const distance = Phaser.Math.Distance.Between(sprite.x, sprite.y, enemySprite.x, enemySprite.y)
-        
+
         if (distance < 30) { // Collision threshold
           this.handleBulletEnemyCollision(sprite, enemySprite)
         }
       })
-      
+
       // Manual collision detection with boss
       if (this.boss && this.boss.active && this.bossActive) {
         const distance = Phaser.Math.Distance.Between(sprite.x, sprite.y, this.boss.x, this.boss.y)
-        
+
         if (distance < 100) { // Boss is bigger, larger collision threshold
           this.handleBulletBossCollision(sprite, this.boss)
         }
       }
-      
+
       // After 2.5 seconds, start shrinking and fading
       if (age >= fadeStartTime) {
         const fadeProgress = (age - fadeStartTime) / (bulletLifetime - fadeStartTime)
         sprite.setAlpha(1 - fadeProgress)
         sprite.setScale(sprite.getData('initialScaleX') * (1 - fadeProgress * 0.7), 0.5)
       }
-      
+
       // Destroy after lifetime
       if (age >= bulletLifetime) {
         // Rockets explode at end of lifetime
@@ -3768,22 +4425,82 @@ export default class GameScene extends Phaser.Scene {
         if (isRocket) {
           this.createExplosion(sprite.x, sprite.y)
         }
-        
+
         sprite.setActive(false)
         sprite.setVisible(false)
       }
     })
+
+    // Update Player 2 bullets (if in co-op mode)
+    if (this.isCoopMode && this.bullets2) {
+      this.bullets2.children.entries.forEach((bullet: any) => {
+        if (!bullet.active) return
+
+        const sprite = bullet as Phaser.Physics.Arcade.Sprite
+        const createdTime = sprite.getData('createdTime')
+        const age = currentTime - createdTime
+
+        // Move bullet manually using delta time
+        const velX = sprite.getData('velocityX')
+        const velY = sprite.getData('velocityY')
+        const delta = this.game.loop.delta / 1000 // Convert to seconds
+        sprite.x += velX * delta
+        sprite.y += velY * delta
+
+        // Keep rotation locked to firing angle
+        const lockedAngle = sprite.getData('angle')
+        sprite.setRotation(lockedAngle)
+
+        // Manual collision detection with enemies
+        this.enemies.children.entries.forEach((enemy: any) => {
+          if (!enemy.active) return
+          const enemySprite = enemy as Phaser.Physics.Arcade.Sprite
+          const distance = Phaser.Math.Distance.Between(sprite.x, sprite.y, enemySprite.x, enemySprite.y)
+
+          if (distance < 30) {
+            this.handleBulletEnemyCollision(sprite, enemySprite)
+          }
+        })
+
+        // Manual collision detection with boss
+        if (this.boss && this.boss.active && this.bossActive) {
+          const distance = Phaser.Math.Distance.Between(sprite.x, sprite.y, this.boss.x, this.boss.y)
+
+          if (distance < 100) {
+            this.handleBulletBossCollision(sprite, this.boss)
+          }
+        }
+
+        // After 2.5 seconds, start shrinking and fading
+        if (age >= fadeStartTime) {
+          const fadeProgress = (age - fadeStartTime) / (bulletLifetime - fadeStartTime)
+          sprite.setAlpha(1 - fadeProgress)
+          sprite.setScale(sprite.getData('initialScaleX') * (1 - fadeProgress * 0.7), 0.5)
+        }
+
+        // Destroy after lifetime
+        if (age >= bulletLifetime) {
+          const isRocket = sprite.getData('isRocket')
+          if (isRocket) {
+            this.createExplosion(sprite.x, sprite.y)
+          }
+
+          sprite.setActive(false)
+          sprite.setVisible(false)
+        }
+      })
+    }
   }
 
   private handleBulletPlatformCollision(bullet: any) {
     const bulletSprite = bullet as Phaser.Physics.Arcade.Sprite
     const isRocket = bulletSprite.getData('isRocket')
-    
+
     // If it's a rocket, create explosion
     if (isRocket) {
       this.createExplosion(bulletSprite.x, bulletSprite.y)
     }
-    
+
     bulletSprite.setActive(false)
     bulletSprite.setVisible(false)
   }
@@ -3791,24 +4508,24 @@ export default class GameScene extends Phaser.Scene {
   private handleBulletEnemyCollision(bullet: any, enemy: any) {
     const bulletSprite = bullet as Phaser.Physics.Arcade.Sprite
     const enemySprite = enemy as Phaser.Physics.Arcade.Sprite
-    
+
     const isRocket = bulletSprite.getData('isRocket')
-    
+
     // If it's a rocket, create explosion
     if (isRocket) {
       this.createExplosion(bulletSprite.x, bulletSprite.y)
     }
-    
+
     // Destroy bullet
     bulletSprite.setActive(false)
     bulletSprite.setVisible(false)
-    
+
     // Damage enemy (rockets do 5x damage to 2-shot worms)
     const damage = isRocket ? 5 : 1
     let health = enemySprite.getData('health')
     health -= damage
     enemySprite.setData('health', health)
-    
+
     // Flash red to show damage
     enemySprite.clearTint() // Clear any existing tint first
     enemySprite.setTint(0xff0000)
@@ -3822,7 +4539,7 @@ export default class GameScene extends Phaser.Scene {
       }
     })
     enemySprite.setData('tintTimer', tintTimer)
-    
+
     // Check if enemy is dead
     if (health <= 0) {
       const spawnX = enemySprite.getData('spawnX')
@@ -3830,10 +4547,10 @@ export default class GameScene extends Phaser.Scene {
       const enemyType = enemySprite.getData('enemyType')
       const coinReward = enemySprite.getData('coinReward')
       const scale = enemySprite.scaleX
-      
+
       // Drop coins
       this.dropCoins(enemySprite.x, enemySprite.y, coinReward)
-      
+
       // Award score for defeating enemy
       this.enemiesDefeated++
       const enemySize = enemySprite.getData('enemySize')
@@ -3841,7 +4558,7 @@ export default class GameScene extends Phaser.Scene {
       if (enemySize === 'medium') scoreReward = 100
       if (enemySize === 'large') scoreReward = 200
       this.updateScore(scoreReward)
-      
+
       // Death animation
       enemySprite.setVelocity(0, 0)
       const deadTexture = `${enemyType}_dead`
@@ -3849,7 +4566,7 @@ export default class GameScene extends Phaser.Scene {
         enemySprite.setTexture(deadTexture)
       }
       enemySprite.setTint(0xff0000)
-      
+
       // Fade out and sink down
       this.tweens.add({
         targets: enemySprite,
@@ -3862,23 +4579,23 @@ export default class GameScene extends Phaser.Scene {
           enemySprite.destroy()
         }
       })
-      
+
       // Respawn after 20 seconds only if location is ahead of player's progress
       this.time.delayedCall(20000, () => {
         // Don't respawn if player has already passed this area
         if (spawnX < this.farthestPlayerX - 500) {
           return // Skip respawn in explored areas
         }
-        
-        const difficultyMultiplier = this.gameMode === 'endless' 
-          ? 1 + Math.floor(this.player.x / 5000) * 0.2 
+
+        const difficultyMultiplier = this.gameMode === 'endless'
+          ? 1 + Math.floor(this.player.x / 5000) * 0.2
           : 1 + (this.currentLevel - 1) * 0.3
         this.spawnRandomEnemy(spawnX, spawnY, difficultyMultiplier)
       })
     }
   }
 
-  
+
   private createBlackholeBackground() {
     // Create multiple blackholes in the background with parallax effect
     const blackholePositions = [
@@ -3887,18 +4604,18 @@ export default class GameScene extends Phaser.Scene {
       { x: 6000, y: 180, scale: 1.2, scrollFactor: 0.06 },
       { x: 9500, y: 220, scale: 0.9, scrollFactor: 0.07 }
     ]
-    
+
     blackholePositions.forEach((pos) => {
       // Create the blackhole core (event horizon)
       const core = this.add.circle(pos.x, pos.y, 40 * pos.scale, 0x000000, 1)
       core.setScrollFactor(pos.scrollFactor)
       core.setDepth(-100)
-      
+
       // Create the inner shadow/gradient ring
       const innerRing = this.add.circle(pos.x, pos.y, 60 * pos.scale, 0x1a0a2e, 0.9)
       innerRing.setScrollFactor(pos.scrollFactor)
       innerRing.setDepth(-99)
-      
+
       // Create accretion disk rings (multiple layers for depth)
       const diskLayers = [
         { radius: 80, color: 0x8b2ff4, alpha: 0.6 },
@@ -3907,12 +4624,12 @@ export default class GameScene extends Phaser.Scene {
         { radius: 140, color: 0x2a0594, alpha: 0.3 },
         { radius: 160, color: 0x1a0474, alpha: 0.2 }
       ]
-      
+
       diskLayers.forEach(layer => {
         const ring = this.add.circle(pos.x, pos.y, layer.radius * pos.scale, layer.color, layer.alpha)
         ring.setScrollFactor(pos.scrollFactor)
         ring.setDepth(-98)
-        
+
         // Add rotation animation to disk
         this.tweens.add({
           targets: ring,
@@ -3922,19 +4639,19 @@ export default class GameScene extends Phaser.Scene {
           ease: 'Linear'
         })
       })
-      
+
       // Create gravitational lensing effect using graphics
       const graphics = this.add.graphics()
       graphics.setScrollFactor(pos.scrollFactor)
       graphics.setDepth(-97)
-      
+
       // Draw light distortion rings
       for (let i = 0; i < 5; i++) {
         const radius = 180 + (i * 30)
         graphics.lineStyle(2 - (i * 0.3), 0xff6b2f, 0.15 - (i * 0.02))
         graphics.strokeCircle(pos.x, pos.y, radius * pos.scale)
       }
-      
+
       // Create particle emitter for matter being pulled in
       const particles = this.add.particles(pos.x, pos.y, 'particle', {
         speed: { min: 20, max: 50 },
@@ -3954,7 +4671,7 @@ export default class GameScene extends Phaser.Scene {
       })
       particles.setScrollFactor(pos.scrollFactor)
       particles.setDepth(-96)
-      
+
       // Add pulsing glow effect to core
       this.tweens.add({
         targets: [core, innerRing],
@@ -3964,24 +4681,24 @@ export default class GameScene extends Phaser.Scene {
         repeat: -1,
         ease: 'Sine.easeInOut'
       })
-      
+
       // Add some energy jets shooting out from poles (like a real blackhole)
       const jetGraphics = this.add.graphics()
       jetGraphics.setScrollFactor(pos.scrollFactor)
       jetGraphics.setDepth(-95)
-      
+
       // Top jet
       jetGraphics.fillStyle(0x4a88ff, 0.3)
       jetGraphics.fillRect(pos.x - 10 * pos.scale, pos.y - 200 * pos.scale, 20 * pos.scale, 160 * pos.scale)
       jetGraphics.fillStyle(0x88bbff, 0.4)
       jetGraphics.fillRect(pos.x - 6 * pos.scale, pos.y - 200 * pos.scale, 12 * pos.scale, 160 * pos.scale)
-      
+
       // Bottom jet
       jetGraphics.fillStyle(0x4a88ff, 0.3)
       jetGraphics.fillRect(pos.x - 10 * pos.scale, pos.y + 40 * pos.scale, 20 * pos.scale, 160 * pos.scale)
       jetGraphics.fillStyle(0x88bbff, 0.4)
       jetGraphics.fillRect(pos.x - 6 * pos.scale, pos.y + 40 * pos.scale, 12 * pos.scale, 160 * pos.scale)
-      
+
       // Animate jet intensity
       this.tweens.add({
         targets: jetGraphics,
@@ -3993,7 +4710,7 @@ export default class GameScene extends Phaser.Scene {
       })
     })
   }
-  
+
   private createFallbackTextures() {
     // Create fallback textures for any assets that failed to load
     const missingTextures = [
@@ -4009,7 +4726,7 @@ export default class GameScene extends Phaser.Scene {
       if (!this.textures.exists(key)) {
         console.warn(`Creating fallback texture for: ${key}`)
         const graphics = this.make.graphics({ x: 0, y: 0 })
-        
+
         // Create completely transparent fallback texture
         graphics.fillStyle(0x000000, 0) // Fully transparent
         graphics.fillRect(0, 0, 70, 70)
@@ -4039,7 +4756,7 @@ export default class GameScene extends Phaser.Scene {
     speedGraphics.fillPath()
     speedGraphics.generateTexture('powerSpeed', 64, 64)
     speedGraphics.destroy()
-    
+
     // Create Shield Power-up (Blue Shield)
     const shieldGraphics = this.make.graphics({ x: 0, y: 0 })
     shieldGraphics.fillStyle(0x00aaff, 1)
@@ -4057,7 +4774,7 @@ export default class GameScene extends Phaser.Scene {
     shieldGraphics.strokePath()
     shieldGraphics.generateTexture('powerShield', 64, 64)
     shieldGraphics.destroy()
-    
+
     // Create Life Power-up (Green Heart)
     const lifeGraphics = this.make.graphics({ x: 0, y: 0 })
     lifeGraphics.fillStyle(0x00ff00, 1)
@@ -4080,7 +4797,7 @@ export default class GameScene extends Phaser.Scene {
     lifeGraphics.fillPath()
     lifeGraphics.generateTexture('powerLife', 64, 64)
     lifeGraphics.destroy()
-    
+
     // Create Coin (Gold Circle with shine)
     const coinGraphics = this.make.graphics({ x: 0, y: 0 })
     coinGraphics.fillStyle(0xffd700, 1)
@@ -4094,7 +4811,7 @@ export default class GameScene extends Phaser.Scene {
     coinGraphics.fillCircle(26, 26, 6)
     coinGraphics.generateTexture('coin', 64, 64)
     coinGraphics.destroy()
-    
+
     // Create Particle (Small star burst)
     const particleGraphics = this.make.graphics({ x: 0, y: 0 })
     particleGraphics.fillStyle(0xffffff, 1)
@@ -4113,7 +4830,7 @@ export default class GameScene extends Phaser.Scene {
     particleGraphics.fillPath()
     particleGraphics.generateTexture('particle', 16, 16)
     particleGraphics.destroy()
-    
+
     // Create Laser Bullet (Blue beam)
     const laserGraphics = this.make.graphics({ x: 0, y: 0 })
     laserGraphics.fillStyle(0x00aaff, 1)
@@ -4122,7 +4839,7 @@ export default class GameScene extends Phaser.Scene {
     laserGraphics.fillRect(2, 7, 28, 2)
     laserGraphics.generateTexture('laserBlue', 32, 16)
     laserGraphics.destroy()
-    
+
     // Create Laser Bullet (Green beam for laser gun)
     const laserGreenGraphics = this.make.graphics({ x: 0, y: 0 })
     laserGreenGraphics.fillStyle(0x00aa00, 1)
@@ -4131,7 +4848,7 @@ export default class GameScene extends Phaser.Scene {
     laserGreenGraphics.fillRect(2, 7, 28, 2)
     laserGreenGraphics.generateTexture('laserGreen', 32, 16)
     laserGreenGraphics.destroy()
-    
+
     // Create Raygun (Blue pistol shape)
     const raygunGraphics = this.make.graphics({ x: 0, y: 0 })
     raygunGraphics.fillStyle(0x0088dd, 1)
@@ -4144,7 +4861,7 @@ export default class GameScene extends Phaser.Scene {
     raygunGraphics.fillCircle(38, 18, 3)
     raygunGraphics.generateTexture('raygun', 48, 36)
     raygunGraphics.destroy()
-    
+
     // Create Laser Gun (Green rapid-fire weapon - matching shop design)
     const laserGunGraphics = this.make.graphics({ x: 0, y: 0 })
     // Scale down the shop design to fit 48x36
@@ -4158,7 +4875,7 @@ export default class GameScene extends Phaser.Scene {
     laserGunGraphics.fillCircle(36, 18, 3)
     laserGunGraphics.generateTexture('laserGun', 48, 36)
     laserGunGraphics.destroy()
-    
+
     // Create Bazooka (Large orange/red rocket launcher - matching shop design)
     const bazookaGraphics = this.make.graphics({ x: 0, y: 0 })
     // Brown/orange bazooka body
@@ -4177,7 +4894,7 @@ export default class GameScene extends Phaser.Scene {
     bazookaGraphics.fillCircle(21, 10, 2)
     bazookaGraphics.generateTexture('bazooka', 48, 36)
     bazookaGraphics.destroy()
-    
+
     // Create Rocket projectile (for bazooka)
     const rocketGraphics = this.make.graphics({ x: 0, y: 0 })
     rocketGraphics.fillStyle(0xff4400, 1)
@@ -4197,10 +4914,10 @@ export default class GameScene extends Phaser.Scene {
     rocketGraphics.fillPath()
     rocketGraphics.generateTexture('rocket', 28, 16)
     rocketGraphics.destroy()
-    
+
     // Create Sword (Purple energy blade - matching shop style)
     const swordGraphics = this.make.graphics({ x: 0, y: 0 })
-    
+
     // Purple energy blade
     swordGraphics.fillStyle(0xff00ff, 1)
     swordGraphics.fillRect(12, 10, 6, 20) // Main blade
@@ -4211,19 +4928,19 @@ export default class GameScene extends Phaser.Scene {
     swordGraphics.lineTo(18, 10)
     swordGraphics.closePath()
     swordGraphics.fillPath()
-    
+
     // Bright glow/inner blade
     swordGraphics.fillStyle(0xffaaff, 0.8)
     swordGraphics.fillRect(13, 11, 4, 18)
-    
+
     // Gray handle/hilt
     swordGraphics.fillStyle(0x888888, 1)
     swordGraphics.fillRect(14, 30, 2, 4) // Grip
     swordGraphics.fillRect(11, 29, 8, 2) // Guard
-    
+
     swordGraphics.generateTexture('sword', 30, 36)
     swordGraphics.destroy()
-    
+
     // Create Spikes (Red triangular spikes)
     const spikesGraphics = this.make.graphics({ x: 0, y: 0 })
     spikesGraphics.fillStyle(0xff0000, 1)
@@ -4248,11 +4965,11 @@ export default class GameScene extends Phaser.Scene {
     }
     spikesGraphics.generateTexture('spikes', 72, 32)
     spikesGraphics.destroy()
-    
+
     // Generate enemy textures
     this.generateEnemyTextures()
   }
-  
+
   private generateEnemyTextures() {
     // Fly (small flying enemy)
     const flyG = this.add.graphics()
@@ -4270,7 +4987,7 @@ export default class GameScene extends Phaser.Scene {
     flyG.fillEllipse(24, 12, 8, 4)
     flyG.generateTexture('fly_fly', 32, 32)
     flyG.destroy()
-    
+
     // Bee (small flying enemy)
     const beeG = this.add.graphics()
     beeG.fillStyle(0xffcc00, 1)
@@ -4292,7 +5009,7 @@ export default class GameScene extends Phaser.Scene {
     beeG.fillEllipse(24, 16, 10, 4)
     beeG.generateTexture('bee_fly', 32, 32)
     beeG.destroy()
-    
+
     // Slime Green
     const slimeGreenG = this.add.graphics()
     slimeGreenG.fillStyle(0x00ff00, 1)
@@ -4309,7 +5026,7 @@ export default class GameScene extends Phaser.Scene {
     slimeGreenG.fillCircle(32, 26, 6)
     slimeGreenG.generateTexture('slimeGreen_walk', 48, 48)
     slimeGreenG.destroy()
-    
+
     // Slime Blue
     const slimeBlueG = this.add.graphics()
     slimeBlueG.fillStyle(0x0066ff, 1)
@@ -4326,7 +5043,7 @@ export default class GameScene extends Phaser.Scene {
     slimeBlueG.fillCircle(32, 26, 6)
     slimeBlueG.generateTexture('slimeBlue_walk', 48, 48)
     slimeBlueG.destroy()
-    
+
     // Worm Green
     const wormGreenG = this.add.graphics()
     wormGreenG.fillStyle(0x44ff44, 1)
@@ -4351,7 +5068,7 @@ export default class GameScene extends Phaser.Scene {
     wormGreenG.fillCircle(16, 26, 2)
     wormGreenG.generateTexture('wormGreen_walk', 64, 64)
     wormGreenG.destroy()
-    
+
     // Worm Pink
     const wormPinkG = this.add.graphics()
     wormPinkG.fillStyle(0xff66cc, 1)
@@ -4377,17 +5094,17 @@ export default class GameScene extends Phaser.Scene {
     wormPinkG.generateTexture('wormPink_walk', 64, 64)
     wormPinkG.destroy()
   }
-  
+
   private async submitScoreToBackend() {
     console.log('\n========================================')
     console.log('🎯 STARTING SCORE SUBMISSION')
     console.log('========================================')
-    
+
     try {
       // Get player name from localStorage or use default
       const playerName = localStorage.getItem('player_name') || 'Player'
       console.log('Player Name:', playerName)
-      
+
       const scoreData = {
         player_name: playerName,
         score: this.score,
@@ -4397,23 +5114,23 @@ export default class GameScene extends Phaser.Scene {
         level: this.currentLevel,
         game_mode: this.gameMode
       }
-      
+
       console.log('📊 Score Data to Submit:')
       console.log(JSON.stringify(scoreData, null, 2))
       console.log('Backend URL: http://localhost:8000')
       console.log('\n⏳ Calling GameAPI.submitScore()...')
-      
+
       const response = await GameAPI.submitScore(scoreData)
-      
+
       console.log('✅ Score submitted successfully!')
       console.log('Response:', response)
-      
+
       // Get rank
       console.log('\n⏳ Getting rank...')
       const rankData = await GameAPI.getScoreRank(this.score, this.gameMode)
       console.log('🏆 Your rank:', rankData.rank)
       console.log('========================================\n')
-      
+
       return { success: true, rank: rankData.rank }
     } catch (error) {
       console.log('\n========================================')
@@ -4427,17 +5144,26 @@ export default class GameScene extends Phaser.Scene {
       return { success: false, rank: null }
     }
   }
-  
+
   private updateScore(points: number) {
     this.score += points
-    this.scoreText.setText(`Score: ${this.score}`)
-    
+
+    // Update score text (handle both single player and co-op)
+    if (this.isCoopMode) {
+      const p1ScoreText = this.children.getByName('p1ScoreText') as Phaser.GameObjects.Text
+      if (p1ScoreText) p1ScoreText.setText(`Score: ${this.score}`)
+    } else {
+      this.scoreText.setText(`Score: ${this.score}`)
+    }
+
     // Update high score
     if (this.score > this.highScore) {
       this.highScore = this.score
-      this.highScoreText.setText(`Best: ${this.highScore}`)
+      if (!this.isCoopMode && this.highScoreText) {
+        this.highScoreText.setText(`Best: ${this.highScore}`)
+      }
       localStorage.setItem('jumpjump_highscore', this.highScore.toString())
-      
+
       // Flash effect when breaking high score
       this.tweens.add({
         targets: this.highScoreText,
@@ -4448,7 +5174,7 @@ export default class GameScene extends Phaser.Scene {
       })
     }
   }
-  
+
   private createDebugUI() {
     // Debug mode indicator
     this.debugText = this.add.text(16, 16, 'DEBUG MODE [F3]', {
@@ -4460,7 +5186,7 @@ export default class GameScene extends Phaser.Scene {
     this.debugText.setScrollFactor(0)
     this.debugText.setDepth(10000)
     this.debugText.setVisible(false)
-    
+
     // FPS counter
     this.fpsText = this.add.text(16, 46, 'FPS: 60', {
       fontSize: '16px',
@@ -4471,7 +5197,7 @@ export default class GameScene extends Phaser.Scene {
     this.fpsText.setScrollFactor(0)
     this.fpsText.setDepth(10000)
     this.fpsText.setVisible(false)
-    
+
     // Coordinates
     this.coordText = this.add.text(16, 76, 'X: 0, Y: 0', {
       fontSize: '16px',
@@ -4483,11 +5209,11 @@ export default class GameScene extends Phaser.Scene {
     this.coordText.setDepth(10000)
     this.coordText.setVisible(false)
   }
-  
+
   private toggleDebugMode() {
     this.debugMode = !this.debugMode
     console.log('Debug mode toggled:', this.debugMode)
-    
+
     // Toggle debug graphics and text
     if (this.debugMode) {
       this.physics.world.createDebugGraphic()
@@ -4504,12 +5230,12 @@ export default class GameScene extends Phaser.Scene {
       console.log('Debug mode disabled')
     }
   }
-  
+
   private toggleAI() {
     this.aiEnabled = !this.aiEnabled
     this.mlAIEnabled = false // Disable ML AI if rule-based is enabled
     console.log('AI Player toggled:', this.aiEnabled ? 'ENABLED' : 'DISABLED')
-    
+
     if (this.aiEnabled) {
       this.aiStatusText?.setText('🤖 RULE-BASED AI (Press P to disable)')
       this.aiStatusText?.setVisible(true)
@@ -4519,31 +5245,31 @@ export default class GameScene extends Phaser.Scene {
       this.showTip('ai_off', 'You are now in control! Press P for AI, R to record, O for ML AI.')
     }
   }
-  
+
   private toggleMLAI() {
     console.log('🔄 Toggling ML AI...')
-    
+
     try {
       const modelInfo = this.mlAIPlayer.getModelInfo()
       console.log('📊 ML AI Status:', modelInfo)
-      
+
       if (!this.mlAIPlayer.isModelTrained()) {
         this.showTip('ml_no_model', '⚠️ No ML model! Press R to record gameplay, then train from menu.')
         console.log('⚠️ Train ML model first! Record gameplay (R key) then train from menu.')
         console.log('Model status:', modelInfo)
         return
       }
-      
+
       // Check if model was trained with enough data
       if (modelInfo.dataFrames < 100) {
         this.showTip('ml_insufficient_data', `⚠️ Only ${modelInfo.dataFrames} frames! Need 100+ for reliable AI. Record more and retrain.`)
         console.log('⚠️ Insufficient training data:', modelInfo)
         return
       }
-      
+
       this.mlAIEnabled = !this.mlAIEnabled
       this.aiEnabled = false // Disable rule-based AI if ML is enabled
-      
+
       if (this.mlAIEnabled) {
         console.log('🧠 ML AI ENABLED')
         console.log('Model info:', {
@@ -4559,7 +5285,7 @@ export default class GameScene extends Phaser.Scene {
       this.showTip('ml_error', '❌ ML AI error - check console for details')
       return
     }
-    
+
     if (this.mlAIEnabled) {
       this.aiStatusText?.setText('🧠 ML AI PLAYING (Press O to disable)')
       this.aiStatusText?.setVisible(true)
@@ -4568,10 +5294,10 @@ export default class GameScene extends Phaser.Scene {
       this.aiStatusText?.setVisible(false)
     }
   }
-  
+
   private toggleRecording() {
     this.isRecording = !this.isRecording
-    
+
     if (this.isRecording) {
       this.gameplayRecorder.startRecording()
       const dataCount = GameplayRecorder.getTrainingDataCount()
@@ -4594,40 +5320,40 @@ export default class GameScene extends Phaser.Scene {
       this.showTip('recording_done', '💾 Saved! Go to menu to train ML model.')
     }
   }
-  
+
   // Public method to access ML AI for training from menu
   public getMLAIPlayer(): MLAIPlayer {
     return this.mlAIPlayer
   }
-  
+
   private updateDebugUI() {
     if (!this.debugMode) return
-    
+
     // Update FPS
     const fps = Math.round(this.game.loop.actualFps)
     this.fpsText?.setText(`FPS: ${fps}`)
-    
+
     // Update coordinates
     const x = Math.round(this.player.x)
     const y = Math.round(this.player.y)
     this.coordText?.setText(`X: ${x}, Y: ${y}`)
   }
-  
+
   private showQuitConfirmation() {
     // Pause game physics
     this.physics.pause()
-    
+
     // Create overlay
     const overlay = this.add.rectangle(640, 360, 1280, 720, 0x000000, 0.7)
     overlay.setScrollFactor(0)
     overlay.setDepth(10000)
-    
+
     // Create dialog box
     const dialog = this.add.rectangle(640, 360, 600, 300, 0x222222, 1)
     dialog.setScrollFactor(0)
     dialog.setDepth(10001)
     dialog.setStrokeStyle(4, 0xff0000)
-    
+
     // Warning title
     const title = this.add.text(640, 260, '⚠️ WARNING ⚠️', {
       fontSize: '36px',
@@ -4637,10 +5363,10 @@ export default class GameScene extends Phaser.Scene {
     title.setOrigin(0.5)
     title.setScrollFactor(0)
     title.setDepth(10002)
-    
+
     // Warning message
-    const message = this.add.text(640, 330, 
-      this.gameMode === 'endless' 
+    const message = this.add.text(640, 330,
+      this.gameMode === 'endless'
         ? 'Your endless run progress will be lost!\nAre you sure you want to quit?'
         : `You will have to restart Level ${this.currentLevel}!\nAre you sure you want to quit?`,
       {
@@ -4653,7 +5379,7 @@ export default class GameScene extends Phaser.Scene {
     message.setOrigin(0.5)
     message.setScrollFactor(0)
     message.setDepth(10002)
-    
+
     // Yes button (quit)
     const yesButton = this.add.rectangle(540, 440, 150, 50, 0xff0000)
     yesButton.setScrollFactor(0)
@@ -4664,7 +5390,7 @@ export default class GameScene extends Phaser.Scene {
     yesButton.on('pointerdown', () => {
       // Save coins before returning to menu
       localStorage.setItem('playerCoins', this.coinCount.toString())
-      
+
       // Submit score to backend before quitting
       console.log('🚪 Player quitting - submitting score...')
       this.submitScoreToBackend().then(() => {
@@ -4676,7 +5402,7 @@ export default class GameScene extends Phaser.Scene {
         this.scene.start('MenuScene')
       })
     })
-    
+
     const yesText = this.add.text(540, 440, 'YES, QUIT', {
       fontSize: '20px',
       color: '#ffffff',
@@ -4685,7 +5411,7 @@ export default class GameScene extends Phaser.Scene {
     yesText.setOrigin(0.5)
     yesText.setScrollFactor(0)
     yesText.setDepth(10003)
-    
+
     // No button (continue)
     const noButton = this.add.rectangle(740, 440, 150, 50, 0x00aa00)
     noButton.setScrollFactor(0)
@@ -4705,7 +5431,7 @@ export default class GameScene extends Phaser.Scene {
       noButton.destroy()
       noText.destroy()
     })
-    
+
     const noText = this.add.text(740, 440, 'NO, CONTINUE', {
       fontSize: '20px',
       color: '#ffffff',
@@ -4729,7 +5455,7 @@ export default class GameScene extends Phaser.Scene {
     blade.setVelocityY(-50) // Slight upward arc
     blade.setTint(0xff00ff) // Purple glow
     blade.setDepth(10)
-    
+
     // Spinning animation
     this.tweens.add({
       targets: blade,
@@ -4737,7 +5463,7 @@ export default class GameScene extends Phaser.Scene {
       duration: 1000,
       ease: 'Linear'
     })
-    
+
     // Glowing trail effect
     const trail = this.add.particles(blade.x, blade.y, 'particle', {
       speed: { min: 50, max: 100 },
@@ -4748,16 +5474,16 @@ export default class GameScene extends Phaser.Scene {
       tint: 0xff00ff,
       follow: blade
     })
-    
+
     // Check collision with enemies
     this.physics.add.overlap(blade, this.enemies, (_bladeObj: any, enemy: any) => {
       const enemySprite = enemy as Phaser.Physics.Arcade.Sprite
-      
+
       // Damage enemy (15 damage - stronger than normal attack)
       let enemyHealth = enemySprite.getData('health') || 1
       enemyHealth -= 15
       enemySprite.setData('health', enemyHealth)
-      
+
       // Visual feedback
       enemySprite.clearTint()
       enemySprite.setTint(0xff00ff)
@@ -4766,27 +5492,27 @@ export default class GameScene extends Phaser.Scene {
           enemySprite.clearTint()
         }
       })
-      
+
       // Strong knockback
       const knockbackDirection = blade.body!.velocity.x > 0 ? 1 : -1
       enemySprite.setVelocityX(knockbackDirection * 500)
       enemySprite.setVelocityY(-200)
-      
+
       // Check if enemy died
       if (enemyHealth <= 0) {
         const coinReward = enemySprite.getData('coinReward')
         this.dropCoins(enemySprite.x, enemySprite.y, coinReward)
-        
+
         this.enemiesDefeated++
         const enemySize = enemySprite.getData('enemySize')
         let scoreReward = 50
         if (enemySize === 'medium') scoreReward = 100
         if (enemySize === 'large') scoreReward = 200
         this.updateScore(scoreReward)
-        
+
         enemySprite.setVelocity(0, 0)
         enemySprite.setTint(0xff00ff)
-        
+
         this.tweens.add({
           targets: enemySprite,
           alpha: 0,
@@ -4796,7 +5522,7 @@ export default class GameScene extends Phaser.Scene {
         })
       }
     })
-    
+
     // Destroy blade after 2 seconds or when off screen
     this.time.delayedCall(2000, () => {
       if (blade.active) {
@@ -4804,7 +5530,7 @@ export default class GameScene extends Phaser.Scene {
         blade.destroy()
       }
     })
-    
+
     // Also destroy if too far off screen
     const checkBounds = () => {
       if (Math.abs(blade.x - this.player.x) > 1000) {
