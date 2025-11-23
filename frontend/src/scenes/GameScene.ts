@@ -3891,7 +3891,7 @@ export default class GameScene extends Phaser.Scene {
       // If right stick is being used (magnitude > 0.2), use gamepad aiming with reduced sensitivity
       if (stickMagnitude > 0.2) {
         // Use right stick direction for aiming with reduced sensitivity (0.5x)
-        const aimSensitivity = 0.5
+        const aimSensitivity = 0.3 // Reduced for more precise aiming
         aimX = this.player.x + rightStickX * 100 * aimSensitivity
         aimY = this.player.y + rightStickY * 100 * aimSensitivity
       } else {
@@ -4325,7 +4325,7 @@ export default class GameScene extends Phaser.Scene {
     if (stickMagnitude > 0.3) {
       // Use right stick for aiming
       const aimAngle = Math.atan2(rightStickY, rightStickX)
-      const aimDistance = 200
+      const aimDistance = 120 // Reduced for more precise aiming
       aimX = this.player2.x + Math.cos(aimAngle) * aimDistance
       aimY = this.player2.y + Math.sin(aimAngle) * aimDistance
     } else {
