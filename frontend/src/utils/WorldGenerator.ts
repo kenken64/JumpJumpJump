@@ -150,9 +150,9 @@ export class WorldGenerator {
             plat.setOrigin(0.5, 0.5)
             this.scene.physics.add.existing(plat, true)
             const body = plat.body as Phaser.Physics.Arcade.StaticBody
-            // Thin platform hitbox - match visual size (70 wide x 18 tall approximately)
+            // Thin platform hitbox - reduced height for better gameplay feel
             const hitboxWidth = plat.width * 0.95
-            const hitboxHeight = plat.height * 0.8  // Use actual height, not square
+            const hitboxHeight = plat.height * 0.4  // Reduced to 40% for thinner collision
             body.setSize(hitboxWidth, hitboxHeight)
             body.setOffset((plat.width - hitboxWidth) / 2, (plat.height - hitboxHeight) / 2)
             body.updateFromGameObject()
@@ -186,9 +186,9 @@ export class WorldGenerator {
             step.setOrigin(0.5, 0.5)
             this.scene.physics.add.existing(step, true)
             const body = step.body as Phaser.Physics.Arcade.StaticBody
-            // Thin platform hitbox - match visual size
+            // Thin platform hitbox - reduced height for better gameplay feel
             const hitboxWidth = step.width * 0.95
-            const hitboxHeight = step.height * 0.8
+            const hitboxHeight = step.height * 0.4  // Reduced to 40% for thinner collision
             body.setSize(hitboxWidth, hitboxHeight)
             body.setOffset((step.width - hitboxWidth) / 2, (step.height - hitboxHeight) / 2)
             body.updateFromGameObject()
