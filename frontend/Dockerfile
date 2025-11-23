@@ -45,7 +45,10 @@ FROM nginx:alpine
 COPY --from=builder /app/dist /usr/share/nginx/html
 
 # Verify files in nginx (most important check!)
-RUN echo "=== Files in nginx root ===" && ls -la /usr/share/nginx/html && echo "=== index.html ===" && ls -la /usr/share/nginx/html/index.html
+RUN echo "=== Files in nginx root ===" && ls -la /usr/share/nginx/html && \
+    echo "=== index.html ===" && ls -la /usr/share/nginx/html/index.html && \
+    echo "=== Assets folder ===" && ls -la /usr/share/nginx/html/assets/ && \
+    echo "=== Sample asset file ===" && ls -la /usr/share/nginx/html/assets/kenney_platformer-art-requests/Tiles/shieldGold.png || echo "shieldGold.png NOT FOUND"
 
 # Copy nginx configuration template
 COPY nginx.conf /etc/nginx/templates/default.conf.template
