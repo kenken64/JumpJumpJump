@@ -9,6 +9,7 @@ import InventoryScene from './scenes/InventoryScene'
 import BossGalleryScene from './scenes/BossGalleryScene'
 import CreditScene from './scenes/CreditScene'
 import CoopLobbyScene from './scenes/CoopLobbyScene'
+import DQNTrainingScene from './scenes/DQNTrainingScene'
 
 function App() {
   const gameRef = useRef<HTMLDivElement>(null)
@@ -41,7 +42,7 @@ function App() {
           crossOrigin: 'anonymous',
           maxParallelDownloads: 10
         },
-        scene: [MenuScene, GameScene, ShopScene, LeaderboardScene, InventoryScene, BossGalleryScene, CreditScene, CoopLobbyScene],
+        scene: [MenuScene, GameScene, ShopScene, LeaderboardScene, InventoryScene, BossGalleryScene, CreditScene, CoopLobbyScene, DQNTrainingScene],
         scale: {
           mode: Phaser.Scale.FIT,
           autoCenter: Phaser.Scale.CENTER_BOTH,
@@ -64,7 +65,7 @@ function App() {
   return (
     <div className="App">
       {!audioReady && (
-        <div 
+        <div
           style={{
             position: 'fixed',
             top: 0,
@@ -87,10 +88,10 @@ function App() {
           <p style={{ color: '#ffffff', fontSize: '24px', marginBottom: '40px' }}>
             Click anywhere to start with audio
           </p>
-          <div style={{ 
-            padding: '20px 40px', 
-            backgroundColor: '#00aa00', 
-            color: '#ffffff', 
+          <div style={{
+            padding: '20px 40px',
+            backgroundColor: '#00aa00',
+            color: '#ffffff',
             fontSize: '24px',
             borderRadius: '10px',
             fontWeight: 'bold'

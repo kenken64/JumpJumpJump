@@ -5,8 +5,8 @@ import { MusicManager } from '../utils/MusicManager'
 import { WorldGenerator } from '../utils/WorldGenerator'
 import { ControlManager } from '../utils/ControlManager'
 import { AIPlayer } from '../utils/AIPlayer'
-import { GameplayRecorder } from '../utils/GameplayRecorder'
 import { MLAIPlayer } from '../utils/MLAIPlayer'
+import { DQNAgent, DQNState, DQNAction } from '../utils/DQNAgent'
 
 export default class GameScene extends Phaser.Scene {
   private player!: Phaser.Physics.Arcade.Sprite
@@ -106,14 +106,30 @@ export default class GameScene extends Phaser.Scene {
     jump: false,
     shoot: false
   }
-  private gameplayRecorder!: GameplayRecorder
-  private isRecording: boolean = false
+  // Recording removed - use DQN training instead
 
   // Co-op multiplayer
   private isCoopMode: boolean = false
   private player2!: Phaser.Physics.Arcade.Sprite
   private gun2!: Phaser.GameObjects.Image
   private bullets2!: Phaser.Physics.Arcade.Group
+
+  // DQN Training
+  private dqnTraining: boolean = false
+  private dqnAgent?: DQNAgent
+  private lastDQNState?: DQNState
+  private lastDQNAction?: DQNAction
+  private dqnStepCount: number = 0
+  private dqnEpisodeCount: number = 0
+  private dqnCurrentReward: number = 0
+  private dqnLastEpisodeReward: number = 0
+  private dqnTotalReward: number = 0
+  private dqnTrainingPaused: boolean = false
+  private dqnAutoRestart: boolean = true
+  private dqnSpeedMultiplier: number = 1
+  private dqnStatsText?: Phaser.GameObjects.Text
+  private dqnStatusText?: Phaser.GameObjects.Text
+  private dqnShooting: boolean = false
 
   constructor() {
     super('GameScene')
@@ -126,6 +142,15 @@ export default class GameScene extends Phaser.Scene {
       console.log('🎮 Co-op mode enabled!')
     } else {
       this.isCoopMode = false
+    }
+
+    // Check if launching in DQN training mode
+    if (data && data.dqnTraining) {
+      this.dqnTraining = true
+      this.gameMode = data.gameMode || 'endless'
+      this.currentLevel = data.level || 1
+      console.log('🤖 DQN Training mode enabled!')
+      // Agent will be initialized after scene is ready
     }
   }
 
@@ -919,15 +944,8 @@ export default class GameScene extends Phaser.Scene {
     // Initialize AI player
     this.aiPlayer = new AIPlayer(this)
 
-    // Initialize ML AI and recorder
+    // Initialize ML AI
     this.mlAIPlayer = new MLAIPlayer(this)
-    this.gameplayRecorder = new GameplayRecorder(this)
-
-    // R key to toggle recording
-    const recordKey = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.R)
-    recordKey.on('down', () => {
-      this.toggleRecording()
-    })
 
     // O key to toggle ML AI (O for "observational AI")
     const mlAIToggleKey = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.O)
@@ -1318,6 +1336,11 @@ export default class GameScene extends Phaser.Scene {
       tint: 0xFFD700
     })
     this.coinParticles.stop()
+
+    // Initialize DQN agent if in training mode
+    if (this.dqnTraining) {
+      this.initializeDQNAgent()
+    }
   }
 
   private spawnCoins() {
@@ -1365,6 +1388,473 @@ export default class GameScene extends Phaser.Scene {
         ease: 'Linear'
       })
     })
+  }
+
+  // ============================================================================
+  // DQN TRAINING METHODS
+  // ============================================================================
+
+  private async initializeDQNAgent() {
+    if (!this.dqnTraining || this.dqnAgent) return
+
+    console.log('🤖 Initializing DQN Agent...')
+    this.dqnAgent = new DQNAgent(this)
+    
+    // Try to load existing model
+    try {
+      await this.dqnAgent.loadModel()
+      console.log('✅ Loaded existing DQN model')
+    } catch (e) {
+      console.log('ℹ️ No existing model found, starting fresh')
+    }
+
+    this.dqnEpisodeCount = 0
+    this.dqnStepCount = 0
+    this.dqnCurrentReward = 0
+    this.dqnLastEpisodeReward = 0
+    this.dqnTotalReward = 0
+    this.dqnTrainingPaused = false
+
+    // Create UI overlay for training stats
+    this.createDQNTrainingUI()
+  }
+
+  private createDQNTrainingUI() {
+    if (!this.dqnTraining) return
+
+    // Training status panel (top-right, moved down)
+    const panelX = 1100
+    const panelY = 180
+    
+    const panelBg = this.add.rectangle(panelX, panelY, 350, 250, 0x000000, 0.8)
+    panelBg.setScrollFactor(0)
+    panelBg.setDepth(1000)
+    panelBg.setStrokeStyle(3, 0x00ff00)
+
+    const title = this.add.text(panelX, panelY - 100, '🤖 DQN TRAINING', {
+      fontSize: '24px',
+      color: '#00ff00',
+      fontStyle: 'bold',
+      stroke: '#000000',
+      strokeThickness: 4
+    })
+    title.setOrigin(0.5)
+    title.setScrollFactor(0)
+    title.setDepth(1001)
+
+    this.dqnStatusText = this.add.text(panelX, panelY - 65, '● RUNNING', {
+      fontSize: '20px',
+      color: '#00ff00',
+      fontStyle: 'bold'
+    })
+    this.dqnStatusText.setOrigin(0.5)
+    this.dqnStatusText.setScrollFactor(0)
+    this.dqnStatusText.setDepth(1001)
+
+    this.dqnStatsText = this.add.text(panelX, panelY, '', {
+      fontSize: '18px',
+      color: '#ffffff',
+      fontStyle: 'bold',
+      stroke: '#000000',
+      strokeThickness: 3,
+      align: 'left'
+    })
+    this.dqnStatsText.setOrigin(0.5, 0)
+    this.dqnStatsText.setScrollFactor(0)
+    this.dqnStatsText.setDepth(1001)
+
+    const controls = this.add.text(panelX, panelY + 110, 'SPACE: Pause | R: Reset | S: Save | L: Load\n1-5: Speed | A: Auto-restart | ESC: Exit', {
+      fontSize: '14px',
+      color: '#aaaaaa',
+      align: 'center'
+    })
+    controls.setOrigin(0.5, 0)
+    controls.setScrollFactor(0)
+    controls.setDepth(1001)
+  }
+
+  private updateDQNTrainingUI() {
+    if (!this.dqnTraining || !this.dqnAgent) return
+    
+    // Check if UI elements exist and are active
+    if (!this.dqnStatsText || !this.dqnStatsText.active) return
+    if (!this.dqnStatusText || !this.dqnStatusText.active) return
+
+    try {
+      // Update status
+      if (this.dqnTrainingPaused) {
+        this.dqnStatusText.setText('● PAUSED')
+        this.dqnStatusText.setColor('#ffaa00')
+      } else {
+        this.dqnStatusText.setText('● RUNNING')
+        this.dqnStatusText.setColor('#00ff00')
+      }
+
+      // Get stats from agent
+      const stats = this.dqnAgent.getStats()
+      
+      // Calculate average reward (last 100 episodes)
+      const avgReward = this.dqnEpisodeCount > 0 ? (this.dqnTotalReward / this.dqnEpisodeCount).toFixed(2) : '0.00'
+
+      // Update stats text
+      const statsText = [
+        `Episode: ${this.dqnEpisodeCount}`,
+        `Steps: ${this.dqnStepCount}`,
+        `Speed: ${this.dqnSpeedMultiplier}x`,
+        ``,
+        `Epsilon: ${stats.epsilon.toFixed(3)}`,
+        `Buffer: ${stats.bufferSize}`,
+        `Training: ${stats.trainingSteps}`,
+        ``,
+        `Reward: ${this.dqnCurrentReward.toFixed(2)}`,
+        `Last: ${this.dqnLastEpisodeReward.toFixed(2)}`,
+        `Avg: ${avgReward}`
+      ].join('\n')
+
+      this.dqnStatsText.setText(statsText)
+    } catch (error) {
+      // Silently catch errors during scene transition
+      console.warn('Error updating DQN UI:', error)
+    }
+  }
+
+  private extractDQNState(): DQNState {
+    const body = this.player.body as Phaser.Physics.Arcade.Body
+    
+    // Player position and velocity
+    const playerX = this.player.x
+    const playerY = this.player.y
+    const velocityX = body.velocity.x
+    const velocityY = body.velocity.y
+    const onGround = body.touching.down || body.blocked.down
+    
+    // Find nearest platform ahead
+    let nearestPlatformDistance = 1000
+    let nearestPlatformHeight = 0
+    let hasGroundAhead = false
+    let gapAhead = false
+    
+    const platformsArray = this.platforms.getChildren() as Phaser.Physics.Arcade.Sprite[]
+    const playerBottom = this.player.y + 20
+    const searchDistance = 300
+    
+    for (const platform of platformsArray) {
+      if (!platform.active) continue
+      
+      const platformLeft = platform.x - platform.width / 2
+      const platformRight = platform.x + platform.width / 2
+      const platformTop = platform.y - platform.height / 2
+      
+      // Check if platform is ahead of player
+      if (platformRight > playerX && platformLeft < playerX + searchDistance) {
+        const distance = Math.abs(platformLeft - playerX)
+        const heightDiff = platformTop - playerBottom
+        
+        if (distance < nearestPlatformDistance) {
+          nearestPlatformDistance = distance
+          nearestPlatformHeight = heightDiff
+        }
+        
+        // Check if there's ground directly ahead (within 100px)
+        if (distance < 100 && Math.abs(heightDiff) < 50) {
+          hasGroundAhead = true
+        }
+      }
+    }
+    
+    // Check for gaps ahead (no platform within reasonable distance)
+    if (onGround && !hasGroundAhead && nearestPlatformDistance > 150) {
+      gapAhead = true
+    }
+    
+    // Find nearest enemy
+    let nearestEnemyDistance = 1000
+    const enemiesArray = this.enemies.getChildren() as Phaser.Physics.Arcade.Sprite[]
+    for (const enemy of enemiesArray) {
+      if (!enemy.active) continue
+      const distance = Phaser.Math.Distance.Between(playerX, playerY, enemy.x, enemy.y)
+      if (distance < nearestEnemyDistance) {
+        nearestEnemyDistance = distance
+      }
+    }
+    
+    // Find nearest spike
+    let nearestSpikeDistance = 1000
+    for (const spikePos of this.spikePositions) {
+      const distance = Math.abs(spikePos.x - playerX)
+      if (distance < nearestSpikeDistance && spikePos.x > playerX - 50) {
+        nearestSpikeDistance = distance
+      }
+    }
+    
+    return {
+      playerX,
+      playerY,
+      velocityX,
+      velocityY,
+      onGround,
+      nearestPlatformDistance,
+      nearestPlatformHeight,
+      nearestEnemyDistance,
+      nearestSpikeDistance,
+      hasGroundAhead,
+      gapAhead
+    }
+  }
+
+  private applyDQNAction(action: DQNAction) {
+    if (!this.dqnAgent || this.dqnTrainingPaused) return
+
+    const body = this.player.body as Phaser.Physics.Arcade.Body
+    const moveSpeed = 300 * this.dqnSpeedMultiplier
+    const onGround = body.touching.down || body.blocked.down
+
+    // Reset horizontal velocity
+    body.setVelocityX(0)
+
+    // Apply movement
+    if (action.moveLeft) {
+      body.setVelocityX(-moveSpeed)
+      this.player.setFlipX(true)
+    } else if (action.moveRight) {
+      body.setVelocityX(moveSpeed)
+      this.player.setFlipX(false)
+    }
+
+    // Apply jump (including double jump)
+    if (action.jump) {
+      if (onGround) {
+        // First jump
+        body.setVelocityY(-600)
+        this.canDoubleJump = true
+        this.hasDoubleJumped = false
+      } else if (this.canDoubleJump && !this.hasDoubleJumped) {
+        // Double jump
+        body.setVelocityY(-550)
+        this.hasDoubleJumped = true
+        this.canDoubleJump = false
+      }
+    }
+
+    // Auto-aim gun at nearest enemy
+    const enemiesArray = this.enemies.getChildren() as Phaser.Physics.Arcade.Sprite[]
+    let nearestEnemy: Phaser.Physics.Arcade.Sprite | null = null
+    let nearestDistance = Infinity
+
+    for (const enemy of enemiesArray) {
+      if (!enemy.active) continue
+      const distance = Phaser.Math.Distance.Between(
+        this.player.x, this.player.y,
+        enemy.x, enemy.y
+      )
+      if (distance < nearestDistance) {
+        nearestDistance = distance
+        nearestEnemy = enemy
+      }
+    }
+
+    // Calculate gun angle
+    let gunAngle = 0
+    if (nearestEnemy) {
+      gunAngle = Phaser.Math.Angle.Between(
+        this.player.x, this.player.y,
+        nearestEnemy.x, nearestEnemy.y
+      )
+    } else {
+      // Aim forward in movement direction
+      gunAngle = this.player.flipX ? Math.PI : 0
+    }
+
+    // For sword, position 23 degrees ahead
+    if (this.equippedWeapon === 'sword') {
+      gunAngle += Phaser.Math.DegToRad(23)
+    }
+
+    // Position gun around player with proper offset
+    const distanceFromPlayer = 30
+    const gunX = this.player.x + Math.cos(gunAngle) * distanceFromPlayer
+    const gunY = this.player.y + Math.sin(gunAngle) * distanceFromPlayer
+    this.gun.setPosition(gunX, gunY)
+
+    // Flip gun sprite if pointing backward
+    if (gunAngle > Math.PI / 2 || gunAngle < -Math.PI / 2) {
+      this.gun.setScale(1.0, -1.0)
+    } else {
+      this.gun.setScale(1.0, 1.0)
+    }
+
+    // Apply rotation
+    this.gun.setRotation(gunAngle)
+
+    // Store shooting intent for handleShooting to use
+    this.dqnShooting = action.shoot
+  }
+
+  private async updateDQNTraining() {
+    if (!this.dqnTraining || !this.dqnAgent || this.dqnTrainingPaused || this.playerIsDead) {
+      return
+    }
+
+    // Extract current state
+    const currentState = this.extractDQNState()
+
+    // If we have a previous state and action, store the experience
+    if (this.lastDQNState && this.lastDQNAction !== undefined) {
+      const reward = this.dqnAgent.calculateReward(
+        this.lastDQNState,
+        this.playerIsDead,
+        this.score
+      )
+      
+      this.dqnCurrentReward += reward
+      this.dqnTotalReward += reward
+
+      // Store experience
+      this.dqnAgent.remember(
+        this.lastDQNState,
+        this.lastDQNAction.actionIndex,
+        reward,
+        currentState,
+        this.playerIsDead
+      )
+
+      // Train the agent periodically
+      if (this.dqnStepCount % 4 === 0) {
+        await this.dqnAgent.train()
+      }
+    }
+
+    // Get next action from agent
+    const action = await this.dqnAgent.selectAction(currentState)
+    
+    // Apply action to player
+    this.applyDQNAction(action)
+
+    // Store state and action for next frame
+    this.lastDQNState = currentState
+    this.lastDQNAction = action
+    this.dqnStepCount++
+  }
+
+  private async handleDQNEpisodeEnd() {
+    if (!this.dqnTraining || !this.dqnAgent) return
+
+    console.log(`📊 Episode ${this.dqnEpisodeCount} ended - Reward: ${this.dqnCurrentReward.toFixed(2)}, Steps: ${this.dqnStepCount}`)
+
+    // Store episode reward
+    this.dqnLastEpisodeReward = this.dqnCurrentReward
+
+    // Reset episode
+    this.dqnAgent.resetEpisode()
+    this.dqnEpisodeCount++
+    this.dqnCurrentReward = 0
+    this.dqnStepCount = 0
+    this.lastDQNState = undefined
+    this.lastDQNAction = undefined
+
+    // Auto-restart if enabled
+    if (this.dqnAutoRestart) {
+      console.log('🔄 Auto-restarting DQN training episode...')
+      
+      // Force stop all animations and effects immediately
+      this.tweens.killAll()
+      this.time.removeAllEvents()
+      this.cameras.main.resetFX()
+      this.cameras.main.setAlpha(1)
+      this.cameras.main.setBackgroundColor(0x000000)
+      
+      // Use nextTick to ensure clean restart
+      this.time.delayedCall(1, () => {
+        this.scene.restart({
+          gameMode: this.gameMode,
+          level: this.currentLevel,
+          dqnTraining: true
+        })
+      })
+    }
+  }
+
+  private handleDQNKeyboardControls() {
+    if (!this.dqnTraining || !this.input.keyboard) return
+
+    const spaceKey = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.SPACE)
+    const rKey = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.R)
+    const sKey = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.S)
+    const lKey = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.L)
+    const aKey = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.A)
+    const escKey = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.ESC)
+
+    // SPACE - Pause/Resume
+    if (Phaser.Input.Keyboard.JustDown(spaceKey)) {
+      this.dqnTrainingPaused = !this.dqnTrainingPaused
+      console.log(this.dqnTrainingPaused ? '⏸️ Training paused' : '▶️ Training resumed')
+    }
+
+    // R - Reset episode
+    if (Phaser.Input.Keyboard.JustDown(rKey)) {
+      console.log('🔄 Resetting episode...')
+      this.scene.restart({
+        gameMode: this.gameMode,
+        level: this.currentLevel,
+        dqnTraining: true
+      })
+    }
+
+    // S - Save model
+    if (Phaser.Input.Keyboard.JustDown(sKey) && this.dqnAgent) {
+      console.log('💾 Saving model...')
+      this.dqnAgent.saveModel()
+    }
+
+    // L - Load model
+    if (Phaser.Input.Keyboard.JustDown(lKey) && this.dqnAgent) {
+      console.log('📂 Loading model...')
+      this.dqnAgent.loadModel()
+    }
+
+    // 1-5 - Speed multiplier
+    const oneKey = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.ONE)
+    const twoKey = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.TWO)
+    const threeKey = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.THREE)
+    const fourKey = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.FOUR)
+    const fiveKey = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.FIVE)
+    
+    if (Phaser.Input.Keyboard.JustDown(oneKey)) {
+      this.dqnSpeedMultiplier = 1
+      this.physics.world.timeScale = 1
+      console.log('⚡ Speed: 1x')
+    } else if (Phaser.Input.Keyboard.JustDown(twoKey)) {
+      this.dqnSpeedMultiplier = 2
+      this.physics.world.timeScale = 0.5
+      console.log('⚡ Speed: 2x')
+    } else if (Phaser.Input.Keyboard.JustDown(threeKey)) {
+      this.dqnSpeedMultiplier = 3
+      this.physics.world.timeScale = 0.333
+      console.log('⚡ Speed: 3x')
+    } else if (Phaser.Input.Keyboard.JustDown(fourKey)) {
+      this.dqnSpeedMultiplier = 4
+      this.physics.world.timeScale = 0.25
+      console.log('⚡ Speed: 4x')
+    } else if (Phaser.Input.Keyboard.JustDown(fiveKey)) {
+      this.dqnSpeedMultiplier = 5
+      this.physics.world.timeScale = 0.2
+      console.log('⚡ Speed: 5x')
+    }
+
+    // A - Toggle auto-restart
+    if (Phaser.Input.Keyboard.JustDown(aKey)) {
+      this.dqnAutoRestart = !this.dqnAutoRestart
+      console.log(this.dqnAutoRestart ? '🔁 Auto-restart ON' : '⏹️ Auto-restart OFF')
+    }
+
+    // ESC - Exit training
+    if (Phaser.Input.Keyboard.JustDown(escKey)) {
+      console.log('🚪 Exiting training...')
+      if (this.dqnAgent) {
+        this.dqnAgent.dispose()
+      }
+      this.scene.start('MenuScene')
+    }
   }
 
   private collectCoin(_player: Phaser.Physics.Arcade.Sprite, coin: Phaser.Physics.Arcade.Sprite) {
@@ -2567,6 +3057,13 @@ export default class GameScene extends Phaser.Scene {
   }
 
   update() {
+    // DQN Training: Handle keyboard controls and training loop
+    if (this.dqnTraining) {
+      this.handleDQNKeyboardControls()
+      this.updateDQNTraining()
+      this.updateDQNTrainingUI()
+    }
+
     // CONTINUOUS DEBUGGING - log every 60 frames (about once per second)
     if (this.time.now % 1000 < 20) {  // Log roughly once per second
       const body = this.player.body as Phaser.Physics.Arcade.Body
@@ -2586,37 +3083,17 @@ export default class GameScene extends Phaser.Scene {
       this.cameras.main.scrollY = Phaser.Math.Clamp(avgY - 360, 0, 1200 - 720)
     }
 
-    // Player movement
-    this.handlePlayerMovement()
+    // Player movement (skip if DQN is controlling)
+    if (!this.dqnTraining) {
+      this.handlePlayerMovement()
+    }
 
     // Player 2 movement (co-op mode)
     if (this.isCoopMode && this.player2) {
       this.handlePlayer2Movement()
     }
 
-    // Record gameplay if recording is enabled
-    if (this.isRecording && !this.aiEnabled && !this.mlAIEnabled) {
-      const controlSettings = ControlManager.getControlSettings()
-      const useGamepad = controlSettings.inputMethod === 'gamepad'
-      const pointer = this.input.activePointer
-      const worldPoint = this.cameras.main.getWorldPoint(pointer.x, pointer.y)
-
-      this.gameplayRecorder.recordFrame(this.time.now, {
-        moveLeft: this.wasd.a.isDown || this.cursors.left!.isDown,
-        moveRight: this.wasd.d.isDown || this.cursors.right!.isDown,
-        jump: this.wasd.w.isDown || this.cursors.up!.isDown,
-        shoot: (!useGamepad && pointer.isDown) || (useGamepad && this.gamepad?.buttons[controlSettings.gamepadMapping.shoot]?.pressed || false),
-        aimX: worldPoint.x,
-        aimY: worldPoint.y
-      })
-
-      // Update frame count display every 30 frames (~0.5 seconds at 60fps)
-      if (this.time.now % 500 < 20) {
-        const currentFrames = this.gameplayRecorder.getCurrentFrameCount()
-        const totalFrames = GameplayRecorder.getTrainingDataCount()
-        this.aiStatusText?.setText(`🎥 RECORDING (${currentFrames} frames this session, ${totalFrames} total)`)
-      }
-    }
+    // Recording removed - use DQN AI Training from menu instead
 
     // Update shield sprite position if active
     if (this.hasShield && this.shieldSprite) {
@@ -3506,8 +3983,23 @@ export default class GameScene extends Phaser.Scene {
   }
 
   private handlePlayerDeath() {
+    console.log('💀 handlePlayerDeath called', {
+      dqnTraining: this.dqnTraining,
+      hasAgent: !!this.dqnAgent,
+      autoRestart: this.dqnAutoRestart
+    })
+    
     this.playerIsDead = true
 
+    // DQN Training: End episode and quick restart if auto-restart is on
+    if (this.dqnTraining && this.dqnAgent && this.dqnAutoRestart) {
+      console.log('💀 Player died - ending DQN episode (fast restart)')
+      // Don't play death animation, just end episode and restart
+      this.handleDQNEpisodeEnd()
+      return  // handleDQNEpisodeEnd will handle the restart
+    }
+
+    console.log('💀 Playing normal death animation')
     // Stop player movement
     this.player.setVelocity(0, 0)
     this.player.setGravityY(0)
@@ -3888,6 +4380,9 @@ export default class GameScene extends Phaser.Scene {
     // Skip if player is dead
     if (this.playerIsDead) return
 
+    // DQN training handles its own aiming in applyDQNAction
+    if (this.dqnTraining) return
+
     const controlSettings = ControlManager.getControlSettings()
     const useGamepad = !this.aiEnabled && controlSettings.inputMethod === 'gamepad'
 
@@ -3973,6 +4468,9 @@ export default class GameScene extends Phaser.Scene {
       aiShoot = aiDecision.shoot
     } else if (this.mlAIEnabled) {
       aiShoot = this.mlAIDecision.shoot
+    } else if (this.dqnTraining) {
+      // DQN agent shooting
+      aiShoot = this.dqnShooting
     }
 
     // Check gamepad shoot button from mapping
@@ -4005,7 +4503,7 @@ export default class GameScene extends Phaser.Scene {
     }
 
     // Check for mouse button press or gamepad shoot button or AI shoot
-    const mouseShoot = !this.aiEnabled && !this.mlAIEnabled && !useGamepad && pointer.isDown
+    const mouseShoot = !this.aiEnabled && !this.mlAIEnabled && !this.dqnTraining && !useGamepad && pointer.isDown
     if ((mouseShoot || gamepadShoot || aiShoot) && currentTime - this.lastShotTime > shootCooldown) {
       this.lastShotTime = currentTime
 
@@ -5343,31 +5841,7 @@ export default class GameScene extends Phaser.Scene {
     }
   }
 
-  private toggleRecording() {
-    this.isRecording = !this.isRecording
-
-    if (this.isRecording) {
-      this.gameplayRecorder.startRecording()
-      const dataCount = GameplayRecorder.getTrainingDataCount()
-      this.aiStatusText?.setText(`🎥 RECORDING (${dataCount} frames)`)
-      this.aiStatusText?.setVisible(true)
-      this.aiStatusText?.setColor('#ff0000')
-      this.showTip('recording', '🎥 Recording! Play 5-10 games naturally. Press R to stop.')
-      console.log('🎥 Recording started! Frames will be saved automatically.')
-    } else {
-      this.gameplayRecorder.stopRecording()
-      const dataCount = GameplayRecorder.getTrainingDataCount()
-      this.aiStatusText?.setText(`💾 Saved! Total: ${dataCount} frames`)
-      this.aiStatusText?.setColor('#00ff00')
-      console.log(`💾 Recording saved! Total frames: ${dataCount}`)
-      console.log('💡 Need 100+ frames to train. Go to menu and click "Train ML AI"')
-      this.time.delayedCall(3000, () => {
-        this.aiStatusText?.setVisible(false)
-        this.aiStatusText?.setColor('#ff00ff')
-      })
-      this.showTip('recording_done', '💾 Saved! Go to menu to train ML model.')
-    }
-  }
+  // Recording removed - use DQN AI Training from menu instead
 
   // Public method to access ML AI for training from menu
   public getMLAIPlayer(): MLAIPlayer {
@@ -5591,6 +6065,51 @@ export default class GameScene extends Phaser.Scene {
       callback: checkBounds,
       repeat: 20
     })
+  }
+
+  /**
+   * Set AI action for DQN training
+   * Allows DQN agent to control the player
+   */
+  setAIAction(action: { moveLeft: boolean; moveRight: boolean; jump: boolean; shoot: boolean }) {
+    if (!this.player || !this.player.body) return
+
+    const speed = this.hasSpeedBoost ? 300 : 200
+    const body = this.player.body as Phaser.Physics.Arcade.Body
+    const onGround = body.touching.down
+
+    // Reset velocity
+    body.setVelocityX(0)
+
+    // Apply horizontal movement
+    if (action.moveLeft) {
+      body.setVelocityX(-speed)
+      this.player.setFlipX(true)
+    } else if (action.moveRight) {
+      body.setVelocityX(speed)
+      this.player.setFlipX(false)
+    }
+
+    // Apply jump
+    if (action.jump && onGround) {
+      body.setVelocityY(-500)
+      this.audioManager.playJumpSound(false)
+      this.jumpParticles.emitParticleAt(this.player.x, this.player.y + 30)
+      this.canDoubleJump = true
+      this.hasDoubleJumped = false
+    } else if (action.jump && !onGround && this.canDoubleJump && !this.hasDoubleJumped) {
+      // Double jump
+      body.setVelocityY(-500)
+      this.audioManager.playJumpSound(true)
+      this.jumpParticles.emitParticleAt(this.player.x, this.player.y + 30)
+      this.hasDoubleJumped = true
+      this.canDoubleJump = false
+    }
+
+    // Apply shooting (currently disabled for DQN training)
+    // if (action.shoot) {
+    //   this.shootBullet()
+    // }
   }
 
   shutdown() {

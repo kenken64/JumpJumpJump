@@ -262,7 +262,7 @@ export default class MenuScene extends Phaser.Scene {
     })
     creditsText.setOrigin(0.5)
 
-    // Create Train ML AI Button (above Settings)
+    // Create DQN AI Training Button (above Settings)
     const mlButton = this.add.rectangle(1150, 550, 180, 40, 0x00aa00)
     mlButton.setInteractive({ useHandCursor: true })
     mlButton.on('pointerover', () => mlButton.setFillStyle(0x00cc00))
@@ -271,7 +271,7 @@ export default class MenuScene extends Phaser.Scene {
       this.showMLTraining()
     })
 
-    const mlText = this.add.text(1150, 550, '🧠 TRAIN ML AI', {
+    const mlText = this.add.text(1150, 550, '🤖 DQN AI TRAIN', {
       fontSize: '16px',
       color: '#ffffff',
       fontStyle: 'bold'
@@ -979,72 +979,39 @@ export default class MenuScene extends Phaser.Scene {
   }
 
   private async showMLTraining() {
-    // Get training data info
-    const trainingDataStr = localStorage.getItem('ml_training_data')
-    const frameCount = trainingDataStr ? JSON.parse(trainingDataStr).length : 0
+    // Check if model exists
+    const hasModel = localStorage.getItem('jumpjump-dqn-model') !== null
 
-    // Get model info
-    const modelMetadata = localStorage.getItem('ml-model-metadata')
-    let modelInfo = { trained: false, epochs: 0, timestamp: 0 }
-    if (modelMetadata) {
-      try {
-        modelInfo = JSON.parse(modelMetadata)
-      } catch (e) {
-        console.error('Failed to parse model metadata')
-      }
-    }
-
-    // Create dark overlay
-    const overlay = this.add.rectangle(640, 360, 1280, 720, 0x000000, 0.9)
+    // Create semi-transparent overlay (allows game to be visible behind)
+    const overlay = this.add.rectangle(640, 360, 1280, 720, 0x000000, 0.7)
     overlay.setDepth(100)
     overlay.setInteractive() // Block clicks to menu
 
-    // Create panel with rounded corners effect (gradient border)
-    const panelBorder = this.add.rectangle(640, 360, 700, 550, 0x00aaff, 1)
-    panelBorder.setDepth(101)
-
-    const panel = this.add.rectangle(640, 360, 690, 540, 0x1a1a1a, 1)
-    panel.setDepth(101)
-
-    // Close button (top right corner)
-    const closeButton = this.add.rectangle(890, 115, 70, 35, 0x333333)
-    closeButton.setDepth(102)
-    closeButton.setInteractive({ useHandCursor: true })
-    closeButton.on('pointerover', () => closeButton.setFillStyle(0xaa0000))
-    closeButton.on('pointerout', () => closeButton.setFillStyle(0x333333))
-    closeButton.on('pointerdown', () => {
-      overlay.destroy()
-      panelBorder.destroy()
-      panel.destroy()
-      title.destroy()
-      dataPanel.destroy()
-      frameInfo.destroy()
-      statusText.destroy()
-      modelStatusText.destroy()
-      instructionBox.destroy()
-      instructions.destroy()
-      progressBg.destroy()
-      progressFill.destroy()
-      progressText.destroy()
-      trainButton.destroy()
-      trainButtonText.destroy()
-      clearButton.destroy()
-      clearButtonText.destroy()
-      closeButton.destroy()
-      closeText.destroy()
-    })
-
-    const closeText = this.add.text(890, 115, '✕', {
-      fontSize: '24px',
-      color: '#ffffff',
+    // Create left panel for game preview
+    const gamePreviewBorder = this.add.rectangle(280, 360, 480, 680, 0x00aaff, 1)
+    gamePreviewBorder.setDepth(101)
+    
+    const gamePreviewPanel = this.add.rectangle(280, 360, 470, 670, 0x000000, 1)
+    gamePreviewPanel.setDepth(101)
+    
+    const previewTitle = this.add.text(280, 40, 'GAME PREVIEW', {
+      fontSize: '20px',
+      color: '#00aaff',
       fontStyle: 'bold'
     })
-    closeText.setOrigin(0.5)
-    closeText.setDepth(102)
+    previewTitle.setOrigin(0.5)
+    previewTitle.setDepth(102)
 
-    // Title
-    const title = this.add.text(640, 130, '🧠 ML AI TRAINING', {
-      fontSize: '36px',
+    // Create right panel for controls and stats
+    const panelBorder = this.add.rectangle(900, 360, 660, 680, 0x00aaff, 1)
+    panelBorder.setDepth(101)
+
+    const panel = this.add.rectangle(900, 360, 650, 670, 0x1a1a1a, 1)
+    panel.setDepth(101)
+
+    // Title at top
+    const title = this.add.text(640, 25, '🤖 DQN AI Training', {
+      fontSize: '32px',
       color: '#00aaff',
       fontStyle: 'bold',
       stroke: '#000000',
@@ -1052,198 +1019,225 @@ export default class MenuScene extends Phaser.Scene {
     })
     title.setOrigin(0.5)
     title.setDepth(102)
-
-    // Data info panel
-    const dataPanel = this.add.rectangle(640, 200, 640, 80, 0x252525, 1)
-    dataPanel.setDepth(102)
-    dataPanel.setStrokeStyle(2, frameCount >= 100 ? 0x00ff00 : 0xff9900)
-
-    const frameInfo = this.add.text(640, 185, `${frameCount} frames recorded`, {
+    
+    // Subtitle
+    const subtitle = this.add.text(900, 80, 'Training Statistics:', {
       fontSize: '24px',
-      color: frameCount >= 100 ? '#00ff00' : '#ff9900',
+      color: '#ffffff',
       fontStyle: 'bold'
     })
-    frameInfo.setOrigin(0.5)
-    frameInfo.setDepth(102)
+    subtitle.setOrigin(0.5)
+    subtitle.setDepth(102)
 
-    const statusText = this.add.text(640, 210, frameCount >= 100 ? '✓ Ready to train!' : '⚠ Need 100+ frames (press R in-game)', {
-      fontSize: '15px',
-      color: '#cccccc'
+    // Stats display
+    const statsStartY = 120
+    const statsLineHeight = 45
+    
+    const statsLabels = [
+      { label: 'Epsilon:', value: '0.1765', color: '#00ff00' },
+      { label: 'Buffer:', value: '445 / ✓', color: '#00ff00' },
+      { label: 'Training Steps:', value: '346', color: '#00ff00' },
+      { label: 'Episodes:', value: '0', color: '#ffaa00' },
+      { label: 'Avg Reward:', value: '0.00', color: '#00aaff' }
+    ]
+    
+    const statTexts: { [key: string]: Phaser.GameObjects.Text } = {}
+    
+    statsLabels.forEach((stat, index) => {
+      const labelText = this.add.text(620, statsStartY + index * statsLineHeight, stat.label, {
+        fontSize: '22px',
+        color: '#ffffff',
+        fontStyle: 'bold'
+      })
+      labelText.setOrigin(0, 0.5)
+      labelText.setDepth(102)
+      labelText.setName(`statLabel_${stat.label}`)
+      
+      const valueText = this.add.text(1180, statsStartY + index * statsLineHeight, stat.value, {
+        fontSize: '22px',
+        color: stat.color,
+        fontStyle: 'bold'
+      })
+      valueText.setOrigin(1, 0.5)
+      valueText.setDepth(102)
+      valueText.setName(`statValue_${stat.label}`)
+      statTexts[stat.label] = valueText
+    })
+
+    // Status display
+    const statusBg = this.add.rectangle(900, 360, 620, 80, 0x252525, 1)
+    statusBg.setDepth(102)
+    statusBg.setStrokeStyle(2, 0xffaa00)
+    statusBg.setName('statusBg')
+    
+    const statusLabel = this.add.text(900, 345, 'Status:', {
+      fontSize: '20px',
+      color: '#ffffff',
+      fontStyle: 'bold'
+    })
+    statusLabel.setOrigin(0.5)
+    statusLabel.setDepth(102)
+    statusLabel.setName('statusLabel')
+    
+    const statusText = this.add.text(900, 375, '● PAUSED', {
+      fontSize: '28px',
+      color: '#ffaa00',
+      fontStyle: 'bold'
     })
     statusText.setOrigin(0.5)
     statusText.setDepth(102)
-
-    // Model status
-    const modelStatusText = this.add.text(640, 228,
-      modelInfo.trained
-        ? `Model: Trained (${modelInfo.epochs} epochs, ${new Date(modelInfo.timestamp).toLocaleDateString()})`
-        : 'Model: Not trained yet',
-      {
-        fontSize: '13px',
-        color: modelInfo.trained ? '#00aaff' : '#999999'
-      }
-    )
-    modelStatusText.setOrigin(0.5)
-    modelStatusText.setDepth(102)
-
-    // Instructions box
-    const instructionBox = this.add.rectangle(640, 305, 640, 140, 0x252525, 1)
-    instructionBox.setDepth(102)
-    instructionBox.setStrokeStyle(2, 0x333333)
-
-    const instructions = this.add.text(640, 305,
-      '1. Play normally  2. Press R to record  3. Record 200+ frames\n' +
-      '4. Click TRAIN MODEL below  5. Use O in-game for ML AI',
-      {
-        fontSize: '15px',
-        color: '#999999',
-        align: 'center',
-        lineSpacing: 6
-      }
-    )
-    instructions.setOrigin(0.5)
-    instructions.setDepth(102)
-
-    // Progress bar background
-    const progressBg = this.add.rectangle(640, 400, 620, 45, 0x333333)
-    progressBg.setDepth(102)
-    progressBg.setVisible(false)
-
-    // Progress bar fill
-    const progressFill = this.add.rectangle(330, 400, 0, 35, 0x00aa00)
-    progressFill.setOrigin(0, 0.5)
-    progressFill.setDepth(102)
-    progressFill.setVisible(false)
-
-    // Progress text
-    const progressText = this.add.text(640, 400, 'Initializing...', {
-      fontSize: '16px',
+    statusText.setName('statusText')
+    
+    // Episode and step info
+    const episodeLabel = this.add.text(900, 450, 'Episode: 1', {
+      fontSize: '20px',
       color: '#ffffff',
       fontStyle: 'bold'
     })
-    progressText.setOrigin(0.5)
-    progressText.setDepth(103)
-    progressText.setVisible(false)
-
-    // Train button
-    const trainButton = this.add.rectangle(640, 470, 300, 55, frameCount >= 100 ? 0x00aa00 : 0x444444)
-    trainButton.setDepth(102)
-    trainButton.setStrokeStyle(3, frameCount >= 100 ? 0x00ff00 : 0x666666)
-    if (frameCount >= 100) {
-      trainButton.setInteractive({ useHandCursor: true })
-      trainButton.on('pointerover', () => {
-        trainButton.setFillStyle(0x00cc00)
-        trainButton.setStrokeStyle(3, 0x00ff00)
-      })
-      trainButton.on('pointerout', () => {
-        trainButton.setFillStyle(0x00aa00)
-        trainButton.setStrokeStyle(3, 0x00ff00)
-      })
-      trainButton.on('pointerdown', async () => {
-        trainButton.disableInteractive()
-        trainButton.setFillStyle(0x555555)
-        trainButton.setStrokeStyle(3, 0x777777)
-        trainButtonText.setText('🔄 TRAINING...')
-        instructionBox.setVisible(false)
-        instructions.setVisible(false)
-
-        // Show progress bar
-        progressBg.setVisible(true)
-        progressFill.setVisible(true)
-        progressText.setVisible(true)
-
-        try {
-          // Create a temporary ML AI player for training
-          const mlAI = new MLAIPlayer(this as any)
-
-          // Train with progress callbacks (100 epochs now)
-          await mlAI.train((epoch: number, logs: any) => {
-            progressFill.width = (620 * epoch) / 100
-            const loss = logs?.loss || logs?.['loss'] || 0
-            const percent = Math.round((epoch / 100) * 100)
-            progressText.setText(`Training: ${percent}% (Epoch ${epoch}/100 - Loss: ${loss.toFixed(3)})`)
-          })
-
-          trainButtonText.setText('✓ TRAINING COMPLETE!')
-          trainButton.setFillStyle(0x00aa00)
-          trainButton.setStrokeStyle(3, 0x00ff00)
-          progressText.setText('✓ Model trained! Press O in-game to enable ML AI')
-          progressFill.setFillStyle(0x00ff00)
-
-          // Auto-close after 3 seconds
-          this.time.delayedCall(3000, () => {
-            overlay.destroy()
-            panelBorder.destroy()
-            panel.destroy()
-            title.destroy()
-            dataPanel.destroy()
-            frameInfo.destroy()
-            statusText.destroy()
-            modelStatusText.destroy()
-            instructionBox.destroy()
-            instructions.destroy()
-            progressBg.destroy()
-            progressFill.destroy()
-            progressText.destroy()
-            trainButton.destroy()
-            trainButtonText.destroy()
-            clearButton.destroy()
-            clearButtonText.destroy()
-            closeButton.destroy()
-            closeText.destroy()
-          })
-        } catch (error) {
-          console.error('Training failed:', error)
-          trainButtonText.setText('✕ TRAINING FAILED')
-          trainButton.setFillStyle(0xaa0000)
-          trainButton.setStrokeStyle(3, 0xff0000)
-          progressText.setText('Error: ' + (error as Error).message)
-          progressFill.setFillStyle(0xaa0000)
-        }
-      })
-    }
-
-    const trainButtonText = this.add.text(640, 470, frameCount >= 100 ? '▶ TRAIN MODEL' : '⚠ NEED MORE DATA', {
-      fontSize: '22px',
+    episodeLabel.setOrigin(0.5)
+    episodeLabel.setDepth(102)
+    episodeLabel.setName('episodeLabel')
+    
+    const stepLabel = this.add.text(900, 485, 'Step: 0', {
+      fontSize: '20px',
       color: '#ffffff',
       fontStyle: 'bold'
     })
-    trainButtonText.setOrigin(0.5)
-    trainButtonText.setDepth(102)
+    stepLabel.setOrigin(0.5)
+    stepLabel.setDepth(102)
+    stepLabel.setName('stepLabel')
+    
+    const speedLabel = this.add.text(900, 520, 'Speed: 1x', {
+      fontSize: '20px',
+      color: '#ffffff',
+      fontStyle: 'bold'
+    })
+    speedLabel.setOrigin(0.5)
+    speedLabel.setDepth(102)
+    speedLabel.setName('speedLabel')
+    
+    const autoRestartLabel = this.add.text(900, 555, 'Auto-Restart: ON', {
+      fontSize: '20px',
+      color: '#00ff00',
+      fontStyle: 'bold'
+    })
+    autoRestartLabel.setOrigin(0.5)
+    autoRestartLabel.setDepth(102)
+    autoRestartLabel.setName('autoRestartLabel')
+    
+    // Current and last reward
+    const currentRewardLabel = this.add.text(900, 595, 'Current Reward: 0.00', {
+      fontSize: '18px',
+      color: '#ffaa00',
+      fontStyle: 'bold'
+    })
+    currentRewardLabel.setOrigin(0.5)
+    currentRewardLabel.setDepth(102)
+    currentRewardLabel.setName('currentRewardLabel')
+    
+    const lastRewardLabel = this.add.text(900, 625, 'Last Reward: 0.00', {
+      fontSize: '18px',
+      color: '#ffaa00',
+      fontStyle: 'bold'
+    })
+    lastRewardLabel.setOrigin(0.5)
+    lastRewardLabel.setDepth(102)
+    lastRewardLabel.setName('lastRewardLabel')
+    
+    // Controls hint - positioned at bottom of right panel
+    const controlsHint = this.add.text(900, 660, 'SPACE: Start/Pause | R: Reset | S: Save | L: Load\n1-5: Speed | A: Auto-Restart | ESC: Menu', {
+      fontSize: '12px',
+      color: '#666666',
+      align: 'center'
+    })
+    controlsHint.setOrigin(0.5, 0.5)
+    controlsHint.setDepth(102)
+    controlsHint.setName('controlsHint')
 
-    // Clear data button
-    const clearButton = this.add.rectangle(640, 540, 240, 45, 0x444444)
-    clearButton.setDepth(102)
-    clearButton.setStrokeStyle(2, 0x666666)
-    clearButton.setInteractive({ useHandCursor: true })
-    clearButton.on('pointerover', () => {
-      clearButton.setFillStyle(0xaa0000)
-      clearButton.setStrokeStyle(2, 0xff0000)
-    })
-    clearButton.on('pointerout', () => {
-      clearButton.setFillStyle(0x444444)
-      clearButton.setStrokeStyle(2, 0x666666)
-    })
-    clearButton.on('pointerdown', () => {
-      localStorage.removeItem('ml_training_data')
-      frameInfo.setText('0 frames recorded')
-      frameInfo.setColor('#ff9900')
-      statusText.setText('⚠ Need 100+ frames (press R in-game)')
-      statusText.setColor('#cccccc')
-      dataPanel.setStrokeStyle(2, 0xff9900)
-      trainButton.disableInteractive()
-      trainButton.setFillStyle(0x444444)
-      trainButton.setStrokeStyle(3, 0x666666)
-      trainButtonText.setText('⚠ NEED MORE DATA')
-    })
-
-    const clearButtonText = this.add.text(640, 540, '🗑 CLEAR DATA', {
+    // Game mode selection
+    let selectedMode: 'endless' | 'levels' = 'endless'
+    
+    const modeLabel = this.add.text(280, 610, 'Select Mode:', {
       fontSize: '18px',
       color: '#ffffff',
       fontStyle: 'bold'
     })
-    clearButtonText.setOrigin(0.5)
-    clearButtonText.setDepth(102)
+    modeLabel.setOrigin(0.5)
+    modeLabel.setDepth(102)
+
+    // Endless Mode Button
+    const endlessButton = this.add.rectangle(180, 645, 150, 40, 0x00aaff)
+    endlessButton.setDepth(102)
+    endlessButton.setStrokeStyle(3, 0x00ffff)
+    endlessButton.setInteractive({ useHandCursor: true })
+
+    const endlessText = this.add.text(180, 645, 'ENDLESS', {
+      fontSize: '18px',
+      color: '#ffffff',
+      fontStyle: 'bold'
+    })
+    endlessText.setOrigin(0.5)
+    endlessText.setDepth(102)
+
+    // Levels Mode Button
+    const levelsButton = this.add.rectangle(380, 645, 150, 40, 0x444444)
+    levelsButton.setDepth(102)
+    levelsButton.setStrokeStyle(2, 0x666666)
+    levelsButton.setInteractive({ useHandCursor: true })
+
+    const levelsText = this.add.text(380, 645, 'LEVELS', {
+      fontSize: '18px',
+      color: '#ffffff',
+      fontStyle: 'bold'
+    })
+    levelsText.setOrigin(0.5)
+    levelsText.setDepth(102)
+
+    // Mode button handlers
+    endlessButton.on('pointerdown', () => {
+      selectedMode = 'endless'
+      endlessButton.setFillStyle(0x00aaff)
+      endlessButton.setStrokeStyle(3, 0x00ffff)
+      levelsButton.setFillStyle(0x444444)
+      levelsButton.setStrokeStyle(2, 0x666666)
+    })
+
+    levelsButton.on('pointerdown', () => {
+      selectedMode = 'levels'
+      levelsButton.setFillStyle(0x00aaff)
+      levelsButton.setStrokeStyle(3, 0x00ffff)
+      endlessButton.setFillStyle(0x444444)
+      endlessButton.setStrokeStyle(2, 0x666666)
+    })
+
+    // Start Training button - launches game with DQN agent
+    const startButton = this.add.rectangle(280, 695, 460, 50, 0x00aa00)
+    startButton.setDepth(102)
+    startButton.setStrokeStyle(3, 0x00ff00)
+    startButton.setInteractive({ useHandCursor: true })
+    startButton.on('pointerover', () => {
+      startButton.setFillStyle(0x00cc00)
+    })
+    startButton.on('pointerout', () => {
+      startButton.setFillStyle(0x00aa00)
+    })
+    startButton.on('pointerdown', () => {
+      // Launch game in DQN training mode
+      console.log(`🤖 Starting DQN training session (${selectedMode} mode)...`)
+      this.scene.start('GameScene', { 
+        gameMode: selectedMode, 
+        level: 1,
+        dqnTraining: true  // Flag to enable DQN agent
+      })
+    })
+
+    const startButtonText = this.add.text(280, 695, '▶ START AI', {
+      fontSize: '22px',
+      color: '#ffffff',
+      fontStyle: 'bold'
+    })
+    startButtonText.setOrigin(0.5)
+    startButtonText.setDepth(102)
   }
 
   private showControlSettings() {
