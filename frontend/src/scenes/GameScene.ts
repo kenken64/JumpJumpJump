@@ -582,6 +582,30 @@ export default class GameScene extends Phaser.Scene {
     if (this.isCoopMode) {
       const player2Skin = 'alienBlue' // Player 2 uses blue alien skin
 
+      // Create Player 2 animations with blue skin
+      this.anims.create({
+        key: 'player2_idle',
+        frames: [{ key: `${player2Skin}_stand` }],
+        frameRate: 1,
+        repeat: -1
+      })
+
+      this.anims.create({
+        key: 'player2_walk',
+        frames: [
+          { key: `${player2Skin}_walk1` },
+          { key: `${player2Skin}_walk2` }
+        ],
+        frameRate: 8,
+        repeat: -1
+      })
+
+      this.anims.create({
+        key: 'player2_jump',
+        frames: [{ key: `${player2Skin}_jump` }],
+        frameRate: 1
+      })
+
       // Create player 2 sprite
       this.player2 = this.physics.add.sprite(450, 550, `${player2Skin}_stand`)
       this.player2.setBounce(0.1)
@@ -596,7 +620,7 @@ export default class GameScene extends Phaser.Scene {
         body.setOffset(10, 10)
       }
 
-      this.player2.play('player_idle')
+      this.player2.play('player2_idle') // Use Player 2's blue animations
 
       // Enable gravity after delay
       this.time.delayedCall(100, () => {
@@ -3808,14 +3832,14 @@ export default class GameScene extends Phaser.Scene {
     if (leftStickX < -0.3 || dpadLeft) {
       this.player2.setVelocityX(-speed)
       this.player2.setFlipX(true)
-      if (onGround) this.player2.play('player_walk', true)
+      if (onGround) this.player2.play('player2_walk', true)
     } else if (leftStickX > 0.3 || dpadRight) {
       this.player2.setVelocityX(speed)
       this.player2.setFlipX(false)
-      if (onGround) this.player2.play('player_walk', true)
+      if (onGround) this.player2.play('player2_walk', true)
     } else {
       this.player2.setVelocityX(0)
-      if (onGround) this.player2.play('player_idle', true)
+      if (onGround) this.player2.play('player2_idle', true)
     }
 
     // Jump with A button OR left analog stick up
@@ -3830,12 +3854,12 @@ export default class GameScene extends Phaser.Scene {
     if (jumpJustPressed) {
       if (onGround) {
         this.player2.setVelocityY(jumpVelocity)
-        this.player2.play('player_jump', true)
+        this.player2.play('player2_jump', true)
         this.audioManager.playJumpSound()
         this.player2.setData('canDoubleJump', true)
       } else if (canDoubleJump && !hasDoubleJumped) {
         this.player2.setVelocityY(jumpVelocity)
-        this.player2.play('player_jump', true)
+        this.player2.play('player2_jump', true)
         this.audioManager.playJumpSound(true)
         this.player2.setData('hasDoubleJumped', true)
       }
