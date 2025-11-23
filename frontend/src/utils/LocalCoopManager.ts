@@ -49,7 +49,7 @@ export class LocalCoopManager {
         health: 100,
         lives: 3,
         score: 0,
-        skin: 'alienBeige',
+        skin: 'alienGreen',
         weapon: 'raygun'
       },
       player2: {
@@ -151,12 +151,12 @@ export class LocalCoopManager {
   /**
    * Detect gamepads and assign to players
    */
-  static detectGamepads(scene: Phaser.Scene): { 
-    player1Gamepad: Phaser.Input.Gamepad.Gamepad | null, 
-    player2Gamepad: Phaser.Input.Gamepad.Gamepad | null 
+  static detectGamepads(scene: Phaser.Scene): {
+    player1Gamepad: Phaser.Input.Gamepad.Gamepad | null,
+    player2Gamepad: Phaser.Input.Gamepad.Gamepad | null
   } {
     const gamepads = scene.input.gamepad?.gamepads || []
-    
+
     return {
       player1Gamepad: gamepads.length > 0 ? gamepads[0] : null,
       player2Gamepad: gamepads.length > 1 ? gamepads[1] : null
