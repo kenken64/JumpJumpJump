@@ -1605,6 +1605,16 @@ export default class GameScene extends Phaser.Scene {
       }
     }
     
+    // Boss detection
+    let bossActive = false
+    let bossDistance = 1000
+    let bossHealth = 100
+    if (this.boss && this.boss.active && this.bossActive) {
+      bossActive = true
+      bossDistance = Phaser.Math.Distance.Between(playerX, playerY, this.boss.x, this.boss.y)
+      bossHealth = (this.boss.getData('health') || 100)
+    }
+    
     return {
       playerX,
       playerY,
@@ -1616,7 +1626,10 @@ export default class GameScene extends Phaser.Scene {
       nearestEnemyDistance,
       nearestSpikeDistance,
       hasGroundAhead,
-      gapAhead
+      gapAhead,
+      bossActive,
+      bossDistance,
+      bossHealth
     }
   }
 
@@ -2945,6 +2958,17 @@ export default class GameScene extends Phaser.Scene {
     const player2ReachedEnd = this.isCoopMode && this.player2 && this.player2.x >= this.levelLength
 
     if (player1ReachedEnd || player2ReachedEnd) {
+      // Don't allow level completion if boss is still active (boss levels: 5, 10, 15, etc.)
+      if (this.bossActive && this.boss && this.boss.active) {
+        console.log('⚠️ Cannot complete level - boss is still active!')
+        // Push player back from the portal
+        this.player.x = this.levelLength - 100
+        if (this.isCoopMode && this.player2 && player2ReachedEnd) {
+          this.player2.x = this.levelLength - 100
+        }
+        return
+      }
+      
       this.levelCompleteShown = true
       this.showLevelComplete()
     }

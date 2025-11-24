@@ -13,6 +13,9 @@ export interface DQNState {
     nearestSpikeDistance: number
     hasGroundAhead: boolean
     gapAhead: boolean
+    bossActive: boolean
+    bossDistance: number
+    bossHealth: number
 }
 
 export interface DQNAction {
@@ -34,7 +37,7 @@ interface Experience {
 export class DQNAgent {
     private policyNet!: tf.Sequential
     private targetNet!: tf.Sequential
-    private readonly stateSize = 11
+    private readonly stateSize = 14  // Increased to include boss info
     private readonly actionSize = 9  // Expanded to include shooting actions
     private epsilon = 1.0
     private readonly epsilonMin = 0.1  // Keep even more exploration
@@ -90,8 +93,8 @@ export class DQNAgent {
         // Force random actions when completely stuck
         if (this.forceRandomExploration) {
             this.randomExplorationFrames++
-            // Do random actions for 60 frames
-            if (this.randomExplorationFrames < 60) {
+            // Do random actions for 40 frames (reduced from 60 for faster recovery)
+            if (this.randomExplorationFrames < 40) {
                 const randomAction = Math.floor(Math.random() * this.actionSize)
                 return this.actionIndexToAction(randomAction)
             } else {
@@ -187,7 +190,8 @@ export class DQNAgent {
             state.playerX / 10000, state.playerY / 1200, state.velocityX / 500, state.velocityY / 500,
             state.onGround ? 1 : 0, state.nearestPlatformDistance / 1000, state.nearestPlatformHeight / 1200,
             state.nearestEnemyDistance / 1000, state.nearestSpikeDistance / 1000, state.hasGroundAhead ? 1 : 0,
-            state.gapAhead ? 1 : 0
+            state.gapAhead ? 1 : 0,
+            state.bossActive ? 1 : 0, state.bossDistance / 1000, state.bossHealth / 100
         ]
     }
 
@@ -228,8 +232,8 @@ export class DQNAgent {
             // Check if platform is directly above (need to jump up first)
             const platformAbove = state.nearestPlatformHeight < -50 && state.nearestPlatformDistance < 150
             
-            // Progressive penalties for being stuck - more aggressive for vertical platforms
-            if (this.stuckCounter > 10 || (this.stuckCounter > 5 && platformTooHigh) || (this.stuckCounter > 3 && platformAbove)) {
+            // Progressive penalties for being stuck - very aggressive triggers
+            if (this.stuckCounter > 5 || (this.stuckCounter > 3 && platformTooHigh) || (this.stuckCounter > 2 && platformAbove)) {
                 reward -= 2.0  // Very strong penalty
                 // Activate retreat mode - move far left and try double jump
                 if (!this.stuckRetreatMode) {
@@ -273,36 +277,36 @@ export class DQNAgent {
         } else {
             this.framesSinceProgress++
             
-            // Escalating penalties for no progress
-            if (this.framesSinceProgress > 180) {
-                reward -= 1.0  // Very severe penalty after 3 seconds
+            // Escalating penalties for no progress - very aggressive
+            if (this.framesSinceProgress > 90) {  // Reduced from 180 to 90
+                reward -= 2.0  // Massive penalty after 1.5 seconds
                 // Force random exploration if completely stuck
                 if (!this.forceRandomExploration) {
                     this.forceRandomExploration = true
                     this.randomExplorationFrames = 0
-                    console.log('🎲 Agent completely stuck - forcing random exploration')
+                    console.log('🎲 Agent stuck - forcing random exploration')
                 }
-            } else if (this.framesSinceProgress > 120) {
-                reward -= 0.5  // Severe penalty after 2 seconds
-            } else if (this.framesSinceProgress > 60) {
-                reward -= 0.2
-            } else if (this.framesSinceProgress > 30 && state.onGround) {
-                // Extra penalty for being stuck on ground - should be jumping
-                reward -= 0.15
+            } else if (this.framesSinceProgress > 60) {  // Reduced from 120 to 60
+                reward -= 1.0  // Strong penalty after 1 second
+            } else if (this.framesSinceProgress > 30) {  // Was 60
+                reward -= 0.5  // Medium penalty after 0.5 seconds
+            } else if (this.framesSinceProgress > 15 && state.onGround) {  // Was 30
+                // Early penalty for being stuck on ground
+                reward -= 0.3
             }
             
-            // Encourage exploration when stuck - especially for vertical platforms
-            if (this.framesSinceProgress > 15) {
+            // Encourage exploration when stuck - very early triggers
+            if (this.framesSinceProgress > 10) {  // Reduced from 15
                 if (!isMovingRight) {
-                    reward += 0.15  // Reward trying different actions
+                    reward += 0.2  // Increased reward for trying different actions
                 }
                 if (isJumping) {
-                    reward += 0.35  // Strong reward for jumping when stuck
+                    reward += 0.4  // Very strong reward for jumping when stuck
                 }
-            } else if (this.framesSinceProgress > 5 && state.onGround) {
-                // Early encouragement to jump when on ground
+            } else if (this.framesSinceProgress > 3 && state.onGround) {  // Reduced from 5
+                // Very early encouragement to jump when on ground
                 if (isJumping) {
-                    reward += 0.2
+                    reward += 0.25  // Increased from 0.2
                 }
             }
         }
@@ -321,6 +325,36 @@ export class DQNAgent {
         // Extra reward for successfully jumping onto higher platforms
         if (state.onGround && verticalProgress > 20 && progress > 0) {
             reward += 0.5  // Successfully landed on higher platform while progressing
+        }
+        
+        // Boss engagement rewards - ONLY when boss is actually spawned and active
+        if (state.bossActive) {
+            // Strong reward for moving towards and engaging the boss
+            if (state.bossDistance < 400) {
+                reward += 0.5  // Close to boss - increased from 0.3
+            }
+            // Very strong reward for shooting actions when boss is near
+            if ((currentAction === 5 || currentAction === 6 || currentAction === 7 || currentAction === 8) && state.bossDistance < 500) {
+                reward += 0.8  // Shooting at boss - increased from 0.5
+            }
+            // Strong penalty for moving too far right (towards portal) while boss is alive
+            if (progress > 50 && state.bossDistance > 500) {
+                reward -= 2.0  // Don't rush to portal, fight the boss! - increased from 1.5
+            }
+            // Penalty for moving away from boss
+            if (progress < 0 && state.bossDistance > 300) {
+                reward -= 0.5  // Running away from boss - increased from 0.3
+            }
+            // Big reward for damaging boss (health decreased)
+            if (state.bossHealth < 100) {
+                reward += (100 - state.bossHealth) / 30  // Scale with damage dealt - increased from /50
+            }
+        } else {
+            // No boss active - normal forward progress is good (push to portal)
+            // This ensures agent moves forward on boss levels before boss spawns
+            if (progress > 0) {
+                reward += 0.05  // Small bonus for forward progress when no boss
+            }
         }
         
         this.lastX = state.playerX
@@ -371,12 +405,23 @@ export class DQNAgent {
     public async loadModel(): Promise<boolean> {
         try {
             const model = await tf.loadLayersModel('indexeddb://jumpjump-dqn')
+            
+            // Validate model input shape matches current state size
+            const inputShape = model.inputs[0].shape
+            if (inputShape && inputShape[1] !== this.stateSize) {
+                console.warn(`⚠️ Saved model has input shape ${inputShape[1]}, but current state size is ${this.stateSize}. Discarding old model.`)
+                model.dispose()
+                // Delete old model from storage
+                await tf.io.removeModel('indexeddb://jumpjump-dqn')
+                return false
+            }
+            
             this.policyNet = model as tf.Sequential
             this.targetNet.setWeights(this.policyNet.getWeights())
             console.log('✅ Model loaded')
             return true
-        } catch {
-            console.log('ℹ️ No saved model')
+        } catch (error) {
+            console.log('ℹ️ No saved model:', error)
             return false
         }
     }
