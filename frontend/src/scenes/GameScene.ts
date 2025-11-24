@@ -1395,7 +1395,14 @@ export default class GameScene extends Phaser.Scene {
   // ============================================================================
 
   private async initializeDQNAgent() {
-    if (!this.dqnTraining || this.dqnAgent) return
+    if (!this.dqnTraining) return
+
+    // If agent already exists (from previous level), just recreate UI
+    if (this.dqnAgent) {
+      console.log('🤖 DQN Agent exists, recreating UI...')
+      this.createDQNTrainingUI()
+      return
+    }
 
     console.log('🤖 Initializing DQN Agent...')
     this.dqnAgent = new DQNAgent(this)
@@ -1422,14 +1429,23 @@ export default class GameScene extends Phaser.Scene {
   private createDQNTrainingUI() {
     if (!this.dqnTraining) return
 
-    // Training status panel (top-right, moved down)
-    const panelX = 1100
-    const panelY = 180
+    // Training status panel (right side, avoiding center tip area)
+    const panelX = 1095
+    const panelY = 250
+    const panelWidth = 350
+    const panelHeight = 350
     
-    const panelBg = this.add.rectangle(panelX, panelY, 350, 250, 0x000000, 0.8)
+    // Background
+    const panelBg = this.add.rectangle(panelX, panelY, panelWidth, panelHeight, 0x000000, 0.8)
     panelBg.setScrollFactor(0)
     panelBg.setDepth(1000)
-    panelBg.setStrokeStyle(3, 0x00ff00)
+    
+    // Border using graphics for clean rendering
+    const border = this.add.graphics()
+    border.lineStyle(3, 0x00ff00, 1)
+    border.strokeRect(panelX - panelWidth/2, panelY - panelHeight/2, panelWidth, panelHeight)
+    border.setScrollFactor(0)
+    border.setDepth(1000)
 
     const title = this.add.text(panelX, panelY - 100, '🤖 DQN TRAINING', {
       fontSize: '24px',
@@ -1451,22 +1467,24 @@ export default class GameScene extends Phaser.Scene {
     this.dqnStatusText.setScrollFactor(0)
     this.dqnStatusText.setDepth(1001)
 
-    this.dqnStatsText = this.add.text(panelX, panelY, '', {
-      fontSize: '18px',
+    this.dqnStatsText = this.add.text(panelX, panelY - 10, '', {
+      fontSize: '16px',
       color: '#ffffff',
       fontStyle: 'bold',
       stroke: '#000000',
-      strokeThickness: 3,
-      align: 'left'
+      strokeThickness: 2,
+      align: 'left',
+      wordWrap: { width: 320, useAdvancedWrap: true }
     })
     this.dqnStatsText.setOrigin(0.5, 0)
     this.dqnStatsText.setScrollFactor(0)
     this.dqnStatsText.setDepth(1001)
 
-    const controls = this.add.text(panelX, panelY + 110, 'SPACE: Pause | R: Reset | S: Save | L: Load\n1-5: Speed | A: Auto-restart | ESC: Exit', {
-      fontSize: '14px',
+    const controls = this.add.text(panelX, panelY + 145, 'SPACE: Pause | R: Reset | S: Save | L: Load\n1-5: Speed | A: Auto-restart | ESC: Exit', {
+      fontSize: '12px',
       color: '#aaaaaa',
-      align: 'center'
+      align: 'center',
+      wordWrap: { width: 340, useAdvancedWrap: true }
     })
     controls.setOrigin(0.5, 0)
     controls.setScrollFactor(0)
@@ -1853,7 +1871,9 @@ export default class GameScene extends Phaser.Scene {
       console.log('🚪 Exiting training...')
       if (this.dqnAgent) {
         this.dqnAgent.dispose()
+        this.dqnAgent = undefined  // Clear reference after disposal
       }
+      this.dqnTraining = false
       this.scene.start('MenuScene')
     }
   }
@@ -2909,6 +2929,9 @@ export default class GameScene extends Phaser.Scene {
       if (this.isCoopMode) {
         nextLevelData.mode = 'coop'
       }
+      if (this.dqnTraining) {
+        nextLevelData.dqnTraining = true
+      }
       this.scene.restart(nextLevelData)
     })
   }
@@ -3019,6 +3042,9 @@ export default class GameScene extends Phaser.Scene {
       if (this.isCoopMode) {
         nextLevelData.mode = 'coop'
       }
+      if (this.dqnTraining) {
+        nextLevelData.dqnTraining = true
+      }
       this.scene.restart(nextLevelData)
     })
 
@@ -3044,6 +3070,9 @@ export default class GameScene extends Phaser.Scene {
           if (gamepad.A) {
             this.tweens.killAll()
             const nextLevelData: any = { gameMode: 'levels', level: this.currentLevel + 1, mode: 'coop' }
+            if (this.dqnTraining) {
+              nextLevelData.dqnTraining = true
+            }
             this.scene.restart(nextLevelData)
             return
           }
@@ -6116,5 +6145,11 @@ export default class GameScene extends Phaser.Scene {
   shutdown() {
     // Stop and clean up music when scene shuts down using MusicManager
     this.musicManager.stopMusic()
+    
+    // Clean up DQN agent if it exists
+    if (this.dqnAgent) {
+      this.dqnAgent.dispose()
+      this.dqnAgent = undefined
+    }
   }
 }
