@@ -1,5 +1,7 @@
 # JumpJumpJump 🎮
 
+[![JumpJumpJump Gameplay](https://img.youtube.com/vi/zEqMF7u_XrI/0.jpg)](https://youtu.be/zEqMF7u_XrI)
+
 A web-based platformer game built with React, Phaser, and FastAPI featuring online leaderboards and procedurally generated levels!
 
 ## ✨ Features

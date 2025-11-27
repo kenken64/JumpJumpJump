@@ -290,14 +290,38 @@ def get_bosses():
 
 ## Step 3: Frontend Implementation (React + Phaser)
 
-### 3.1 Initialize Vite Project
+The frontend is a complex application combining React's UI capabilities with Phaser's rendering engine.
+
+### 3.1 Project Structure
+The `frontend/src` directory is organized by function:
+
+```
+src/
+├── scenes/             # Phaser Scenes
+│   ├── GameScene.ts        # Main gameplay loop
+│   ├── MenuScene.ts        # Main menu
+│   ├── BossGalleryScene.ts # Boss viewing gallery
+│   ├── DQNTrainingScene.ts # AI training visualization
+│   └── ... (Shop, Inventory, Leaderboard)
+├── utils/              # Game Logic & Managers
+│   ├── WorldGenerator.ts   # Procedural terrain
+│   ├── DQNAgent.ts         # Reinforcement Learning AI
+│   ├── ControlManager.ts   # Gamepad/Keyboard unifier
+│   ├── AudioManager.ts     # Sound management
+│   └── ... (MLAIPlayer, GameplayRecorder)
+├── services/           # Networking
+│   └── api.ts              # Backend API calls
+└── App.tsx             # React UI Overlay
+```
+
+### 3.2 Initialize Vite Project
 ```bash
 cd ../frontend
 npm create vite@latest . -- --template react-ts
 pnpm install phaser axios react-router-dom @tensorflow/tfjs
 ```
 
-### 3.2 The Infinite World Generator (`frontend/src/utils/WorldGenerator.ts`)
+### 3.3 The Infinite World Generator (`frontend/src/utils/WorldGenerator.ts`)
 The heart of the game is the procedural generation system. Instead of a static level, we generate "chunks" of terrain on the fly.
 
 ```typescript
@@ -355,18 +379,25 @@ export class WorldGenerator {
 }
 ```
 
-### 3.3 The Game Scene (`frontend/src/scenes/GameScene.ts`)
-The main scene orchestrates the physics, inputs, and game loop.
+### 3.4 The Game Scene (`frontend/src/scenes/GameScene.ts`)
+The `GameScene` is the central hub that orchestrates all other systems. It initializes physics, inputs, and the game loop.
+
+**Key Responsibilities:**
+1.  **Physics Setup**: Gravity, collisions, and world bounds.
+2.  **Manager Initialization**: Instantiates `WorldGenerator`, `DQNAgent`, `ControlManager`, etc.
+3.  **Update Loop**: Handles input, updates AI, and triggers world generation.
 
 ```typescript
 import Phaser from 'phaser';
 import { WorldGenerator } from '../utils/WorldGenerator';
 import { DQNAgent } from '../utils/DQNAgent';
+import { ControlManager } from '../utils/ControlManager';
 
 export default class GameScene extends Phaser.Scene {
     private player!: Phaser.Physics.Arcade.Sprite;
     private worldGenerator!: WorldGenerator;
     private dqnAgent!: DQNAgent;
+    private controls!: ControlManager;
     
     create() {
         // 1. Setup Physics World
@@ -377,6 +408,7 @@ export default class GameScene extends Phaser.Scene {
         this.player.setCollideWorldBounds(false); // Infinite world
         
         // 3. Initialize Systems
+        this.controls = new ControlManager(this);
         this.worldGenerator = new WorldGenerator(this, this.platforms, ...);
         this.dqnAgent = new DQNAgent(this);
         
@@ -392,7 +424,9 @@ export default class GameScene extends Phaser.Scene {
             const action = this.dqnAgent.selectAction(state);
             this.applyAction(action);
         } else {
-            this.handleHumanInput();
+            // Use ControlManager for unified Gamepad/Keyboard input
+            const input = this.controls.getInput();
+            this.handlePlayerMovement(input);
         }
         
         // 2. Infinite Generation
@@ -406,7 +440,7 @@ export default class GameScene extends Phaser.Scene {
 }
 ```
 
-### 3.4 AI Integration (`frontend/src/utils/DQNAgent.ts`)
+### 3.5 AI Integration (`frontend/src/utils/DQNAgent.ts`)
 We implement a Deep Q-Network using TensorFlow.js to learn how to play.
 
 ```typescript
@@ -439,20 +473,45 @@ export class DQNAgent {
 }
 ```
 
-### 3.5 Integrate React UI (`frontend/src/App.tsx`)
-Overlay React components on top of the Phaser canvas.
+### 3.6 React UI Overlay (`frontend/src/App.tsx`)
+React sits "on top" of the Phaser canvas, providing complex UI elements like the HUD, menus, and training dashboards.
 
 ```tsx
-import { useState } from 'react';
-import PhaserGame from './PhaserGame'; // Wrapper component
+import { useState, useEffect } from 'react';
+import Phaser from 'phaser';
+import GameScene from './scenes/GameScene';
+import MenuScene from './scenes/MenuScene';
+import DQNTrainingScene from './scenes/DQNTrainingScene';
 
 function App() {
+  const [game, setGame] = useState<Phaser.Game | null>(null);
   const [score, setScore] = useState(0);
 
+  useEffect(() => {
+    // Initialize Phaser Game
+    const config = {
+      type: Phaser.AUTO,
+      parent: 'phaser-container',
+      scene: [MenuScene, GameScene, DQNTrainingScene],
+      physics: {
+        default: 'arcade',
+        arcade: { gravity: { y: 1000 } }
+      }
+    };
+    const newGame = new Phaser.Game(config);
+    setGame(newGame);
+    
+    return () => newGame.destroy(true);
+  }, []);
+
   return (
-    <div className="game-container">
-      <div className="hud">Score: {score}</div>
-      <PhaserGame onScoreChange={setScore} />
+    <div className="app-container">
+      <div id="phaser-container" />
+      {/* React UI Overlay */}
+      <div className="hud-overlay">
+        <div className="score">Score: {score}</div>
+        {/* Other React Components */}
+      </div>
     </div>
   );
 }
