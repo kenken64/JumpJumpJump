@@ -1,24 +1,30 @@
 # PRP: Machine Learning AI Implementation
 
 ## Problem Statement
-The game needs an AI player that can learn from human gameplay patterns and adapt to different playstyles, rather than relying solely on rule-based decision making.
+The game needs an AI player that can learn from human gameplay patterns and adapt to different playstyles, using both behavioral cloning and reinforcement learning approaches.
 
 ## Requirements
 - Record player gameplay actions and game state
-- Train a neural network on recorded gameplay data
-- Enable ML AI to control the player character
-- Support toggle between manual, rule-based AI, and ML AI control
-- Persist trained models and training data in browser storage
+- Train neural networks on recorded gameplay data (behavioral cloning)
+- Train AI using Deep Q-Learning (reinforcement learning)
+- Enable AI to control the player character
+- Support toggle between manual, rule-based AI, ML AI, and DQN AI control
+- Persist trained models in browser storage (IndexedDB)
 - Provide training UI with progress feedback
-- Detect and navigate vertical platforming (platforms above player)
+- Handle boss encounters on levels 5, 10, 15, etc.
+- Retain recording state across level transitions
 
 ## Proposed Solution
 
-### Architecture
-1. **GameplayRecorder**: Captures game state (17 features) + player actions (4 outputs) at 10 FPS
-2. **MLAIPlayer**: TensorFlow.js neural network with behavioral cloning
-3. **Training UI**: Menu scene integration with progress bar
-4. **Model Persistence**: localStorage for model and training data
+### Architecture Overview
+Two AI approaches are implemented:
+
+1. **MLAIPlayer (Behavioral Cloning)**: Learns by imitating recorded player gameplay
+2. **DQNAgent (Reinforcement Learning)**: Learns through trial-and-error with rewards
+
+---
+
+## Part 1: Behavioral Cloning (MLAIPlayer)
 
 ### Neural Network Design
 - **Input Layer**: 17 features
@@ -30,103 +36,237 @@ The game needs an AI player that can learn from human gameplay patterns and adap
 - **Output Layer**: 4 actions (moveLeft, moveRight, jump, shoot) with sigmoid activation
 - **Training**: 100 epochs, batch size 16, Adam optimizer (lr=0.001), binary cross-entropy loss
 
-### Key Features
-1. **Recording System** (R key)
-   - Captures state + action pairs every 100ms
-   - Stores up to 10,000 frames in localStorage
-   - Shows live frame counter during recording
-   - Frame count updates every ~0.5 seconds
+### Key Controls
+- **R key**: Toggle recording (stores in localStorage)
+- **O key**: Toggle ML AI control
 
-2. **ML AI Control** (O key)
-   - Async decision making (non-blocking)
-   - Competitive threshold logic for movement (pick higher: left vs right)
-   - Thresholds: movement 0.05, jump 0.1, shoot 0.15
-   - Fallback behavior (move right) when predictions are near-zero
-   - Disables keyboard/mouse/gamepad when active
+---
 
-3. **Training Interface**
-   - Progress bar showing epochs (1-100)
-   - Model metadata display (epochs, timestamp, frame count)
-   - Validation: requires 100+ frames before training
-   - Auto-filter incompatible training data (15-feature vs 17-feature)
+## Part 2: Deep Q-Network (DQNAgent) - NEW
 
-4. **Platform Detection**
-   - Detects platforms above player within 300px vertical, 200px horizontal
-   - Helps AI learn to jump up to ledges
-   - Critical for vertical navigation
+### DQN Architecture
+- **State Space**: 14 dimensions
+  - `playerX`, `playerY`: Normalized player position
+  - `velocityX`, `velocityY`: Player velocity
+  - `onGround`: Boolean (grounded state)
+  - `nearestPlatformX`, `nearestPlatformY`: Distance to nearest platform
+  - `nearestEnemyX`, `nearestEnemyY`: Distance to nearest enemy
+  - `nearestSpikeX`: Distance to nearest spike
+  - `bossActive`: Boolean (boss encounter active)
+  - `bossDistance`: Distance to boss
+  - `bossHealth`: Boss health percentage
 
-### Model Compatibility
-- **Feature Validation**: Auto-detect and skip old 15-feature frames
-- **Model Validation**: Check input shape (15 vs 17) and auto-clear incompatible models
-- **Clear Instructions**: Guide users to retrain when features change
+- **Action Space**: 9 discrete actions
+  - 0: Idle
+  - 1: Move Left
+  - 2: Move Right
+  - 3: Jump
+  - 4: Move Left + Jump
+  - 5: Move Right + Jump
+  - 6: Shoot
+  - 7: Move Right + Shoot
+  - 8: Move Right + Jump + Shoot
 
-## Implementation Details
+- **Network Architecture**:
+  - Input: 14 neurons
+  - Hidden: 128 → 128 → 64 neurons (ReLU activation)
+  - Output: 9 neurons (Q-values for each action)
+  - Target network with soft updates (τ = 0.01)
 
-### Files Created/Modified
-1. **frontend/src/utils/GameplayRecorder.ts**
-   - Records 17 state features + 4 action outputs
-   - getCurrentFrameCount() for live updates
-   - checkPlatformAbove() for vertical navigation detection
+### DQN Hyperparameters
+```typescript
+learningRate: 0.0005
+gamma: 0.99  // Discount factor
+epsilon: 1.0 → 0.1  // Exploration rate decay
+epsilonDecay: 0.999  // More exploration maintained
+batchSize: 64
+replayBufferSize: 50000
+minReplaySize: 500
+targetUpdateFrequency: 100
+```
 
-2. **frontend/src/utils/MLAIPlayer.ts**
-   - Neural network: 17 → 128 → 64 → 32 → 4
-   - getDecision(): Async predictions with competitive thresholds
-   - train(): 100 epochs with progress callbacks
-   - getModelInfo(): Model metadata (trained, epochs, timestamp, frames)
-   - Auto-clear incompatible models (15 vs 17 features)
-   - Fallback behavior for zero predictions
+### Reward Shaping
+1. **Progress Rewards**:
+   - Forward progress: +0.1 per unit moved right
+   - Reaching new maximum X: +0.5 bonus
+   - Vertical climbing: +0.3 for upward movement
 
-3. **frontend/src/scenes/GameScene.ts**
-   - ML AI toggle (O key) with validation
-   - Recording toggle (R key) with live counter
-   - Async decision handling with mlAIDecision property
-   - Disable player input when ML AI active
-   - Lines 2218-2240: Recording logic
-   - Lines 2406-2435: ML AI decision handling
+2. **Survival Rewards**:
+   - Staying alive: +0.05 per frame
+   - Being on ground: +0.02
 
-4. **frontend/src/scenes/MenuScene.ts**
-   - showMLTraining(): Training UI with progress bar
-   - Model status display: "Model: Trained (100 epochs, date)"
-   - Frame count and model info
-   - Train/Clear buttons
+3. **Combat Rewards**:
+   - Killing enemies: +5.0 per kill
+   - Shooting at enemies (when boss active): +0.8
 
-### Dependencies
-- **@tensorflow/tfjs**: ^4.22.0 (added to package.json)
-- Browser localStorage for persistence
-- CSP allows 'unsafe-eval' for TensorFlow.js
+4. **Boss Engagement** (Levels 5, 10, 15...):
+   - Approaching boss: +0.5 proximity bonus
+   - Attempting portal while boss alive: -2.0 penalty
+   - Portal blocked until boss defeated
+
+5. **Stuck Detection & Penalties**:
+   - Ultra-aggressive detection (5-frame threshold for retreat)
+   - Retreat behavior: Move left and attempt double jump
+   - Force random exploration after 90 frames stuck
+   - Progressive penalties: -0.1 to -0.8 based on stuck duration
+
+### Imitation Learning (Human Demonstrations)
+The DQN can learn from recorded human gameplay:
+
+1. **Recording** (T key):
+   - Toggle recording on/off
+   - Samples every 3rd frame to reduce data
+   - Compresses state data to avoid localStorage quota
+   - Recording persists across level transitions
+
+2. **Data Compression**:
+   - Short property names (`playerX` → `px`)
+   - Rounded floats (2 decimal places)
+   - Booleans as 0/1
+   - Maximum 5000 frames stored
+
+3. **Importing** (I key):
+   - Decompresses saved demonstrations
+   - Adds to replay buffer with +0.5 reward boost
+   - Trains immediately on imported data
+
+### DQN Training Controls
+| Key | Action |
+|-----|--------|
+| **A** | Toggle DQN AI control (in-game) |
+| **T** | Toggle recording player gameplay |
+| **I** | Import recorded demonstrations |
+| **SPACE** | Pause/Resume training |
+| **R** | Reset current episode |
+| **S** | Save model to IndexedDB |
+| **L** | Load saved model |
+| **1-5** | Set game speed (1x-5x) |
+| **ESC** | Exit to menu |
+
+### DQN Training Scene
+Dedicated training scene (`DQNTrainingScene`) provides:
+- Live game preview during training
+- Episode/step counters
+- Reward history chart
+- Epsilon (exploration rate) display
+- Model save/load status
+
+---
+
+## Implementation Files
+
+### DQN Files
+1. **frontend/src/utils/DQNAgent.ts** (~530 lines)
+   - DQNState interface (14 dimensions)
+   - Neural network construction (policy + target)
+   - Experience replay buffer
+   - Reward calculation with stuck detection
+   - Imitation learning methods
+   - Model persistence (IndexedDB)
+
+2. **frontend/src/scenes/DQNTrainingScene.ts** (~360 lines)
+   - Training UI overlay
+   - Episode management
+   - Reward visualization
+
+3. **frontend/src/scenes/GameScene.ts** (DQN integration)
+   - `extractDQNState()`: Builds 14-dimension state
+   - `handleDQNKeyboardControls()`: Training controls
+   - `handleDQNRecordingKey()`: T/I key handlers
+   - `recordPlayerFrame()`: Captures demonstrations
+   - `importDemonstrationsToDQN()`: Loads saved data
+   - Boss detection and portal blocking
+
+### ML AI Files (Existing)
+1. **frontend/src/utils/GameplayRecorder.ts**: Records 17-feature states
+2. **frontend/src/utils/MLAIPlayer.ts**: Behavioral cloning network
+
+---
+
+## Game Flow Integration
+
+### Level Transition Data
+When transitioning to next level, the following state is preserved:
+```typescript
+{
+  gameMode: 'levels',
+  level: currentLevel + 1,
+  lives: playerLives,      // Retained across levels
+  score: score,            // Accumulated score
+  isRecording: isRecordingForDQN,  // Recording continues
+  mode: 'coop',            // If co-op mode
+  dqnTraining: true        // If DQN training mode
+}
+```
+
+### Boss Encounters (Levels 5, 10, 15...)
+- Boss spawns at end of level
+- Portal blocked until boss defeated
+- DQN receives engagement rewards for fighting
+- DQN penalized for approaching portal while boss active
+
+---
 
 ## Testing & Validation
-1. **Recording**: Press R, play naturally, see frame counter increase
-2. **Training**: Main menu → ML Training → Train Model (100 epochs)
-3. **ML AI**: Press O in-game, AI should move/jump/shoot based on training
-4. **Model Persistence**: Refresh browser, model should still be loaded
-5. **Feature Compatibility**: Old 15-feature data auto-filtered during training
+
+### DQN Training
+1. Start game → Press A for DQN mode
+2. Press SPACE to start training
+3. Watch AI learn (epsilon decreases over time)
+4. Press S to save model
+5. Refresh → Press L to load
+
+### Imitation Learning
+1. Play game normally
+2. Press T to start recording
+3. Complete 1-3 levels while recording
+4. Press T to stop recording
+5. Press I to import into DQN
+6. AI trains on your demonstrations
+
+### Boss Engagement
+1. Train DQN to level 5
+2. Verify DQN fights boss instead of fleeing
+3. Verify portal is blocked until boss dies
+
+---
 
 ## Known Issues & Solutions
-1. **Model outputs all zeros**: Need more diverse training data (300-500 frames recommended)
-2. **AI stuck at walls**: Added platform detection (platformAbove features)
-3. **Feature mismatch errors**: Auto-detect and filter/clear incompatible data
-4. **Frozen lockfile errors**: Removed --frozen-lockfile from Dockerfile for Railway
 
-## Future Improvements
-- Increase training data diversity (more levels, situations)
-- Add reinforcement learning for reward-based training
-- Hyperparameter tuning (learning rate, epochs, batch size)
-- Model architecture experimentation (deeper networks, RNNs)
-- Multi-model support (different playstyles)
-- Online training (train while playing)
+1. **Model State Mismatch**: Old 11-dimension models incompatible with new 14-dimension state
+   - Solution: Auto-detect and delete incompatible models
+
+2. **localStorage Quota**: Recording too many frames exceeds 5MB limit
+   - Solution: Compress data, limit to 5000 frames, sample every 3rd frame
+
+3. **Text Rendering Errors**: Recording status text destroyed during scene transition
+   - Solution: Null checks and try-catch around setText calls
+
+4. **Agent Gets Stuck**: AI repeats same action indefinitely
+   - Solution: Ultra-aggressive stuck detection with retreat behavior
+
+---
 
 ## Performance Metrics
-- **Training Time**: ~5-10 seconds for 100 epochs with 200-300 frames
-- **Inference Time**: <5ms per decision (async, non-blocking)
-- **Storage**: ~50KB for model + training data in localStorage
-- **Frame Rate**: 10 FPS recording (every 100ms) to avoid excessive data
 
-## Deployment
-- Railway build fixed: removed --frozen-lockfile, added PORT env var support
-- TensorFlow.js loaded via Vite (no CDN required)
-- Model persists in browser localStorage (survives page refresh)
-- Works with CSP: 'unsafe-eval' enabled for TF.js
+- **DQN Training**: ~10ms per step (with game running)
+- **Inference Time**: <5ms per decision
+- **Model Size**: ~200KB in IndexedDB
+- **Recording Storage**: ~50KB per 1000 compressed frames
+
+---
 
 ## Status
-✅ **Completed** - ML AI fully functional with platform detection, fallback behavior, and compatibility checks
+✅ **Completed**:
+- MLAIPlayer behavioral cloning (17 features)
+- DQNAgent reinforcement learning (14 dimensions, 9 actions)
+- Imitation learning from human demonstrations
+- Boss engagement system
+- Recording persistence across levels
+- Ultra-aggressive stuck detection
+
+🔄 **Future Improvements**:
+- Prioritized experience replay
+- Dueling DQN architecture
+- Multi-agent training
+- Curriculum learning (easy → hard levels)

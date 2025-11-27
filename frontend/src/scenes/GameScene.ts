@@ -184,6 +184,12 @@ export default class GameScene extends Phaser.Scene {
     } else {
       this.initScore = undefined
     }
+
+    // Carry over recording state from previous level
+    if (data && data.isRecording) {
+      this.isRecordingForDQN = true
+      console.log('🎥 Resuming recording from previous level')
+    }
   }
 
   preload() {
@@ -1010,6 +1016,14 @@ export default class GameScene extends Phaser.Scene {
 
     // Create debug UI (hidden by default)
     this.createDebugUI()
+
+    // Resume recording if it was active in previous level
+    if (this.isRecordingForDQN) {
+      this.time.delayedCall(500, () => {
+        this.showRecordingStatus()
+        console.log('🎥 Recording resumed from previous level')
+      })
+    }
 
     // Show tutorial tips after a delay
     this.time.delayedCall(2000, () => {
@@ -3201,7 +3215,8 @@ export default class GameScene extends Phaser.Scene {
         gameMode: 'levels', 
         level: this.currentLevel + 1,
         lives: this.playerLives,
-        score: this.score
+        score: this.score,
+        isRecording: this.isRecordingForDQN
       }
       if (this.isCoopMode) {
         nextLevelData.mode = 'coop'
@@ -3330,7 +3345,8 @@ export default class GameScene extends Phaser.Scene {
         gameMode: 'levels', 
         level: this.currentLevel + 1,
         lives: this.playerLives,
-        score: this.score
+        score: this.score,
+        isRecording: this.isRecordingForDQN
       }
       if (this.isCoopMode) {
         nextLevelData.mode = 'coop'
@@ -3367,7 +3383,8 @@ export default class GameScene extends Phaser.Scene {
               level: this.currentLevel + 1, 
               mode: 'coop',
               lives: this.playerLives,
-              score: this.score
+              score: this.score,
+              isRecording: this.isRecordingForDQN
             }
             if (this.dqnTraining) {
               nextLevelData.dqnTraining = true

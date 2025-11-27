@@ -131,6 +131,20 @@ See `frontend/RAILWAY.md` for detailed deployment guide.
   - UI Pack Space Expansion
   - Planets Pack
 
+## 📚 Project Documentation (PRPs)
+
+Detailed technical documentation is available in both English and Chinese:
+
+| Topic | English | 中文 |
+|-------|---------|------|
+| ML AI Implementation | [ML-AI-Implementation.md](PRPs/ML-AI-Implementation.md) | [ML-AI-Implementation_cn.md](PRPs/ML-AI-Implementation_cn.md) |
+| Core Game Mechanics | [Core-Game-Mechanics-World-Generation.md](PRPs/Core-Game-Mechanics-World-Generation.md) | [Core-Game-Mechanics-World-Generation_cn.md](PRPs/Core-Game-Mechanics-World-Generation_cn.md) |
+| Boss Gallery System | [Boss-Gallery-System.md](PRPs/Boss-Gallery-System.md) | [Boss-Gallery-System_cn.md](PRPs/Boss-Gallery-System_cn.md) |
+| Player Movement & Combat | [Player-Movement-Combat-System.md](PRPs/Player-Movement-Combat-System.md) | [Player-Movement-Combat-System_cn.md](PRPs/Player-Movement-Combat-System_cn.md) |
+| Gamepad Controls | [Gamepad-Controls-Enhancement.md](PRPs/Gamepad-Controls-Enhancement.md) | [Gamepad-Controls-Enhancement_cn.md](PRPs/Gamepad-Controls-Enhancement_cn.md) |
+| Railway Deployment | [Railway-Deployment-Infrastructure.md](PRPs/Railway-Deployment-Infrastructure.md) | [Railway-Deployment-Infrastructure_cn.md](PRPs/Railway-Deployment-Infrastructure_cn.md) |
+| Local Co-op | [Local-Coop-Implementation.md](PRPs/Local-Coop-Implementation.md) | [Local-Coop-Implementation_cn.md](PRPs/Local-Coop-Implementation_cn.md) |
+
 ## 🎮 Game Controls
 
 | Action | Keys |
