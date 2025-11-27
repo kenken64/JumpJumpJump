@@ -75,7 +75,14 @@ export default class DQNTrainingScene extends Phaser.Scene {
 
     private setupControls() {
         const kb = this.input.keyboard
-        if (!kb) return
+        if (!kb) {
+            console.warn('Keyboard not available')
+            return
+        }
+
+        // ESC to go back to menu - add as key object for reliable detection
+        const escKey = kb.addKey(Phaser.Input.Keyboard.KeyCodes.ESC)
+        escKey.on('down', () => this.backToMenu())
 
         kb.on('keydown-SPACE', () => {
             this.isTraining ? this.pauseTraining() : this.startTraining()
@@ -99,7 +106,7 @@ export default class DQNTrainingScene extends Phaser.Scene {
             this.autoRestart = !this.autoRestart
             this.showNotification(`Auto-restart: ${this.autoRestart ? 'ON' : 'OFF'}`)
         })
-        kb.on('keydown-ESC', () => this.backToMenu())
+        // Note: ESC key is handled above with addKey for reliable detection
     }
 
     private startGameScene() {
@@ -240,7 +247,10 @@ export default class DQNTrainingScene extends Phaser.Scene {
                 onGround: body.touching.down,
                 nearestPlatformDistance, nearestPlatformHeight,
                 nearestEnemyDistance, nearestSpikeDistance,
-                hasGroundAhead, gapAhead
+                hasGroundAhead, gapAhead,
+                bossActive: false,  // DQNTrainingScene doesn't have bosses
+                bossDistance: 1000,
+                bossHealth: 100
             }
         } catch {
             return null

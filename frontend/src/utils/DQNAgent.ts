@@ -447,4 +447,84 @@ export class DQNAgent {
             this.isDisposed = true
         }
     }
+
+    /**
+     * Convert player action to action index for learning from demonstrations
+     */
+    public playerActionToIndex(action: { moveLeft: boolean, moveRight: boolean, jump: boolean, shoot: boolean }): number {
+        // Map player actions to DQN action indices
+        if (action.moveRight && action.jump && action.shoot) return 8  // Right + jump + shoot
+        if (action.moveLeft && action.shoot) return 7   // Left + shoot
+        if (action.moveRight && action.shoot) return 6  // Right + shoot
+        if (action.shoot) return 5                       // Shoot only
+        if (action.moveRight && action.jump) return 4   // Right + jump
+        if (action.jump) return 3                        // Jump
+        if (action.moveRight) return 2                   // Right
+        if (action.moveLeft) return 1                    // Left
+        return 0                                         // Idle
+    }
+
+    /**
+     * Add a demonstration from player gameplay to the replay buffer
+     * This allows the DQN to learn from human expert actions
+     */
+    public addDemonstration(
+        state: DQNState, 
+        playerAction: { moveLeft: boolean, moveRight: boolean, jump: boolean, shoot: boolean },
+        reward: number,
+        nextState: DQNState,
+        done: boolean
+    ): void {
+        const actionIndex = this.playerActionToIndex(playerAction)
+        // Add with higher reward to prioritize learning from demonstrations
+        const boostedReward = reward + 0.5  // Boost demonstration rewards
+        this.remember(state, actionIndex, boostedReward, nextState, done)
+        console.log(`📚 Added demonstration: action=${actionIndex}, reward=${boostedReward.toFixed(2)}`)
+    }
+
+    /**
+     * Import demonstrations from recorded gameplay data
+     * @param recordings Array of recorded gameplay frames
+     */
+    public async importDemonstrations(recordings: Array<{
+        state: DQNState,
+        action: { moveLeft: boolean, moveRight: boolean, jump: boolean, shoot: boolean },
+        nextState: DQNState,
+        reward: number,
+        done: boolean
+    }>): Promise<number> {
+        let importedCount = 0
+        
+        for (const recording of recordings) {
+            this.addDemonstration(
+                recording.state,
+                recording.action,
+                recording.reward,
+                recording.nextState,
+                recording.done
+            )
+            importedCount++
+        }
+        
+        console.log(`📦 Imported ${importedCount} demonstrations into replay buffer`)
+        console.log(`📊 Buffer size: ${this.replayBuffer.length}`)
+        
+        // Optionally train on demonstrations immediately
+        if (this.replayBuffer.length >= this.minBufferSize) {
+            console.log('🎓 Training on demonstrations...')
+            for (let i = 0; i < 10; i++) {  // Do 10 training batches
+                await this.train()
+            }
+            console.log('✅ Demonstration training complete')
+        }
+        
+        return importedCount
+    }
+
+    /**
+     * Get current replay buffer size
+     */
+    public getBufferSize(): number {
+        return this.replayBuffer.length
+    }
 }

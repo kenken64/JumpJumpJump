@@ -130,6 +130,24 @@ export default class GameScene extends Phaser.Scene {
   private dqnStatsText?: Phaser.GameObjects.Text
   private dqnStatusText?: Phaser.GameObjects.Text
   private dqnShooting: boolean = false
+  
+  // Carry over data from previous level
+  private initLives?: number
+  private initScore?: number
+
+  // Player Recording for DQN Learning
+  private isRecordingForDQN: boolean = false
+  private recordedDemonstrations: Array<{
+    state: DQNState,
+    action: { moveLeft: boolean, moveRight: boolean, jump: boolean, shoot: boolean },
+    nextState: DQNState,
+    reward: number,
+    done: boolean
+  }> = []
+  private lastRecordedState?: DQNState
+  private lastRecordedAction?: { moveLeft: boolean, moveRight: boolean, jump: boolean, shoot: boolean }
+  private recordingStatusText?: Phaser.GameObjects.Text
+  private recordingFrameCount: number = 0
 
   constructor() {
     super('GameScene')
@@ -151,6 +169,20 @@ export default class GameScene extends Phaser.Scene {
       this.currentLevel = data.level || 1
       console.log('🤖 DQN Training mode enabled!')
       // Agent will be initialized after scene is ready
+    }
+
+    // Carry over lives and score from previous level
+    if (data && typeof data.lives === 'number') {
+      this.initLives = data.lives
+      console.log(`❤️ Carrying over ${data.lives} lives from previous level`)
+    } else {
+      this.initLives = undefined
+    }
+    if (data && typeof data.score === 'number') {
+      this.initScore = data.score
+      console.log(`⭐ Carrying over score ${data.score} from previous level`)
+    } else {
+      this.initScore = undefined
     }
   }
 
@@ -317,7 +349,10 @@ export default class GameScene extends Phaser.Scene {
     // Reset all state variables
     this.playerIsDead = false
     this.playerHealth = 100
-    this.playerLives = 3
+    // Use carried over lives from previous level, or default to 3
+    this.playerLives = this.initLives !== undefined ? this.initLives : 3
+    // Use carried over score from previous level, or start at 0
+    this.score = this.initScore !== undefined ? this.initScore : 0
     this.debugMode = false  // Always reset debug mode on scene start/restart
     this.levelCompleteShown = false // Reset level complete flag
 
@@ -1891,6 +1926,230 @@ export default class GameScene extends Phaser.Scene {
     }
   }
 
+  /**
+   * Handle T key for recording player gameplay to teach DQN
+   */
+  private handleDQNRecordingKey() {
+    if (!this.input.keyboard) return
+    
+    const tKey = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.T)
+    const iKey = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.I)
+    
+    // T - Toggle recording
+    if (Phaser.Input.Keyboard.JustDown(tKey)) {
+      this.isRecordingForDQN = !this.isRecordingForDQN
+      
+      if (this.isRecordingForDQN) {
+        console.log('🎥 Started recording gameplay for DQN learning...')
+        this.recordedDemonstrations = []
+        this.lastRecordedState = undefined
+        this.lastRecordedAction = undefined
+        this.showRecordingStatus()
+      } else {
+        console.log(`🎥 Stopped recording. Collected ${this.recordedDemonstrations.length} demonstrations.`)
+        this.hideRecordingStatus()
+        
+        // Save demonstrations - limit to last 5000 frames to avoid quota issues
+        if (this.recordedDemonstrations.length > 0) {
+          const maxDemos = 5000
+          const demosToSave = this.recordedDemonstrations.slice(-maxDemos)
+          
+          // Compress data by rounding floats to 2 decimal places
+          const compressedDemos = demosToSave.map(d => ({
+            s: this.compressState(d.state),
+            a: d.action,
+            ns: this.compressState(d.nextState),
+            r: Math.round(d.reward * 100) / 100,
+            d: d.done ? 1 : 0
+          }))
+          
+          try {
+            localStorage.setItem('dqn-demonstrations', JSON.stringify(compressedDemos))
+            console.log(`💾 Saved ${demosToSave.length} demonstrations to localStorage`)
+            this.showTip('recording_saved', `✅ Saved ${demosToSave.length} demonstrations! Press I to import into DQN.`)
+          } catch (e) {
+            console.warn('localStorage quota exceeded, importing directly to DQN...')
+            // Direct import instead of saving
+            this.importDemonstrationsToDQN()
+          }
+        }
+      }
+    }
+    
+    // I - Import recorded demonstrations into DQN
+    if (Phaser.Input.Keyboard.JustDown(iKey)) {
+      this.importDemonstrationsToDQN()
+    }
+    
+    // Record current frame if recording is active (sample every 3rd frame to reduce data)
+    if (this.isRecordingForDQN && !this.playerIsDead) {
+      this.recordingFrameCount++
+      if (this.recordingFrameCount % 3 === 0) {
+        this.recordPlayerFrame()
+      }
+    }
+  }
+
+  // Compress state to reduce storage size
+  private compressState(state: any) {
+    return {
+      px: Math.round(state.playerX),
+      py: Math.round(state.playerY),
+      vx: Math.round(state.velocityX * 10) / 10,
+      vy: Math.round(state.velocityY * 10) / 10,
+      og: state.onGround ? 1 : 0,
+      np: Math.round(state.nearestPlatformX),
+      npy: Math.round(state.nearestPlatformY),
+      ne: Math.round(state.nearestEnemyX),
+      ney: Math.round(state.nearestEnemyY),
+      ns: Math.round(state.nearestSpikeX),
+      ba: state.bossActive ? 1 : 0,
+      bd: Math.round(state.bossDistance),
+      bh: Math.round(state.bossHealth)
+    }
+  }
+
+  // Decompress state back to full format
+  private decompressState(s: any) {
+    return {
+      playerX: s.px,
+      playerY: s.py,
+      velocityX: s.vx,
+      velocityY: s.vy,
+      onGround: s.og === 1,
+      nearestPlatformX: s.np,
+      nearestPlatformY: s.npy,
+      nearestEnemyX: s.ne,
+      nearestEnemyY: s.ney,
+      nearestSpikeX: s.ns,
+      bossActive: s.ba === 1,
+      bossDistance: s.bd,
+      bossHealth: s.bh
+    }
+  }
+
+  private showRecordingStatus() {
+    try {
+      // Destroy old text if it exists but is not active
+      if (this.recordingStatusText && !this.recordingStatusText.active) {
+        this.recordingStatusText = undefined
+      }
+      
+      if (!this.recordingStatusText) {
+        this.recordingStatusText = this.add.text(640, 50, '🔴 RECORDING - Press T to stop', {
+          fontSize: '24px',
+          color: '#ff0000',
+          fontStyle: 'bold',
+          stroke: '#000000',
+          strokeThickness: 4,
+          backgroundColor: '#000000aa',
+          padding: { x: 10, y: 5 }
+        })
+        this.recordingStatusText.setOrigin(0.5)
+        this.recordingStatusText.setScrollFactor(0)
+        this.recordingStatusText.setDepth(2000)
+      }
+      this.recordingStatusText.setVisible(true)
+    } catch (e) {
+      console.warn('Could not show recording status:', e)
+    }
+  }
+
+  private hideRecordingStatus() {
+    try {
+      if (this.recordingStatusText && this.recordingStatusText.active) {
+        this.recordingStatusText.setVisible(false)
+      }
+    } catch (e) {
+      // Ignore errors when hiding
+    }
+  }
+
+  private recordPlayerFrame() {
+    // Capture current state
+    const currentState = this.extractDQNState()
+    
+    // Capture player's current action
+    const currentAction = {
+      moveLeft: this.cursors.left.isDown || this.wasd.a.isDown,
+      moveRight: this.cursors.right.isDown || this.wasd.d.isDown,
+      jump: Phaser.Input.Keyboard.JustDown(this.cursors.up) || Phaser.Input.Keyboard.JustDown(this.wasd.w),
+      shoot: this.input.activePointer.isDown
+    }
+    
+    // If we have a previous state, create a demonstration
+    if (this.lastRecordedState && this.lastRecordedAction) {
+      // Simple reward: progress-based
+      const progress = currentState.playerX - this.lastRecordedState.playerX
+      let reward = progress / 100  // Reward forward progress
+      reward += 0.01  // Small survival bonus
+      if (currentState.onGround) reward += 0.02
+      
+      this.recordedDemonstrations.push({
+        state: this.lastRecordedState,
+        action: this.lastRecordedAction,
+        nextState: currentState,
+        reward: reward,
+        done: this.playerIsDead
+      })
+      
+      // Update recording status text
+      if (this.recordingStatusText && this.recordingStatusText.active && this.recordedDemonstrations.length % 50 === 0) {
+        try {
+          this.recordingStatusText.setText(`🔴 RECORDING: ${this.recordedDemonstrations.length} frames - Press T to stop`)
+        } catch (e) {
+          // Text object may be destroyed, ignore
+        }
+      }
+    }
+    
+    // Store current as last for next frame
+    this.lastRecordedState = currentState
+    this.lastRecordedAction = currentAction
+  }
+
+  private async importDemonstrationsToDQN() {
+    // Initialize DQN agent if not exists
+    if (!this.dqnAgent) {
+      console.log('🤖 Creating DQN agent for importing demonstrations...')
+      this.dqnAgent = new DQNAgent(this)
+    }
+    
+    // Try to load from localStorage
+    const savedData = localStorage.getItem('dqn-demonstrations')
+    if (!savedData) {
+      console.log('❌ No saved demonstrations found. Press T to record gameplay first.')
+      this.showTip('no_demos', '❌ No saved demonstrations! Press T to record your gameplay first.')
+      return
+    }
+    
+    try {
+      const compressedDemos = JSON.parse(savedData)
+      console.log(`📦 Found ${compressedDemos.length} saved demonstrations`)
+      
+      // Decompress demonstrations back to full format
+      const demonstrations = compressedDemos.map((d: any) => ({
+        state: this.decompressState(d.s),
+        action: d.a,
+        nextState: this.decompressState(d.ns),
+        reward: d.r,
+        done: d.d === 1
+      }))
+      
+      const importedCount = await this.dqnAgent.importDemonstrations(demonstrations)
+      
+      this.showTip('demos_imported', `✅ Imported ${importedCount} demonstrations! DQN is learning from your gameplay.`)
+      
+      // Optionally save the model
+      await this.dqnAgent.saveModel()
+      console.log('💾 Model saved after learning from demonstrations')
+      
+    } catch (error) {
+      console.error('❌ Error importing demonstrations:', error)
+      this.showTip('import_error', '❌ Error importing demonstrations. Check console for details.')
+    }
+  }
+
   private collectCoin(_player: Phaser.Physics.Arcade.Sprite, coin: Phaser.Physics.Arcade.Sprite) {
     // Remove coin
     coin.destroy()
@@ -2938,7 +3197,12 @@ export default class GameScene extends Phaser.Scene {
 
     // Wait for animation then transition
     this.time.delayedCall(600, () => {
-      const nextLevelData: any = { gameMode: 'levels', level: this.currentLevel + 1 }
+      const nextLevelData: any = { 
+        gameMode: 'levels', 
+        level: this.currentLevel + 1,
+        lives: this.playerLives,
+        score: this.score
+      }
       if (this.isCoopMode) {
         nextLevelData.mode = 'coop'
       }
@@ -3062,7 +3326,12 @@ export default class GameScene extends Phaser.Scene {
     // Input handlers
     this.input.keyboard!.once('keydown-SPACE', () => {
       this.tweens.killAll()
-      const nextLevelData: any = { gameMode: 'levels', level: this.currentLevel + 1 }
+      const nextLevelData: any = { 
+        gameMode: 'levels', 
+        level: this.currentLevel + 1,
+        lives: this.playerLives,
+        score: this.score
+      }
       if (this.isCoopMode) {
         nextLevelData.mode = 'coop'
       }
@@ -3093,7 +3362,13 @@ export default class GameScene extends Phaser.Scene {
         for (const gamepad of gamepads) {
           if (gamepad.A) {
             this.tweens.killAll()
-            const nextLevelData: any = { gameMode: 'levels', level: this.currentLevel + 1, mode: 'coop' }
+            const nextLevelData: any = { 
+              gameMode: 'levels', 
+              level: this.currentLevel + 1, 
+              mode: 'coop',
+              lives: this.playerLives,
+              score: this.score
+            }
             if (this.dqnTraining) {
               nextLevelData.dqnTraining = true
             }
@@ -3147,7 +3422,8 @@ export default class GameScene extends Phaser.Scene {
       this.handlePlayer2Movement()
     }
 
-    // Recording removed - use DQN AI Training from menu instead
+    // T key - Toggle recording player gameplay for DQN learning
+    this.handleDQNRecordingKey()
 
     // Update shield sprite position if active
     if (this.hasShield && this.shieldSprite) {
