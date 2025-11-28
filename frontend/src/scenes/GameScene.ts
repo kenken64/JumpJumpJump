@@ -243,13 +243,13 @@ export default class GameScene extends Phaser.Scene {
     this.load.image('slimeBlue_walk', '/assets/kenney_platformer-art-extended-enemies/Enemy sprites/slimeBlue_walk.png')
     this.load.image('slimeBlue_dead', '/assets/kenney_platformer-art-extended-enemies/Enemy sprites/slimeBlue_dead.png')
 
-    // Large enemies (worms)
-    this.load.image('wormGreen', '/assets/kenney_platformer-art-extended-enemies/Enemy sprites/wormGreen.png')
-    this.load.image('wormGreen_walk', '/assets/kenney_platformer-art-extended-enemies/Enemy sprites/wormGreen_walk.png')
-    this.load.image('wormGreen_dead', '/assets/kenney_platformer-art-extended-enemies/Enemy sprites/wormGreen_dead.png')
-    this.load.image('wormPink', '/assets/kenney_platformer-art-extended-enemies/Enemy sprites/wormPink.png')
-    this.load.image('wormPink_walk', '/assets/kenney_platformer-art-extended-enemies/Enemy sprites/wormPink_walk.png')
-    this.load.image('wormPink_dead', '/assets/kenney_platformer-art-extended-enemies/Enemy sprites/wormPink_dead.png')
+    // Large enemies (worms) - using base worm sprites with tint for variants
+    this.load.image('wormGreen', '/assets/kenney_platformer-art-extended-enemies/Enemy sprites/worm.png')
+    this.load.image('wormGreen_walk', '/assets/kenney_platformer-art-extended-enemies/Enemy sprites/worm_walk.png')
+    this.load.image('wormGreen_dead', '/assets/kenney_platformer-art-extended-enemies/Enemy sprites/worm_dead.png')
+    this.load.image('wormPink', '/assets/kenney_platformer-art-extended-enemies/Enemy sprites/worm.png')
+    this.load.image('wormPink_walk', '/assets/kenney_platformer-art-extended-enemies/Enemy sprites/worm_walk.png')
+    this.load.image('wormPink_dead', '/assets/kenney_platformer-art-extended-enemies/Enemy sprites/worm_dead.png')
 
     // Load platform beams
     this.load.image('beam', '/assets/kenney_platformer-art-requests/Tiles/beam.png')
@@ -288,12 +288,12 @@ export default class GameScene extends Phaser.Scene {
     // Load particle (using laser burst for particles)
     this.load.image('particle', '/assets/kenney_platformer-art-requests/Tiles/laserYellowBurst.png')
 
-    // Load spikes
-    this.load.image('spikes', '/assets/kenney_platformer-art-requests/Tiles/spikes.png')
+    // Load spikes (using stone cave spikes)
+    this.load.image('spikes', '/assets/kenney_platformer-art-requests/Tiles/stoneCaveSpikeTop.png')
 
-    // Load portal sprite
-    this.load.image('portal', '/assets/kenney_sci-fi-rts/PNG/Default size/Structure/barricadeLarge.png')
-    this.load.image('homeIcon', '/assets/kenney_ui-pack-space-expansion/PNG/Blue/Default/button_home.png')
+    // Load portal sprite (using sci-fi structure)
+    this.load.image('portal', '/assets/kenney_sci-fi-rts/PNG/Default size/Structure/scifiStructure_01.png')
+    this.load.image('homeIcon', '/assets/kenney_ui-pack-space-expansion/PNG/Blue/Default/bar_square_gloss_small.png')
 
     // Load planet backgrounds
     this.load.image('planet00', '/assets/kenny_planets/Planets/planet00.png')
@@ -309,10 +309,10 @@ export default class GameScene extends Phaser.Scene {
       this.load.image(bossKey, `/assets/bosses_individual/boss_${i.toString().padStart(2, '0')}.png`)
     }
 
-    // Load power-up sprites
-    this.load.image('powerSpeed', '/assets/kenney_platformer-art-requests/Tiles/powerupYellow.png')
-    this.load.image('powerShield', '/assets/kenney_platformer-art-requests/Tiles/powerupBlue.png')
-    this.load.image('powerLife', '/assets/kenney_platformer-art-requests/Tiles/powerupGreen.png')
+    // Load power-up sprites (using laser bursts and shields as alternatives)
+    this.load.image('powerSpeed', '/assets/kenney_platformer-art-requests/Tiles/laserYellowBurst.png')
+    this.load.image('powerShield', '/assets/kenney_platformer-art-requests/Tiles/shieldBronze.png')
+    this.load.image('powerLife', '/assets/kenney_platformer-art-requests/Tiles/laserGreenBurst.png')
     this.load.image('powerHealth', '/assets/pico-8/Transparent/Tiles/tile_0066.png')
 
     // Load game music
