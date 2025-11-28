@@ -240,7 +240,7 @@ export default class GameScene extends Phaser.Scene {
     this.load.image('slimeGreen_walk', '/assets/kenney_platformer-art-extended-enemies/Enemy sprites/slimeGreen_walk.png')
     this.load.image('slimeGreen_dead', '/assets/kenney_platformer-art-extended-enemies/Enemy sprites/slimeGreen_dead.png')
     this.load.image('slimeBlue', '/assets/kenney_platformer-art-extended-enemies/Enemy sprites/slimeBlue.png')
-    this.load.image('slimeBlue_walk', '/assets/kenney_platformer-art-extended-enemies/Enemy sprites/slimeBlue_walk.png')
+    this.load.image('slimeBlue_walk', '/assets/kenney_platformer-art-extended-enemies/Enemy sprites/slimeBlue.png')
     this.load.image('slimeBlue_dead', '/assets/kenney_platformer-art-extended-enemies/Enemy sprites/slimeBlue_dead.png')
 
     // Large enemies (worms) - using base worm sprites with tint for variants
