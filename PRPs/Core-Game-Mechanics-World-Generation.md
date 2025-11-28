@@ -184,11 +184,39 @@ getDifficultyMultiplier(distance) {
 - Difficulty caps to prevent impossibility
 
 ## Boss Integration
-- **Frequency**: Every 5 levels (every ~4000px)
-- **Spawn**: Replace regular enemies with boss
+- **Frequency**: Every 5 levels (levels 5, 10, 15, 20...)
+- **Spawn**: Replace regular enemies with boss at level end
 - **Platform**: Generate large flat platform for boss fight
 - **Difficulty**: Boss health scales with level
 - **Reward**: Bonus coins/points on defeat
+- **Portal Blocking**: Level end portal blocked until boss defeated
+
+## Level Transition System
+When transitioning to next level, game state is preserved:
+
+```typescript
+nextLevelData = {
+  gameMode: 'levels',
+  level: currentLevel + 1,
+  lives: playerLives,        // ✅ Retained across levels
+  score: score,              // ✅ Accumulated score continues
+  isRecording: isRecordingForDQN,  // ✅ DQN recording persists
+  mode: 'coop',              // If co-op mode active
+  dqnTraining: true          // If DQN training mode active
+}
+```
+
+### Preserved State:
+- **Lives**: Player lives carry over (no reset to 3)
+- **Score**: Cumulative score across all levels
+- **Recording**: DQN recording continues seamlessly
+- **Game Mode**: Co-op and training modes persist
+
+### Reset State:
+- **Level Layout**: Fresh procedural generation
+- **Enemies**: New enemy spawns
+- **Coins**: New coin placement
+- **Player Position**: Reset to level start
 
 ## Future Improvements
 - Biome system (different visual themes every 10 levels)
@@ -201,4 +229,4 @@ getDifficultyMultiplier(distance) {
 - Dynamic music that changes with difficulty
 
 ## Status
-✅ **Completed** - Infinite world generation with difficulty scaling, memory management, and diverse obstacles
+✅ **Completed** - Infinite world generation with difficulty scaling, memory management, boss encounters, and level transition state preservation

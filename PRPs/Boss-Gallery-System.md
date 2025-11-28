@@ -137,6 +137,45 @@ Response: Array of all 22 boss objects
 ]
 ```
 
+## DQN AI Boss Engagement
+The DQN AI agent has special behaviors for boss encounters:
+
+### Boss Detection
+- DQN state includes: `bossActive`, `bossDistance`, `bossHealth`
+- Boss detected when level number is divisible by 5 (5, 10, 15...)
+- State extraction scans for active boss sprite
+
+### AI Behaviors During Boss Fights
+1. **Engagement Rewards**: 
+   - +0.8 reward for shooting when boss active
+   - +0.5 proximity bonus for approaching boss
+   - Encourages aggressive combat stance
+
+2. **Portal Blocking**:
+   - Level completion blocked while boss alive
+   - -2.0 penalty for approaching portal with boss active
+   - Forces AI to defeat boss before progressing
+
+3. **Combat Priority**:
+   - AI prioritizes shooting over movement during boss fights
+   - Rewards stack with kill rewards when boss defeated
+
+### Implementation
+```typescript
+// In extractDQNState()
+if (this.bossActive && this.boss) {
+  state.bossActive = true
+  state.bossDistance = Math.abs(this.player.x - this.boss.x) / 1000
+  state.bossHealth = this.bossHealth / 100
+}
+
+// In checkLevelComplete()
+if (this.bossActive && this.boss && this.boss.active) {
+  console.log('🚫 Cannot complete level - Boss still active!')
+  return  // Block portal
+}
+```
+
 ## Future Improvements
 - Boss lore/descriptions
 - Boss attack patterns documentation
@@ -147,4 +186,4 @@ Response: Array of all 22 boss objects
 - Boss artwork/animations in gallery
 
 ## Status
-✅ **Completed** - All 22 bosses displayed across 3 pages with defeat tracking
+✅ **Completed** - All 22 bosses displayed across 3 pages with defeat tracking and DQN AI engagement system
