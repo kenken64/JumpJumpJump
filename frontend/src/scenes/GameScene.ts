@@ -309,8 +309,8 @@ export default class GameScene extends Phaser.Scene {
       this.load.image(bossKey, `/assets/bosses_individual/boss_${i.toString().padStart(2, '0')}.png`)
     }
 
-    // Load power-up sprites (using laser bursts and shields as alternatives)
-    this.load.image('powerSpeed', '/assets/kenney_platformer-art-requests/Tiles/laserYellowBurst.png')
+    // Load power-up sprites (using pico-8 tiles and shields as alternatives)
+    this.load.image('powerSpeed', '/assets/pico-8/Transparent/Tiles/tile_0016.png')
     this.load.image('powerShield', '/assets/kenney_platformer-art-requests/Tiles/shieldBronze.png')
     this.load.image('powerLife', '/assets/kenney_platformer-art-requests/Tiles/laserGreenBurst.png')
     this.load.image('powerHealth', '/assets/pico-8/Transparent/Tiles/tile_0066.png')
