@@ -311,7 +311,7 @@ export default class GameScene extends Phaser.Scene {
 
     // Load power-up sprites (using pico-8 tiles and shields as alternatives)
     this.load.image('powerSpeed', '/assets/pico-8/Transparent/Tiles/tile_0016.png')
-    this.load.image('powerShield', '/assets/kenney_platformer-art-requests/Tiles/shieldBronze.png')
+    this.load.image('powerShield', '/assets/pico-8/Transparent/Tiles/tile_0029.png')
     this.load.image('powerLife', '/assets/kenney_platformer-art-requests/Tiles/laserGreenBurst.png')
     this.load.image('powerHealth', '/assets/pico-8/Transparent/Tiles/tile_0066.png')
 
