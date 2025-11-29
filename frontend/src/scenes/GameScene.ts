@@ -288,8 +288,8 @@ export default class GameScene extends Phaser.Scene {
     // Load particle (using laser burst for particles)
     this.load.image('particle', '/assets/kenney_platformer-art-requests/Tiles/laserYellowBurst.png')
 
-    // Load spikes (using stone cave spikes)
-    this.load.image('spikes', '/assets/kenney_platformer-art-requests/Tiles/stoneCaveSpikeTop.png')
+    // Load spikes (using pico-8 volcano sprite)
+    this.load.image('spikes', '/assets/pico-8/Transparent/Tiles/tile_0000.png')
 
     // Load portal sprite (using sci-fi structure)
     this.load.image('portal', '/assets/kenney_sci-fi-rts/PNG/Default size/Structure/scifiStructure_01.png')
