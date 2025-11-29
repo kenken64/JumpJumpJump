@@ -288,8 +288,7 @@ export default class GameScene extends Phaser.Scene {
     // Load particle (using laser burst for particles)
     this.load.image('particle', '/assets/kenney_platformer-art-requests/Tiles/laserYellowBurst.png')
 
-    // Load spikes (using stone cave spikes)
-    this.load.image('spikes', '/assets/kenney_platformer-art-requests/Tiles/stoneCaveSpikeTop.png')
+    // Load spikes - removed, using procedural texture instead
 
     // Load portal sprite (using sci-fi structure)
     this.load.image('portal', '/assets/kenney_sci-fi-rts/PNG/Default size/Structure/scifiStructure_01.png')
@@ -309,11 +308,7 @@ export default class GameScene extends Phaser.Scene {
       this.load.image(bossKey, `/assets/bosses_individual/boss_${i.toString().padStart(2, '0')}.png`)
     }
 
-    // Load power-up sprites (using laser bursts and shields as alternatives)
-    this.load.image('powerSpeed', '/assets/kenney_platformer-art-requests/Tiles/laserYellowBurst.png')
-    this.load.image('powerShield', '/assets/kenney_platformer-art-requests/Tiles/shieldBronze.png')
-    this.load.image('powerLife', '/assets/kenney_platformer-art-requests/Tiles/laserGreenBurst.png')
-    this.load.image('powerHealth', '/assets/pico-8/Transparent/Tiles/tile_0066.png')
+    // Load power-up sprites - removed, using procedural textures instead
 
     // Load game music
     this.load.audio('gameMusic', '/assets/music/game.wav')
@@ -5630,80 +5625,103 @@ export default class GameScene extends Phaser.Scene {
   }
 
   private createProceduralTextures() {
-    // Create Speed Power-up (Yellow Lightning Bolt)
-    const speedGraphics = this.make.graphics({ x: 0, y: 0 })
-    speedGraphics.fillStyle(0xffff00, 1)
-    speedGraphics.fillCircle(32, 32, 28)
-    speedGraphics.fillStyle(0xffaa00, 1)
-    speedGraphics.fillCircle(32, 32, 22)
-    // Lightning bolt shape
-    speedGraphics.fillStyle(0xffffff, 1)
-    speedGraphics.beginPath()
-    speedGraphics.moveTo(32, 12)
-    speedGraphics.lineTo(28, 32)
-    speedGraphics.lineTo(36, 32)
-    speedGraphics.lineTo(32, 52)
-    speedGraphics.lineTo(36, 32)
-    speedGraphics.lineTo(28, 32)
-    speedGraphics.closePath()
-    speedGraphics.fillPath()
-    speedGraphics.generateTexture('powerSpeed', 64, 64)
-    speedGraphics.destroy()
+    // Create Speed Power-up (Yellow Lightning Bolt) - only if not already loaded
+    if (!this.textures.exists('powerSpeed')) {
+      const speedGraphics = this.make.graphics({ x: 0, y: 0 })
+      speedGraphics.fillStyle(0xffff00, 1)
+      speedGraphics.fillCircle(32, 32, 28)
+      speedGraphics.fillStyle(0xffaa00, 1)
+      speedGraphics.fillCircle(32, 32, 22)
+      // Lightning bolt shape
+      speedGraphics.fillStyle(0xffffff, 1)
+      speedGraphics.beginPath()
+      speedGraphics.moveTo(32, 12)
+      speedGraphics.lineTo(28, 32)
+      speedGraphics.lineTo(36, 32)
+      speedGraphics.lineTo(32, 52)
+      speedGraphics.lineTo(36, 32)
+      speedGraphics.lineTo(28, 32)
+      speedGraphics.closePath()
+      speedGraphics.fillPath()
+      speedGraphics.generateTexture('powerSpeed', 64, 64)
+      speedGraphics.destroy()
+    }
 
-    // Create Shield Power-up (Blue Shield)
-    const shieldGraphics = this.make.graphics({ x: 0, y: 0 })
-    shieldGraphics.fillStyle(0x00aaff, 1)
-    shieldGraphics.fillCircle(32, 32, 28)
-    shieldGraphics.fillStyle(0x0088dd, 1)
-    shieldGraphics.fillCircle(32, 32, 22)
-    // Shield emblem
-    shieldGraphics.lineStyle(4, 0xffffff, 1)
-    shieldGraphics.strokeCircle(32, 32, 14)
-    shieldGraphics.beginPath()
-    shieldGraphics.moveTo(32, 20)
-    shieldGraphics.lineTo(32, 44)
-    shieldGraphics.moveTo(20, 32)
-    shieldGraphics.lineTo(44, 32)
-    shieldGraphics.strokePath()
-    shieldGraphics.generateTexture('powerShield', 64, 64)
-    shieldGraphics.destroy()
+    // Create Shield Power-up (Blue Shield) - only if not already loaded
+    if (!this.textures.exists('powerShield')) {
+      const shieldGraphics = this.make.graphics({ x: 0, y: 0 })
+      shieldGraphics.fillStyle(0x00aaff, 1)
+      shieldGraphics.fillCircle(32, 32, 28)
+      shieldGraphics.fillStyle(0x0088dd, 1)
+      shieldGraphics.fillCircle(32, 32, 22)
+      // Shield emblem
+      shieldGraphics.lineStyle(4, 0xffffff, 1)
+      shieldGraphics.strokeCircle(32, 32, 14)
+      shieldGraphics.beginPath()
+      shieldGraphics.moveTo(32, 20)
+      shieldGraphics.lineTo(32, 44)
+      shieldGraphics.moveTo(20, 32)
+      shieldGraphics.lineTo(44, 32)
+      shieldGraphics.strokePath()
+      shieldGraphics.generateTexture('powerShield', 64, 64)
+      shieldGraphics.destroy()
+    }
 
-    // Create Life Power-up (Green Heart)
-    const lifeGraphics = this.make.graphics({ x: 0, y: 0 })
-    lifeGraphics.fillStyle(0x00ff00, 1)
-    lifeGraphics.fillCircle(32, 32, 28)
-    lifeGraphics.fillStyle(0x00cc00, 1)
-    lifeGraphics.fillCircle(32, 32, 22)
-    // Heart shape using circles
-    lifeGraphics.fillStyle(0xff0066, 1)
-    lifeGraphics.fillCircle(26, 26, 6)
-    lifeGraphics.fillCircle(38, 26, 6)
-    lifeGraphics.beginPath()
-    lifeGraphics.moveTo(20, 28)
-    lifeGraphics.lineTo(32, 42)
-    lifeGraphics.lineTo(44, 28)
-    lifeGraphics.lineTo(38, 22)
-    lifeGraphics.lineTo(32, 22)
-    lifeGraphics.lineTo(26, 22)
-    lifeGraphics.lineTo(20, 28)
-    lifeGraphics.closePath()
-    lifeGraphics.fillPath()
-    lifeGraphics.generateTexture('powerLife', 64, 64)
-    lifeGraphics.destroy()
+    // Create Life Power-up (Green Heart) - only if not already loaded
+    if (!this.textures.exists('powerLife')) {
+      const lifeGraphics = this.make.graphics({ x: 0, y: 0 })
+      lifeGraphics.fillStyle(0x00ff00, 1)
+      lifeGraphics.fillCircle(32, 32, 28)
+      lifeGraphics.fillStyle(0x00cc00, 1)
+      lifeGraphics.fillCircle(32, 32, 22)
+      // Heart shape using circles
+      lifeGraphics.fillStyle(0xff0066, 1)
+      lifeGraphics.fillCircle(26, 26, 6)
+      lifeGraphics.fillCircle(38, 26, 6)
+      lifeGraphics.beginPath()
+      lifeGraphics.moveTo(20, 28)
+      lifeGraphics.lineTo(32, 42)
+      lifeGraphics.lineTo(44, 28)
+      lifeGraphics.lineTo(38, 22)
+      lifeGraphics.lineTo(32, 22)
+      lifeGraphics.lineTo(26, 22)
+      lifeGraphics.lineTo(20, 28)
+      lifeGraphics.closePath()
+      lifeGraphics.fillPath()
+      lifeGraphics.generateTexture('powerLife', 64, 64)
+      lifeGraphics.destroy()
+    }
 
-    // Create Coin (Gold Circle with shine)
-    const coinGraphics = this.make.graphics({ x: 0, y: 0 })
-    coinGraphics.fillStyle(0xffd700, 1)
-    coinGraphics.fillCircle(32, 32, 24)
-    coinGraphics.fillStyle(0xffaa00, 1)
-    coinGraphics.fillCircle(32, 32, 20)
-    coinGraphics.fillStyle(0xffd700, 1)
-    coinGraphics.fillCircle(32, 32, 16)
-    // Shine effect
-    coinGraphics.fillStyle(0xffff00, 0.8)
-    coinGraphics.fillCircle(26, 26, 6)
-    coinGraphics.generateTexture('coin', 64, 64)
-    coinGraphics.destroy()
+    // Create Health Power-up (Red Heart/Potion) - only if not already loaded
+    if (!this.textures.exists('powerHealth')) {
+      const healthGraphics = this.make.graphics({ x: 0, y: 0 })
+      healthGraphics.fillStyle(0xff4444, 1)
+      healthGraphics.fillCircle(32, 32, 28)
+      healthGraphics.fillStyle(0xcc2222, 1)
+      healthGraphics.fillCircle(32, 32, 22)
+      // Cross/plus symbol for health
+      healthGraphics.fillStyle(0xffffff, 1)
+      healthGraphics.fillRect(26, 18, 12, 28) // Vertical bar
+      healthGraphics.fillRect(18, 26, 28, 12) // Horizontal bar
+      healthGraphics.generateTexture('powerHealth', 64, 64)
+      healthGraphics.destroy()
+    }
+
+    // Create Coin (Gold Circle with shine) - only if not already loaded
+    if (!this.textures.exists('coin')) {
+      const coinGraphics = this.make.graphics({ x: 0, y: 0 })
+      coinGraphics.fillStyle(0xffd700, 1)
+      coinGraphics.fillCircle(32, 32, 24)
+      coinGraphics.fillStyle(0xffaa00, 1)
+      coinGraphics.fillCircle(32, 32, 20)
+      coinGraphics.fillStyle(0xffd700, 1)
+      coinGraphics.fillCircle(32, 32, 16)
+      // Shine effect
+      coinGraphics.fillStyle(0xffff00, 0.8)
+      coinGraphics.fillCircle(26, 26, 6)
+      coinGraphics.generateTexture('coin', 64, 64)
+      coinGraphics.destroy()
+    }
 
     // Create Particle (Small star burst)
     const particleGraphics = this.make.graphics({ x: 0, y: 0 })
@@ -5834,30 +5852,32 @@ export default class GameScene extends Phaser.Scene {
     swordGraphics.generateTexture('sword', 30, 36)
     swordGraphics.destroy()
 
-    // Create Spikes (Red triangular spikes)
-    const spikesGraphics = this.make.graphics({ x: 0, y: 0 })
-    spikesGraphics.fillStyle(0xff0000, 1)
-    for (let i = 0; i < 4; i++) {
-      const x = i * 18
-      spikesGraphics.beginPath()
-      spikesGraphics.moveTo(x, 32)
-      spikesGraphics.lineTo(x + 9, 0)
-      spikesGraphics.lineTo(x + 18, 32)
-      spikesGraphics.closePath()
-      spikesGraphics.fillPath()
+    // Create Spikes (Red triangular spikes) - only if not already loaded
+    if (!this.textures.exists('spikes')) {
+      const spikesGraphics = this.make.graphics({ x: 0, y: 0 })
+      spikesGraphics.fillStyle(0xff0000, 1)
+      for (let i = 0; i < 4; i++) {
+        const x = i * 18
+        spikesGraphics.beginPath()
+        spikesGraphics.moveTo(x, 32)
+        spikesGraphics.lineTo(x + 9, 0)
+        spikesGraphics.lineTo(x + 18, 32)
+        spikesGraphics.closePath()
+        spikesGraphics.fillPath()
+      }
+      spikesGraphics.fillStyle(0xcc0000, 1)
+      for (let i = 0; i < 4; i++) {
+        const x = i * 18
+        spikesGraphics.beginPath()
+        spikesGraphics.moveTo(x + 4, 32)
+        spikesGraphics.lineTo(x + 9, 8)
+        spikesGraphics.lineTo(x + 14, 32)
+        spikesGraphics.closePath()
+        spikesGraphics.fillPath()
+      }
+      spikesGraphics.generateTexture('spikes', 72, 32)
+      spikesGraphics.destroy()
     }
-    spikesGraphics.fillStyle(0xcc0000, 1)
-    for (let i = 0; i < 4; i++) {
-      const x = i * 18
-      spikesGraphics.beginPath()
-      spikesGraphics.moveTo(x + 4, 32)
-      spikesGraphics.lineTo(x + 9, 8)
-      spikesGraphics.lineTo(x + 14, 32)
-      spikesGraphics.closePath()
-      spikesGraphics.fillPath()
-    }
-    spikesGraphics.generateTexture('spikes', 72, 32)
-    spikesGraphics.destroy()
 
     // Generate enemy textures
     this.generateEnemyTextures()
