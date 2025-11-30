@@ -33,6 +33,8 @@ import { ControlManager } from '../utils/ControlManager'
 import { AIPlayer } from '../utils/AIPlayer'
 import { MLAIPlayer } from '../utils/MLAIPlayer'
 import { DQNAgent, DQNState, DQNAction } from '../utils/DQNAgent'
+import { OnlinePlayerManager } from '../utils/OnlinePlayerManager'
+import { OnlineCoopService, NetworkGameState } from '../services/OnlineCoopService'
 
 /**
  * Main gameplay scene containing all game logic
@@ -144,6 +146,15 @@ export default class GameScene extends Phaser.Scene {
   private gun2!: Phaser.GameObjects.Image
   private bullets2!: Phaser.Physics.Arcade.Group
 
+  // Online multiplayer
+  private isOnlineMode: boolean = false
+  private onlinePlayerManager?: OnlinePlayerManager
+  private onlineGameState?: NetworkGameState
+  private onlinePlayerId?: string
+  private onlinePlayerNumber?: number
+  private onlineSeed?: number
+  private onlineRngState: number = 0
+
   // DQN Training
   private dqnTraining: boolean = false
   private dqnAgent?: DQNAgent
@@ -164,6 +175,11 @@ export default class GameScene extends Phaser.Scene {
   // Carry over data from previous level
   private initLives?: number
   private initScore?: number
+
+  // In-game chat (online mode)
+  private chatInputActive: boolean = false
+  private chatInputElement: HTMLInputElement | null = null
+  private chatContainer: HTMLDivElement | null = null
 
   // Player Recording for DQN Learning
   private isRecordingForDQN: boolean = false
@@ -187,9 +203,18 @@ export default class GameScene extends Phaser.Scene {
     // Check if launching in co-op mode
     if (data && data.mode === 'coop') {
       this.isCoopMode = true
+      this.isOnlineMode = false
       console.log('🎮 Co-op mode enabled!')
+    } else if (data && data.mode === 'online_coop') {
+      this.isOnlineMode = true
+      this.isCoopMode = false
+      this.onlineGameState = data.gameState
+      this.onlinePlayerNumber = data.playerNumber
+      this.onlinePlayerId = data.playerId
+      console.log('🌐 Online Co-op mode enabled! Player', this.onlinePlayerNumber)
     } else {
       this.isCoopMode = false
+      this.isOnlineMode = false
     }
 
     // Check if launching in DQN training mode
@@ -220,6 +245,25 @@ export default class GameScene extends Phaser.Scene {
       this.isRecordingForDQN = true
       console.log('🎥 Resuming recording from previous level')
     }
+  }
+
+  /**
+   * Seeded random number generator for online mode (mulberry32 algorithm)
+   * Returns a number between 0 and 1, deterministic based on seed
+   */
+  private onlineSeededRandom(): number {
+    this.onlineRngState += 0x6D2B79F5
+    let t = this.onlineRngState
+    t = Math.imul(t ^ (t >>> 15), t | 1)
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61)
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296
+  }
+
+  /**
+   * Seeded random integer between min and max (inclusive) for online mode
+   */
+  private onlineSeededBetween(min: number, max: number): number {
+    return Math.floor(this.onlineSeededRandom() * (max - min + 1)) + min
   }
 
   preload() {
@@ -396,8 +440,17 @@ export default class GameScene extends Phaser.Scene {
     const equippedSkin = localStorage.getItem('equippedSkin')
     this.equippedWeapon = equippedWeapon || 'raygun'
 
-    // Override skin in co-op mode
-    if (this.isCoopMode) {
+    // Override skin based on game mode
+    if (this.isOnlineMode && this.onlineGameState && this.onlinePlayerId) {
+      // In online mode, use the skin assigned by the server
+      const playerState = this.onlineGameState.players[this.onlinePlayerId]
+      if (playerState) {
+        this.equippedSkin = playerState.skin
+        console.log('🎨 Online mode - using server-assigned skin:', this.equippedSkin)
+      } else {
+        this.equippedSkin = 'alienGreen'
+      }
+    } else if (this.isCoopMode) {
       this.equippedSkin = 'alienGreen' // Player 1 uses green alien in co-op
     } else {
       this.equippedSkin = equippedSkin || 'alienBeige'
@@ -505,8 +558,43 @@ export default class GameScene extends Phaser.Scene {
     this.platforms = this.physics.add.staticGroup()
     this.spikes = this.physics.add.staticGroup()
 
-    // Initialize WorldGenerator
-    this.worldGenerator = new WorldGenerator(this, this.platforms, this.spikes, this.spikePositions)
+    // Initialize WorldGenerator with seed from online game state (if online mode)
+    const worldSeed = this.isOnlineMode && this.onlineGameState ? this.onlineGameState.seed : undefined
+    
+    // === SEED VERIFICATION LOGGING ===
+    if (this.isOnlineMode && this.onlineGameState) {
+      console.log('═══════════════════════════════════════════════════════════')
+      console.log('🌍 ONLINE GAME SEED VERIFICATION')
+      console.log('═══════════════════════════════════════════════════════════')
+      console.log('🎯 Player Number:', this.onlinePlayerNumber)
+      console.log('🌱 Server Seed:', this.onlineGameState.seed)
+      console.log('🔢 Seed (hex):', this.onlineGameState.seed.toString(16))
+      console.log('═══════════════════════════════════════════════════════════')
+    }
+    
+    console.log('🌐 GameScene - Online mode:', this.isOnlineMode, 'World seed:', worldSeed)
+    this.worldGenerator = new WorldGenerator(this, this.platforms, this.spikes, this.spikePositions, worldSeed)
+    
+    // Initialize seeded random for online mode (for enemy spawning)
+    if (this.isOnlineMode && this.onlineGameState) {
+      this.onlineSeed = this.onlineGameState.seed
+      this.onlineRngState = this.onlineSeed + 1000000 // Offset to get different sequence from world gen
+      console.log('🎲 Online enemy seed initialized:', this.onlineSeed, 'RNG state:', this.onlineRngState)
+      
+      // Log first few random values to verify sync
+      const testState = this.onlineRngState
+      console.log('📊 RNG Verification - first 5 values:')
+      for (let i = 0; i < 5; i++) {
+        this.onlineRngState += 0x6D2B79F5
+        let t = this.onlineRngState
+        t = Math.imul(t ^ (t >>> 15), t | 1)
+        t ^= t + Math.imul(t ^ (t >>> 7), t | 61)
+        const val = ((t ^ (t >>> 14)) >>> 0) / 4294967296
+        console.log(`  Value ${i+1}: ${val.toFixed(6)}`)
+      }
+      // Reset to correct state
+      this.onlineRngState = testState
+    }
 
     console.log('Generating world...')
     this.worldGenerationX = this.worldGenerator.generateWorld()
@@ -739,6 +827,28 @@ export default class GameScene extends Phaser.Scene {
       console.log('\ud83c\udfae Player 2 created at:', this.player2.x, this.player2.y)
     }
 
+    // Initialize Online multiplayer mode
+    if (this.isOnlineMode && this.onlineGameState) {
+      console.log('🌐 Initializing Online Co-op mode...')
+      
+      // Create online player manager
+      this.onlinePlayerManager = new OnlinePlayerManager(this, this.platforms)
+      this.onlinePlayerManager.initializePlayers(this.onlineGameState, this.bullets)
+      
+      // Get local player sprite for standard game mechanics
+      const localSprite = this.onlinePlayerManager.getLocalSprite()
+      if (localSprite) {
+        // Replace default player with online local player
+        this.player.destroy()
+        this.player = localSprite
+        
+        // Setup collisions for local player
+        this.physics.add.collider(this.player, this.platforms)
+      }
+      
+      console.log('🌐 Online players initialized, local player number:', this.onlinePlayerNumber)
+    }
+
     // Create enemy animations - Flies
     this.anims.create({
       key: 'fly_idle',
@@ -824,11 +934,11 @@ export default class GameScene extends Phaser.Scene {
     // Create enemies
     this.enemies = this.physics.add.group()
 
-    // Spawn enemies randomly across the world
+    // Spawn enemies randomly across the world (use seeded random for online mode)
     const numEnemies = 15
     for (let i = 0; i < numEnemies; i++) {
-      const x = Phaser.Math.Between(300, 3000)
-      const y = Phaser.Math.Between(200, 900)
+      const x = this.isOnlineMode ? this.onlineSeededBetween(300, 3000) : Phaser.Math.Between(300, 3000)
+      const y = this.isOnlineMode ? this.onlineSeededBetween(200, 900) : Phaser.Math.Between(200, 900)
 
       this.spawnRandomEnemy(x, y, 1.0)
     }
@@ -1027,6 +1137,14 @@ export default class GameScene extends Phaser.Scene {
         this.toggleDebugMode()
       }
     })
+    
+    // T key to open chat (online mode only)
+    if (this.isOnlineMode) {
+      const chatKey = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.T)
+      chatKey.on('down', () => {
+        this.openInGameChat()
+      })
+    }
 
     // Camera follows player (or both players in co-op)
     if (this.isCoopMode) {
@@ -1437,11 +1555,13 @@ export default class GameScene extends Phaser.Scene {
       { x: 1100, y: 350 }
     ]
 
-    coinPositions.forEach(pos => {
+    coinPositions.forEach((pos, index) => {
       const coin = this.coins.create(pos.x, pos.y, 'coin')
       coin.setScale(0.5)
       coin.setBounce(0.3)
       coin.setCollideWorldBounds(true)
+      // Add unique ID for online sync
+      coin.setData('coinId', `coin_init_${index}_${pos.x}_${pos.y}`)
 
       // Add floating animation
       this.tweens.add({
@@ -2183,6 +2303,14 @@ export default class GameScene extends Phaser.Scene {
   }
 
   private collectCoin(_player: Phaser.Physics.Arcade.Sprite, coin: Phaser.Physics.Arcade.Sprite) {
+    // Get coin ID for online sync
+    const coinId = coin.getData('coinId') || `coin_${coin.x}_${coin.y}`
+    
+    // Report collection to online service (if online mode)
+    if (this.isOnlineMode && this.onlinePlayerManager) {
+      this.onlinePlayerManager.reportItemCollected('coin', coinId)
+    }
+    
     // Remove coin
     coin.destroy()
 
@@ -2246,10 +2374,19 @@ export default class GameScene extends Phaser.Scene {
     const powerUpTypes = ['powerSpeed', 'powerShield', 'powerLife', 'powerHealth', 'powerHealth']
     const numPowerUps = 10
 
+    // Reset RNG for power-ups in online mode for deterministic spawning
+    if (this.isOnlineMode && this.onlineGameState) {
+      this.onlineRngState = this.onlineGameState.seed * 11 + 99999
+      console.log('🎁 Power-up RNG initialized, seed state:', this.onlineRngState)
+    }
+
     for (let i = 0; i < numPowerUps; i++) {
-      const x = Phaser.Math.Between(1000, 8000)
+      const x = this.isOnlineMode ? this.onlineSeededBetween(1000, 8000) : Phaser.Math.Between(1000, 8000)
       const y = 500
-      const type = Phaser.Math.RND.pick(powerUpTypes)
+      const typeIndex = this.isOnlineMode 
+        ? this.onlineSeededBetween(0, powerUpTypes.length - 1)
+        : Math.floor(Math.random() * powerUpTypes.length)
+      const type = powerUpTypes[typeIndex]
 
       const powerUp = this.powerUps.create(x, y, type)
       powerUp.setScale(0.6)
@@ -2469,17 +2606,26 @@ export default class GameScene extends Phaser.Scene {
 
   private dropCoins(x: number, y: number, count: number) {
     // Drop coins at the enemy's position
+    // In online mode, use deterministic positions based on enemy position
     for (let i = 0; i < count; i++) {
       // Spawn coin with slight delay and spread
       this.time.delayedCall(i * 50, () => {
-        const offsetX = Phaser.Math.Between(-30, 30)
-        const offsetY = Phaser.Math.Between(-20, 0)
+        // Use deterministic offsets based on position for online sync
+        const offsetX = this.isOnlineMode 
+          ? ((Math.floor(x) * 7 + i * 13) % 61) - 30  // Deterministic: -30 to 30
+          : Phaser.Math.Between(-30, 30)
+        const offsetY = this.isOnlineMode
+          ? ((Math.floor(y) * 11 + i * 17) % 21) - 20  // Deterministic: -20 to 0
+          : Phaser.Math.Between(-20, 0)
         const coin = this.coins.create(x + offsetX, y + offsetY, 'coin')
         coin.setBounce(0.7)
-        coin.setVelocity(
-          Phaser.Math.Between(-100, 100),
-          Phaser.Math.Between(-200, -100)
-        )
+        const velX = this.isOnlineMode
+          ? ((Math.floor(x) * 3 + i * 19) % 201) - 100  // Deterministic: -100 to 100
+          : Phaser.Math.Between(-100, 100)
+        const velY = this.isOnlineMode
+          ? -200 + ((Math.floor(y) * 5 + i * 23) % 101)  // Deterministic: -200 to -100
+          : Phaser.Math.Between(-200, -100)
+        coin.setVelocity(velX, velY)
         coin.setScale(0.5)
         coin.setCollideWorldBounds(true)
         coin.body.setAllowGravity(true)
@@ -2499,99 +2645,164 @@ export default class GameScene extends Phaser.Scene {
 
 
   private spawnCoinsInArea(startX: number, endX: number) {
-    const numCoins = Phaser.Math.Between(2, 4)
-    for (let i = 0; i < numCoins; i++) {
-      let x = Phaser.Math.Between(startX + 100, endX - 100)
-      let y = Phaser.Math.Between(300, 600)  // Keep coins above ground platform at Y=650
-
-      // Check if coin would spawn on spikes, retry if so
-      let retries = 0
-      while (retries < 5 && this.isOnSpikes(x, y)) {
-        x = Phaser.Math.Between(startX + 100, endX - 100)
-        y = Phaser.Math.Between(300, 600)  // Keep coins above ground platform at Y=650
-        retries++
-      }
-
-      // Skip if still on spikes after retries
-      if (this.isOnSpikes(x, y)) continue
-
-      const coin = this.coins.create(x, y, 'coin')
-      coin.setScale(0.5)
-      coin.setBounce(0.3)
-      coin.setCollideWorldBounds(true)
-
-      // Add floating animation
-      this.tweens.add({
-        targets: coin,
-        y: y - 20,
-        duration: 1000,
-        yoyo: true,
-        repeat: -1,
-        ease: 'Sine.easeInOut'
-      })
-
-      // Add rotation animation
-      this.tweens.add({
-        targets: coin,
-        angle: 360,
-        duration: 3000,
-        repeat: -1,
-        ease: 'Linear'
-      })
+    // Reset RNG for this chunk to ensure deterministic coin spawning in online mode
+    // Use a unique formula to differentiate from enemy RNG
+    if (this.isOnlineMode && this.onlineGameState) {
+      const chunkIndex = Math.floor(startX / 800)
+      this.onlineRngState = this.onlineGameState.seed * 3 + chunkIndex * 54321
+      console.log(`🪙 Coin RNG reset for chunk ${chunkIndex}, seed state: ${this.onlineRngState}`)
     }
+    
+    const numCoins = this.isOnlineMode 
+      ? this.onlineSeededBetween(2, 4)
+      : Phaser.Math.Between(2, 4)
+    
+    if (this.isOnlineMode) {
+      console.log(`🪙 Spawning ${numCoins} coins in chunk ${Math.floor(startX / 800)}`)
+    }
+    
+    for (let i = 0; i < numCoins; i++) {
+      // In online mode, use purely seeded positions without isOnSpikes check
+      // This ensures both clients get exactly the same positions
+      const x = this.isOnlineMode 
+        ? this.onlineSeededBetween(startX + 100, endX - 100)
+        : Phaser.Math.Between(startX + 100, endX - 100)
+      let y = this.isOnlineMode 
+        ? this.onlineSeededBetween(300, 600)
+        : Phaser.Math.Between(300, 600)
+
+      // Only check spikes in offline mode - online mode needs deterministic positions
+      if (!this.isOnlineMode) {
+        let retries = 0
+        let currentX = x
+        let currentY = y
+        while (retries < 5 && this.isOnSpikes(currentX, currentY)) {
+          currentX = Phaser.Math.Between(startX + 100, endX - 100)
+          currentY = Phaser.Math.Between(300, 600)
+          retries++
+        }
+        if (this.isOnSpikes(currentX, currentY)) continue
+        // Use the retry-adjusted position
+        this.createCoinAt(currentX, currentY, startX, i)
+      } else {
+        // Online mode - use exact seeded position
+        if (this.isOnlineMode) {
+          console.log(`🪙 Coin ${i}: (${x}, ${y})`)
+        }
+        this.createCoinAt(x, y, startX, i)
+      }
+    }
+  }
+
+  private createCoinAt(x: number, y: number, chunkStartX: number, index: number) {
+    const coin = this.coins.create(x, y, 'coin')
+    coin.setScale(0.5)
+    coin.setBounce(0.3)
+    coin.setCollideWorldBounds(true)
+    // Use deterministic ID based on chunk and index, not position
+    coin.setData('coinId', `coin_chunk_${Math.floor(chunkStartX / 800)}_${index}`)
+
+    // Add floating animation
+    this.tweens.add({
+      targets: coin,
+      y: y - 20,
+      duration: 1000,
+      yoyo: true,
+      repeat: -1,
+      ease: 'Sine.easeInOut'
+    })
+
+    // Add rotation animation
+    this.tweens.add({
+      targets: coin,
+      angle: 360,
+      duration: 3000,
+      repeat: -1,
+      ease: 'Linear'
+    })
   }
 
   private spawnEnemiesInArea(startX: number, endX: number) {
     // Don't spawn enemies on the starting platform (first 500 pixels)
     if (startX < 500) return
 
-    // Scale difficulty based on level
+    const chunkIndex = Math.floor(startX / 800)
+    
+    // Reset RNG for this chunk to ensure deterministic enemy spawning in online mode
+    // Use a unique multiplier (12345) different from coins
+    if (this.isOnlineMode && this.onlineGameState) {
+      this.onlineRngState = this.onlineGameState.seed * 7 + chunkIndex * 12345
+      console.log(`👾 Enemy RNG reset for chunk ${chunkIndex}, seed state: ${this.onlineRngState}`)
+    }
+
+    // Scale difficulty based on level - use startX for consistent difficulty in online mode
     const difficultyMultiplier = this.gameMode === 'endless'
-      ? 1 + Math.floor(this.player.x / 5000) * 0.2
+      ? 1 + Math.floor(startX / 5000) * 0.2  // Use startX instead of player.x for consistency
       : 1 + (this.currentLevel - 1) * 0.3
 
     const baseEnemies = 2
     const maxEnemies = Math.min(5, baseEnemies + Math.floor(difficultyMultiplier))
-    const numEnemies = Phaser.Math.Between(baseEnemies, maxEnemies)
+    const numEnemies = this.isOnlineMode 
+      ? this.onlineSeededBetween(baseEnemies, maxEnemies)
+      : Phaser.Math.Between(baseEnemies, maxEnemies)
+
+    if (this.isOnlineMode) {
+      console.log(`👾 Spawning ${numEnemies} enemies in chunk ${chunkIndex}`)
+    }
 
     for (let i = 0; i < numEnemies; i++) {
-      const x = Phaser.Math.Between(startX + 100, endX - 100)
-      const y = Phaser.Math.Between(200, 900)
+      const x = this.isOnlineMode 
+        ? this.onlineSeededBetween(startX + 100, endX - 100)
+        : Phaser.Math.Between(startX + 100, endX - 100)
+      const y = this.isOnlineMode 
+        ? this.onlineSeededBetween(200, 900)
+        : Phaser.Math.Between(200, 900)
 
-      this.spawnRandomEnemy(x, y, difficultyMultiplier)
+      this.spawnRandomEnemy(x, y, difficultyMultiplier, chunkIndex, i)
     }
   }
 
-  private spawnRandomEnemy(x: number, y: number, difficultyMultiplier: number) {
-    // Randomly select enemy size with weighted probability
-    const rand = Math.random()
+  private spawnRandomEnemy(x: number, y: number, difficultyMultiplier: number, chunkIndex?: number, enemyIndex?: number) {
+    // Randomly select enemy size with weighted probability (use seeded random for online mode)
+    const rand = this.isOnlineMode ? this.onlineSeededRandom() : Math.random()
     let enemyType: string
     let enemySize: 'small' | 'medium' | 'large'
     let scale: number
     let baseHealth: number
     let coinReward: number
 
+    if (this.isOnlineMode) {
+      console.log(`👾 Enemy ${enemyIndex} at (${Math.floor(x)}, ${Math.floor(y)}), rand=${rand.toFixed(4)}`)
+    }
+
     if (rand < 0.4) {
       // Small enemies (40% chance) - flies or bees
-      enemyType = Math.random() < 0.5 ? 'fly' : 'bee'
+      const typeRand = this.isOnlineMode ? this.onlineSeededRandom() : Math.random()
+      enemyType = typeRand < 0.5 ? 'fly' : 'bee'
       enemySize = 'small'
       scale = 0.6
       baseHealth = 2
       coinReward = 5
     } else if (rand < 0.8) {
       // Medium enemies (40% chance) - slimes
-      enemyType = Math.random() < 0.5 ? 'slimeGreen' : 'slimeBlue'
+      const typeRand = this.isOnlineMode ? this.onlineSeededRandom() : Math.random()
+      enemyType = typeRand < 0.5 ? 'slimeGreen' : 'slimeBlue'
       enemySize = 'medium'
       scale = 1.0
       baseHealth = 4
       coinReward = 10
     } else {
       // Large enemies (20% chance) - worms
-      enemyType = Math.random() < 0.5 ? 'wormGreen' : 'wormPink'
+      const typeRand = this.isOnlineMode ? this.onlineSeededRandom() : Math.random()
+      enemyType = typeRand < 0.5 ? 'wormGreen' : 'wormPink'
       enemySize = 'large'
       scale = 1.3
       baseHealth = 8
       coinReward = 15
+    }
+
+    if (this.isOnlineMode) {
+      console.log(`👾 Enemy ${enemyIndex}: type=${enemyType}`)
     }
 
     const enemy = this.enemies.create(x, y, enemyType)
@@ -2605,13 +2816,20 @@ export default class GameScene extends Phaser.Scene {
     enemy.setData('coinReward', coinReward)
     enemy.setData('detectionRange', 300)
     enemy.setData('speed', 80 + (difficultyMultiplier - 1) * 20)
-    enemy.setData('wanderDirection', Phaser.Math.Between(-1, 1))
+    // Use seeded random for wander direction in online mode
+    const wanderDir = this.isOnlineMode ? this.onlineSeededBetween(-1, 1) : Phaser.Math.Between(-1, 1)
+    enemy.setData('wanderDirection', wanderDir)
     enemy.setData('wanderTimer', 0)
     enemy.setData('idleTimer', 0)
     enemy.setData('health', Math.floor(baseHealth * difficultyMultiplier))
     enemy.setData('maxHealth', Math.floor(baseHealth * difficultyMultiplier))
     enemy.setData('spawnX', x)
     enemy.setData('spawnY', y)
+    // Add unique ID for online sync - use chunk index and enemy index for determinism
+    const enemyId = chunkIndex !== undefined && enemyIndex !== undefined
+      ? `enemy_chunk_${chunkIndex}_${enemyIndex}`
+      : `enemy_${Math.floor(x / 800)}_${Math.floor(x)}_${Math.floor(y)}`
+    enemy.setData('enemyId', enemyId)
 
     enemy.body!.setSize(enemy.width * 0.7, enemy.height * 0.7)
     enemy.body!.setOffset(enemy.width * 0.15, enemy.height * 0.15)
@@ -2777,9 +2995,14 @@ export default class GameScene extends Phaser.Scene {
 
     // Attack patterns - alternate between 360 spray and homing
     if (this.time.now - lastAttack > attackCooldown) {
-      const attackType = Math.random() < 0.5 ? '360' : 'homing'
+      // Use deterministic attack pattern in online mode based on attack count
+      const attackCount = this.boss.getData('attackCount') || 0
+      const attackType = this.isOnlineMode 
+        ? (attackCount % 2 === 0 ? '360' : 'homing')  // Alternate deterministically
+        : (Math.random() < 0.5 ? '360' : 'homing')
       this.bossAttack(attackType)
       this.boss.setData('lastAttack', this.time.now)
+      this.boss.setData('attackCount', attackCount + 1)
     }
   }
 
@@ -3444,6 +3667,23 @@ export default class GameScene extends Phaser.Scene {
       this.updateDQNTrainingUI()
     }
 
+    // Online mode: Update online player manager
+    if (this.isOnlineMode && this.onlinePlayerManager) {
+      this.onlinePlayerManager.update(this.time.now, this.game.loop.delta)
+      
+      // Update camera to follow both online players
+      const focusPoint = this.onlinePlayerManager.getCameraFocusPoint()
+      this.cameras.main.scrollX = focusPoint.x - 640
+      this.cameras.main.scrollY = Phaser.Math.Clamp(focusPoint.y - 360, 0, 1200 - 720)
+      
+      // Check if both players are out of lives (game over condition)
+      if (this.onlinePlayerManager.areBothPlayersOutOfLives() && !this.playerIsDead) {
+        this.playerIsDead = true // Prevent multiple triggers
+        this.showOnlineGameOver()
+        return
+      }
+    }
+
     // CONTINUOUS DEBUGGING - log every 60 frames (about once per second)
     if (this.time.now % 1000 < 20) {  // Log roughly once per second
       const body = this.player.body as Phaser.Physics.Arcade.Body
@@ -3463,8 +3703,8 @@ export default class GameScene extends Phaser.Scene {
       this.cameras.main.scrollY = Phaser.Math.Clamp(avgY - 360, 0, 1200 - 720)
     }
 
-    // Player movement (skip if DQN is controlling)
-    if (!this.dqnTraining) {
+    // Player movement (skip if DQN is controlling, or if in spectator mode)
+    if (!this.dqnTraining && !(this.isOnlineMode && this.onlinePlayerManager?.isLocalPlayerOutOfLives())) {
       this.handlePlayerMovement()
     }
 
@@ -3658,6 +3898,9 @@ export default class GameScene extends Phaser.Scene {
   private handlePlayerMovement() {
     // Skip if player is dead
     if (this.playerIsDead) return
+    
+    // Skip if chat input is active (online mode)
+    if (this.chatInputActive) return
 
     let speed = 200
     const jumpVelocity = -500 // Higher jump due to microgravity
@@ -3754,12 +3997,20 @@ export default class GameScene extends Phaser.Scene {
     if (keyboardLeft || gamepadLeft || aiLeft) {
       this.player.setVelocityX(-moveSpeed)
       this.player.setFlipX(true)
+      // Sync facing direction for online mode
+      if (this.isOnlineMode && this.onlinePlayerManager) {
+        this.onlinePlayerManager.updateLocalState({ facing_right: false })
+      }
       if (onGround) {
         this.player.play('player_walk', true)
       }
     } else if (keyboardRight || gamepadRight || aiRight) {
       this.player.setVelocityX(moveSpeed)
       this.player.setFlipX(false)
+      // Sync facing direction for online mode
+      if (this.isOnlineMode && this.onlinePlayerManager) {
+        this.onlinePlayerManager.updateLocalState({ facing_right: true })
+      }
       if (onGround) {
         this.player.play('player_walk', true)
       }
@@ -4039,16 +4290,28 @@ export default class GameScene extends Phaser.Scene {
         idleTimer += deltaTime
         wanderTimer += deltaTime
 
-        // Change wander direction every 2-4 seconds
-        if (wanderTimer > Phaser.Math.Between(2, 4)) {
-          wanderDirection = Phaser.Math.Between(-1, 1) // -1 (left), 0 (idle), or 1 (right)
+        // Change wander direction every 3 seconds (fixed for online sync)
+        const wanderInterval = this.isOnlineMode ? 3 : Phaser.Math.Between(2, 4)
+        if (wanderTimer > wanderInterval) {
+          // Use deterministic direction based on enemy position in online mode
+          if (this.isOnlineMode) {
+            const enemyX = Math.floor(enemy.x)
+            wanderDirection = ((enemyX + Math.floor(wanderTimer * 10)) % 3) - 1  // -1, 0, or 1
+          } else {
+            wanderDirection = Phaser.Math.Between(-1, 1) // -1 (left), 0 (idle), or 1 (right)
+          }
           enemy.setData('wanderDirection', wanderDirection)
           wanderTimer = 0
         }
 
         // Force movement if idle for more than 1 second
         if (idleTimer > 1 && wanderDirection === 0) {
-          wanderDirection = Phaser.Math.Between(0, 1) === 0 ? -1 : 1
+          if (this.isOnlineMode) {
+            // Deterministic direction based on enemy X position
+            wanderDirection = (Math.floor(enemy.x) % 2) === 0 ? -1 : 1
+          } else {
+            wanderDirection = Phaser.Math.Between(0, 1) === 0 ? -1 : 1
+          }
           enemy.setData('wanderDirection', wanderDirection)
           idleTimer = 0
         }
@@ -4367,7 +4630,8 @@ export default class GameScene extends Phaser.Scene {
     console.log('💀 handlePlayerDeath called', {
       dqnTraining: this.dqnTraining,
       hasAgent: !!this.dqnAgent,
-      autoRestart: this.dqnAutoRestart
+      autoRestart: this.dqnAutoRestart,
+      isOnlineMode: this.isOnlineMode
     })
     
     this.playerIsDead = true
@@ -4438,6 +4702,26 @@ export default class GameScene extends Phaser.Scene {
         this.time.delayedCall(500, () => {
           // Lose a life
           this.playerLives--
+
+          // Online mode: Notify remote player and check game over
+          if (this.isOnlineMode && this.onlinePlayerManager) {
+            this.onlinePlayerManager.notifyLocalPlayerDeath(this.playerLives)
+            
+            if (this.playerLives <= 0) {
+              // Check if both players are out
+              if (this.onlinePlayerManager.areBothPlayersOutOfLives()) {
+                // Both players dead - game over
+                this.showOnlineGameOver()
+              } else {
+                // Partner still alive - switch to spectator mode
+                this.enterSpectatorMode()
+              }
+            } else {
+              // Respawn with full health
+              this.respawnPlayer()
+            }
+            return
+          }
 
           if (this.playerLives <= 0) {
             // Game Over
@@ -4545,6 +4829,16 @@ export default class GameScene extends Phaser.Scene {
 
     // Flash camera white
     this.cameras.main.flash(500, 255, 255, 255)
+    
+    // Notify online partner of respawn
+    if (this.isOnlineMode && this.onlinePlayerManager) {
+      const respawnX = this.checkpoints[this.currentCheckpoint]?.x || this.playerSpawnX
+      this.onlinePlayerManager.notifyLocalPlayerRespawn(
+        respawnX, 
+        this.playerSpawnY, 
+        this.playerLives
+      )
+    }
   }
 
   private showGameOver() {
@@ -4680,6 +4974,157 @@ export default class GameScene extends Phaser.Scene {
     })
 
     this.input.keyboard!.once('keydown-M', () => {
+      this.tweens.killAll()
+      this.scene.start('MenuScene')
+    })
+
+    // Pulsing animation on title
+    this.tweens.add({
+      targets: gameOverText,
+      scale: 1.1,
+      duration: 1000,
+      yoyo: true,
+      repeat: -1,
+      ease: 'Sine.easeInOut'
+    })
+  }
+
+  /**
+   * Enter spectator mode when local player is out of lives but partner is still alive
+   */
+  private enterSpectatorMode(): void {
+    if (!this.isOnlineMode || !this.onlinePlayerManager) return
+    
+    console.log('👀 Entering spectator mode - watching partner play')
+    
+    // Hide local player completely
+    this.player.setVisible(false)
+    this.player.body!.enable = false
+    this.gun.setVisible(false)
+    
+    // Show spectating message
+    this.onlinePlayerManager.showSpectatingMessage()
+    
+    // Fade camera back in
+    this.cameras.main.fadeIn(500, 0, 0, 0)
+    
+    // Reset dead state so update loop continues
+    this.playerIsDead = false
+  }
+
+  /**
+   * Show game over screen for online mode - only return to menu option
+   */
+  private showOnlineGameOver(): void {
+    console.log('🎮🎮🎮 ONLINE GAME OVER - Both players out! 🎮🎮🎮')
+    
+    // Clean up online connection
+    if (this.onlinePlayerManager) {
+      this.onlinePlayerManager.removeSpectatingMessage()
+    }
+    
+    // Disconnect from online service
+    OnlineCoopService.getInstance().disconnect()
+    
+    this.physics.pause()
+
+    // Fade camera back in from black
+    this.cameras.main.fadeIn(500, 0, 0, 0)
+
+    // Submit score to backend (non-blocking)
+    this.submitScoreToBackend().catch(err => {
+      console.log('Score submission failed (backend may be offline):', err)
+    })
+
+    // Dark overlay background
+    const overlay = this.add.rectangle(640, 360, 1280, 720, 0x000000, 0.85)
+    overlay.setScrollFactor(0)
+    overlay.setDepth(2000)
+
+    // Game over panel
+    const panelWidth = 600
+    const panelHeight = 450
+    const panel = this.add.rectangle(640, 360, panelWidth, panelHeight, 0x1a1a2e)
+    panel.setStrokeStyle(4, 0xff0000)
+    panel.setScrollFactor(0)
+    panel.setDepth(2001)
+
+    // Game over title
+    const gameOverText = this.add.text(640, 150, 'GAME OVER', {
+      fontSize: '64px',
+      color: '#ff0000',
+      fontStyle: 'bold',
+      stroke: '#000000',
+      strokeThickness: 8
+    })
+    gameOverText.setOrigin(0.5)
+    gameOverText.setScrollFactor(0)
+    gameOverText.setDepth(2002)
+
+    // Online mode subtitle
+    const onlineText = this.add.text(640, 210, '🌐 Online Co-op', {
+      fontSize: '24px',
+      color: '#9900ff',
+      fontStyle: 'bold'
+    })
+    onlineText.setOrigin(0.5)
+    onlineText.setScrollFactor(0)
+    onlineText.setDepth(2002)
+
+    // Stats
+    const statsText = this.add.text(640, 320,
+      `Level: ${this.currentLevel}\nScore: ${this.score}\nCoins: ${this.coinCount}\nEnemies: ${this.enemiesDefeated}\nDistance: ${Math.floor(this.farthestPlayerX / 70)}m`, {
+      fontSize: '28px',
+      color: '#ffffff',
+      fontStyle: 'bold',
+      stroke: '#000000',
+      strokeThickness: 4,
+      align: 'center',
+      lineSpacing: 10
+    })
+    statsText.setOrigin(0.5)
+    statsText.setScrollFactor(0)
+    statsText.setDepth(2002)
+
+    // Menu Button (centered, only option for online mode)
+    const menuBtn = this.add.rectangle(640, 500, 250, 60, 0x0066cc)
+    menuBtn.setStrokeStyle(3, 0x0099ff)
+    menuBtn.setScrollFactor(0)
+    menuBtn.setDepth(2002)
+    menuBtn.setInteractive({ useHandCursor: true })
+
+    const menuText = this.add.text(640, 500, 'BACK TO MENU', {
+      fontSize: '28px',
+      color: '#ffffff',
+      fontStyle: 'bold'
+    })
+    menuText.setOrigin(0.5)
+    menuText.setScrollFactor(0)
+    menuText.setDepth(2003)
+
+    // Button hover effects
+    menuBtn.on('pointerover', () => {
+      menuBtn.setFillStyle(0x0099ff)
+      menuBtn.setScale(1.05)
+    })
+    menuBtn.on('pointerout', () => {
+      menuBtn.setFillStyle(0x0066cc)
+      menuBtn.setScale(1)
+    })
+
+    // Button click handler
+    menuBtn.on('pointerdown', () => {
+      this.tweens.killAll()
+      this.scene.start('MenuScene')
+    })
+
+    // Keyboard shortcut
+    this.input.keyboard!.once('keydown-M', () => {
+      this.tweens.killAll()
+      this.scene.start('MenuScene')
+    })
+    
+    this.input.keyboard!.once('keydown-SPACE', () => {
       this.tweens.killAll()
       this.scene.start('MenuScene')
     })
@@ -5119,11 +5564,25 @@ export default class GameScene extends Phaser.Scene {
           bullet.body!.setEnable(false)
 
           // Store bullet direction and speed locked at time of firing
-          bullet.setData('velocityX', Math.cos(gunAngle) * bulletSpeed)
-          bullet.setData('velocityY', Math.sin(gunAngle) * bulletSpeed)
+          const velocityX = Math.cos(gunAngle) * bulletSpeed
+          const velocityY = Math.sin(gunAngle) * bulletSpeed
+          bullet.setData('velocityX', velocityX)
+          bullet.setData('velocityY', velocityY)
           bullet.setData('createdTime', currentTime)
           bullet.setData('initialScaleX', 0.5)
           bullet.setData('angle', gunAngle)
+          
+          // Notify online partner of bullet creation
+          if (this.isOnlineMode && this.onlinePlayerManager) {
+            this.onlinePlayerManager.sendAction('shoot', {
+              x: bulletStartX,
+              y: bulletStartY,
+              velocityX,
+              velocityY,
+              weapon: this.equippedWeapon,
+              angle: gunAngle
+            })
+          }
         }
       }
     }
@@ -6254,6 +6713,95 @@ export default class GameScene extends Phaser.Scene {
     return this.mlAIPlayer
   }
 
+  // In-game chat for online mode
+  private openInGameChat() {
+    if (!this.isOnlineMode || this.chatInputActive) return
+    
+    this.chatInputActive = true
+    
+    // Pause player controls while typing
+    // Create chat input container
+    const gameCanvas = this.game.canvas
+    const canvasRect = gameCanvas.getBoundingClientRect()
+    
+    this.chatContainer = document.createElement('div')
+    this.chatContainer.style.position = 'absolute'
+    this.chatContainer.style.left = `${canvasRect.left + 10}px`
+    this.chatContainer.style.bottom = `${window.innerHeight - canvasRect.bottom + 10}px`
+    this.chatContainer.style.zIndex = '1000'
+    this.chatContainer.style.display = 'flex'
+    this.chatContainer.style.alignItems = 'center'
+    this.chatContainer.style.gap = '8px'
+    
+    const label = document.createElement('span')
+    label.textContent = 'Chat:'
+    label.style.color = '#ffffff'
+    label.style.fontSize = '14px'
+    label.style.fontFamily = 'Arial, sans-serif'
+    label.style.textShadow = '1px 1px 2px #000'
+    
+    this.chatInputElement = document.createElement('input')
+    this.chatInputElement.type = 'text'
+    this.chatInputElement.placeholder = 'Type message...'
+    this.chatInputElement.maxLength = 100
+    this.chatInputElement.style.width = '250px'
+    this.chatInputElement.style.padding = '6px 10px'
+    this.chatInputElement.style.fontSize = '14px'
+    this.chatInputElement.style.fontFamily = 'Arial, sans-serif'
+    this.chatInputElement.style.border = '2px solid #4488ff'
+    this.chatInputElement.style.borderRadius = '4px'
+    this.chatInputElement.style.backgroundColor = 'rgba(0, 0, 0, 0.7)'
+    this.chatInputElement.style.color = '#ffffff'
+    this.chatInputElement.style.outline = 'none'
+    
+    this.chatContainer.appendChild(label)
+    this.chatContainer.appendChild(this.chatInputElement)
+    document.body.appendChild(this.chatContainer)
+    
+    // Focus the input
+    this.chatInputElement.focus()
+    
+    // Handle Enter to send, Escape to cancel
+    this.chatInputElement.addEventListener('keydown', (e: KeyboardEvent) => {
+      e.stopPropagation() // Prevent game from receiving key events
+      
+      if (e.key === 'Enter') {
+        const message = this.chatInputElement?.value.trim()
+        if (message && this.onlinePlayerManager) {
+          // Send chat message via online service
+          const onlineService = OnlineCoopService.getInstance()
+          onlineService.sendChat(message)
+        }
+        this.closeInGameChat()
+      } else if (e.key === 'Escape') {
+        this.closeInGameChat()
+      }
+    })
+    
+    // Close on blur (clicking outside)
+    this.chatInputElement.addEventListener('blur', () => {
+      // Small delay to allow Enter key to be processed first
+      setTimeout(() => {
+        if (this.chatInputActive) {
+          this.closeInGameChat()
+        }
+      }, 100)
+    })
+  }
+  
+  private closeInGameChat() {
+    this.chatInputActive = false
+    
+    if (this.chatContainer && this.chatContainer.parentNode) {
+      this.chatContainer.parentNode.removeChild(this.chatContainer)
+    }
+    this.chatContainer = null
+    this.chatInputElement = null
+    
+    // Return focus to game canvas
+    this.game.canvas.focus()
+  }
+
   private updateDebugUI() {
     if (!this.debugMode) return
 
@@ -6527,5 +7075,13 @@ export default class GameScene extends Phaser.Scene {
       this.dqnAgent.dispose()
       this.dqnAgent = undefined
     }
+    
+    // Clean up in-game chat input if open
+    if (this.chatContainer && this.chatContainer.parentNode) {
+      this.chatContainer.parentNode.removeChild(this.chatContainer)
+    }
+    this.chatContainer = null
+    this.chatInputElement = null
+    this.chatInputActive = false
   }
 }

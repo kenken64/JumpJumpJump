@@ -1,4 +1,4 @@
-from fastapi import FastAPI, HTTPException, Security, Header
+from fastapi import FastAPI, HTTPException, Security, Header, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import APIKeyHeader
 from fastapi.responses import FileResponse
@@ -8,6 +8,9 @@ from typing import List, Optional
 import sqlite3
 from datetime import datetime
 import os
+import secrets
+
+from rooms import room_manager, GameRoom
 
 app = FastAPI(title="JumpJumpJump API")
 
@@ -367,6 +370,266 @@ def get_boss_image(boss_index: int):
         raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+
+# ============================================================================
+# WebSocket Endpoints for Online Multiplayer
+# ============================================================================
+
+@app.get("/api/rooms")
+def get_available_rooms():
+    """Get list of available game rooms that can be joined"""
+    return room_manager.get_available_rooms()
+
+@app.get("/api/rooms/all")
+def get_all_rooms():
+    """Get list of all game rooms"""
+    return room_manager.get_all_rooms()
+
+@app.websocket("/ws/room/{room_id}")
+async def websocket_room_endpoint(websocket: WebSocket, room_id: str):
+    """
+    WebSocket endpoint for game room communication
+    
+    Message types:
+    - create_room: Create a new room (room_id should be 'new')
+    - join_room: Join an existing room
+    - player_ready: Mark player as ready
+    - player_state: Update player position/state
+    - game_action: Game actions (shoot, damage, etc.)
+    - chat: Chat messages
+    - start_game: Host starts the game
+    - leave_room: Leave the room
+    """
+    await websocket.accept()
+    
+    player_id = None
+    current_room: Optional[GameRoom] = None
+    
+    try:
+        while True:
+            data = await websocket.receive_json()
+            message_type = data.get("type")
+            
+            if message_type == "create_room":
+                # Create a new room
+                room_name = data.get("room_name", "Game Room")
+                player_name = data.get("player_name", "Player")
+                player_id = data.get("player_id") or secrets.token_hex(8)
+                
+                current_room = await room_manager.create_room(
+                    room_name=room_name,
+                    host_id=player_id,
+                    host_name=player_name,
+                    websocket=websocket
+                )
+                
+                await websocket.send_json({
+                    "type": "room_created",
+                    "room_id": current_room.room_id,
+                    "player_id": player_id,
+                    "player_number": 1,
+                    "room_info": current_room.get_room_info()
+                })
+            
+            elif message_type == "join_room":
+                # Join an existing room
+                join_room_id = data.get("room_id", room_id)
+                player_name = data.get("player_name", "Player")
+                player_id = data.get("player_id") or secrets.token_hex(8)
+                
+                current_room = await room_manager.join_room(
+                    room_id=join_room_id,
+                    player_id=player_id,
+                    player_name=player_name,
+                    websocket=websocket
+                )
+                
+                if current_room:
+                    await websocket.send_json({
+                        "type": "room_joined",
+                        "room_id": current_room.room_id,
+                        "player_id": player_id,
+                        "player_number": current_room.get_player_number(player_id),
+                        "room_info": current_room.get_room_info()
+                    })
+                else:
+                    await websocket.send_json({
+                        "type": "error",
+                        "message": "Failed to join room. Room may be full or game already started."
+                    })
+            
+            elif message_type == "player_ready":
+                # Toggle player ready status
+                if current_room and player_id:
+                    player = current_room.players.get(player_id)
+                    if player:
+                        player.is_ready = data.get("is_ready", not player.is_ready)
+                        await current_room.broadcast({
+                            "type": "player_ready_changed",
+                            "player_id": player_id,
+                            "is_ready": player.is_ready,
+                            "room_info": current_room.get_room_info()
+                        })
+            
+            elif message_type == "player_state":
+                # Update player position and state
+                if current_room and player_id:
+                    state_update = data.get("state", {})
+                    current_room.update_player_state(player_id, state_update)
+                    
+                    # Broadcast to other players
+                    await current_room.broadcast({
+                        "type": "player_state_update",
+                        "player_id": player_id,
+                        "state": state_update
+                    }, exclude=player_id)
+            
+            elif message_type == "game_action":
+                # Handle game actions (shooting, damage, etc.)
+                if current_room:
+                    action = data.get("action")
+                    action_data = data.get("data", {})
+                    
+                    await current_room.broadcast({
+                        "type": "game_action",
+                        "player_id": player_id,
+                        "action": action,
+                        "data": action_data
+                    }, exclude=player_id)
+            
+            elif message_type == "collect_item":
+                # Handle item collection (coins, powerups)
+                if current_room and player_id:
+                    item_type = data.get("item_type", "coin")
+                    item_id = data.get("item_id", "")
+                    
+                    # Check if item was already collected
+                    if current_room.mark_item_collected(item_type, item_id, player_id):
+                        # First to collect - broadcast to all
+                        await current_room.broadcast({
+                            "type": "item_collected",
+                            "player_id": player_id,
+                            "item_type": item_type,
+                            "item_id": item_id
+                        })
+                    else:
+                        # Item already collected by other player
+                        await websocket.send_json({
+                            "type": "item_already_collected",
+                            "item_id": item_id
+                        })
+            
+            elif message_type == "reconnect":
+                # Handle reconnection attempt
+                reconnect_token = data.get("token", "")
+                reconnect_room_id = data.get("room_id", "")
+                reconnect_player_id = data.get("player_id", "")
+                
+                room = room_manager.get_room(reconnect_room_id)
+                if room and await room.reconnect_player(reconnect_player_id, websocket, reconnect_token):
+                    current_room = room
+                    player_id = reconnect_player_id
+                    
+                    # Send full game state to reconnected player
+                    await websocket.send_json({
+                        "type": "reconnected",
+                        "room_id": room.room_id,
+                        "player_id": player_id,
+                        "player_number": room.get_player_number(player_id),
+                        "game_state": room.get_game_state()
+                    })
+                else:
+                    await websocket.send_json({
+                        "type": "error",
+                        "message": "Reconnection failed. Token invalid or session expired."
+                    })
+            
+            elif message_type == "start_game":
+                # Host starts the game
+                if current_room and player_id == current_room.host_id:
+                    # Check if all players are ready
+                    all_ready = all(p.is_ready for p in current_room.players.values())
+                    
+                    if all_ready and current_room.player_count >= 2:
+                        import time
+                        current_room.game_started = True
+                        # Schedule game to start 500ms in the future
+                        # This gives all clients time to receive and prepare
+                        current_room.game_start_timestamp = time.time() * 1000 + 500
+                        
+                        game_state = current_room.get_game_state()
+                        # Broadcast to ALL clients in the same tick
+                        await current_room.broadcast({
+                            "type": "game_starting",
+                            "game_state": game_state,
+                            "sequence_id": current_room.get_next_sequence()
+                        })
+                    else:
+                        await websocket.send_json({
+                            "type": "error",
+                            "message": "Cannot start game. All players must be ready and at least 2 players needed."
+                        })
+            
+            elif message_type == "chat":
+                # Chat message (works both in lobby and during game)
+                if current_room and player_id:
+                    player = current_room.players.get(player_id)
+                    chat_msg = {
+                        "type": "chat",
+                        "player_id": player_id,
+                        "player_name": player.player_name if player else "Unknown",
+                        "message": data.get("message", ""),
+                        "timestamp": datetime.now().isoformat()
+                    }
+                    # Store in chat history if game is in progress
+                    if current_room.game_started:
+                        current_room.chat_history.append(chat_msg)
+                    await current_room.broadcast(chat_msg)
+            
+            elif message_type == "leave_room":
+                # Leave the room
+                if current_room and player_id:
+                    await room_manager.leave_room(current_room.room_id, player_id)
+                    await websocket.send_json({
+                        "type": "room_left"
+                    })
+                    current_room = None
+            
+            elif message_type == "ping":
+                # Keep-alive ping
+                await websocket.send_json({"type": "pong"})
+            
+            elif message_type == "time_sync":
+                # NTP-style time synchronization
+                # Client sends their timestamp, server responds with server time
+                import time
+                client_time = data.get("client_time", 0)
+                server_time = time.time() * 1000  # Server time in ms
+                await websocket.send_json({
+                    "type": "time_sync_response",
+                    "client_time": client_time,  # Echo back for RTT calculation
+                    "server_time": server_time,
+                    "sequence_id": current_room.get_next_sequence() if current_room else 0
+                })
+    
+    except WebSocketDisconnect:
+        # Clean up on disconnect - allow reconnection if game is in progress
+        if current_room and player_id:
+            allow_reconnect = current_room.game_started
+            await current_room.remove_player(player_id, allow_reconnect=allow_reconnect)
+            
+            # Send reconnection token if allowed
+            if allow_reconnect and player_id in current_room.reconnect_tokens:
+                # Note: Can't send to disconnected player, but token is stored for when they reconnect
+                pass
+    
+    except Exception as e:
+        print(f"WebSocket error: {e}")
+        if current_room and player_id:
+            allow_reconnect = current_room.game_started
+            await current_room.remove_player(player_id, allow_reconnect=allow_reconnect)
+
 
 if __name__ == "__main__":
     import uvicorn
