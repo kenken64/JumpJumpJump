@@ -1475,9 +1475,9 @@ export default class GameScene extends Phaser.Scene {
 
     // Training status panel (right side, avoiding center tip area)
     const panelX = 1095
-    const panelY = 250
+    const panelY = 320
     const panelWidth = 350
-    const panelHeight = 350
+    const panelHeight = 320
     
     // Background
     const panelBg = this.add.rectangle(panelX, panelY, panelWidth, panelHeight, 0x000000, 0.8)
@@ -1491,7 +1491,7 @@ export default class GameScene extends Phaser.Scene {
     border.setScrollFactor(0)
     border.setDepth(1000)
 
-    const title = this.add.text(panelX, panelY - 100, '🤖 DQN TRAINING', {
+    const title = this.add.text(panelX, panelY - 130, '🤖 DQN TRAINING', {
       fontSize: '24px',
       color: '#00ff00',
       fontStyle: 'bold',
@@ -1502,7 +1502,7 @@ export default class GameScene extends Phaser.Scene {
     title.setScrollFactor(0)
     title.setDepth(1001)
 
-    this.dqnStatusText = this.add.text(panelX, panelY - 65, '● RUNNING', {
+    this.dqnStatusText = this.add.text(panelX, panelY - 100, '● RUNNING', {
       fontSize: '20px',
       color: '#00ff00',
       fontStyle: 'bold'
@@ -1511,7 +1511,7 @@ export default class GameScene extends Phaser.Scene {
     this.dqnStatusText.setScrollFactor(0)
     this.dqnStatusText.setDepth(1001)
 
-    this.dqnStatsText = this.add.text(panelX, panelY - 10, '', {
+    this.dqnStatsText = this.add.text(panelX, panelY - 50, '', {
       fontSize: '16px',
       color: '#ffffff',
       fontStyle: 'bold',
@@ -1524,13 +1524,13 @@ export default class GameScene extends Phaser.Scene {
     this.dqnStatsText.setScrollFactor(0)
     this.dqnStatsText.setDepth(1001)
 
-    const controls = this.add.text(panelX, panelY + 145, 'SPACE: Pause | R: Reset | S: Save | L: Load\n1-5: Speed | A: Auto-restart | ESC: Exit', {
-      fontSize: '12px',
+    const controls = this.add.text(panelX, panelY + 135, 'SPACE: Pause | R: Reset | S: Save | L: Load\n1-5: Speed | A: Auto-restart | ESC: Exit', {
+      fontSize: '11px',
       color: '#aaaaaa',
       align: 'center',
       wordWrap: { width: 340, useAdvancedWrap: true }
     })
-    controls.setOrigin(0.5, 0)
+    controls.setOrigin(0.5, 0.5)
     controls.setScrollFactor(0)
     controls.setDepth(1001)
   }
@@ -1558,19 +1558,12 @@ export default class GameScene extends Phaser.Scene {
       // Calculate average reward (last 100 episodes)
       const avgReward = this.dqnEpisodeCount > 0 ? (this.dqnTotalReward / this.dqnEpisodeCount).toFixed(2) : '0.00'
 
-      // Update stats text
+      // Update stats text (compact layout)
       const statsText = [
-        `Episode: ${this.dqnEpisodeCount}`,
-        `Steps: ${this.dqnStepCount}`,
-        `Speed: ${this.dqnSpeedMultiplier}x`,
+        `Episode: ${this.dqnEpisodeCount}  |  Steps: ${this.dqnStepCount}  |  Speed: ${this.dqnSpeedMultiplier}x`,
+        `Epsilon: ${stats.epsilon.toFixed(3)}  |  Buffer: ${stats.bufferSize}  |  Train: ${stats.trainingSteps}`,
         ``,
-        `Epsilon: ${stats.epsilon.toFixed(3)}`,
-        `Buffer: ${stats.bufferSize}`,
-        `Training: ${stats.trainingSteps}`,
-        ``,
-        `Reward: ${this.dqnCurrentReward.toFixed(2)}`,
-        `Last: ${this.dqnLastEpisodeReward.toFixed(2)}`,
-        `Avg: ${avgReward}`
+        `Reward: ${this.dqnCurrentReward.toFixed(2)}  |  Last: ${this.dqnLastEpisodeReward.toFixed(2)}  |  Avg: ${avgReward}`
       ].join('\n')
 
       this.dqnStatsText.setText(statsText)
@@ -3332,6 +3325,22 @@ export default class GameScene extends Phaser.Scene {
       this.tweens.killAll()
       this.scene.start('MenuScene')
     })
+
+    // Auto-progress for DQN training mode
+    if (this.dqnTraining) {
+      this.time.delayedCall(500, () => {
+        this.tweens.killAll()
+        const nextLevelData: any = { 
+          gameMode: 'levels', 
+          level: this.currentLevel + 1,
+          lives: this.playerLives,
+          score: this.score,
+          dqnTraining: true
+        }
+        this.scene.restart(nextLevelData)
+      })
+      return // Skip manual input handlers for DQN mode
+    }
 
     // Input handlers
     this.input.keyboard!.once('keydown-SPACE', () => {
