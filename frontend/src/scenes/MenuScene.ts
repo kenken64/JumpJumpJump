@@ -156,7 +156,7 @@ export default class MenuScene extends Phaser.Scene {
     levelText.setOrigin(0.5)
 
     // Create Local Co-op Button
-    const coopButton = this.add.rectangle(640, 485, 300, 60, 0xff6600)
+    const coopButton = this.add.rectangle(500, 485, 220, 60, 0xff6600)
     coopButton.setInteractive({ useHandCursor: true })
     coopButton.on('pointerover', () => coopButton.setFillStyle(0xff9933))
     coopButton.on('pointerout', () => coopButton.setFillStyle(0xff6600))
@@ -164,12 +164,28 @@ export default class MenuScene extends Phaser.Scene {
       this.scene.start('CoopLobbyScene')
     })
 
-    const coopText = this.add.text(640, 485, '🎮 LOCAL CO-OP', {
-      fontSize: '32px',
+    const coopText = this.add.text(500, 485, '🎮 LOCAL CO-OP', {
+      fontSize: '26px',
       color: '#ffffff',
       fontStyle: 'bold'
     })
     coopText.setOrigin(0.5)
+
+    // Create Online Co-op Button
+    const onlineButton = this.add.rectangle(780, 485, 250, 60, 0x9900ff)
+    onlineButton.setInteractive({ useHandCursor: true })
+    onlineButton.on('pointerover', () => onlineButton.setFillStyle(0xbb33ff))
+    onlineButton.on('pointerout', () => onlineButton.setFillStyle(0x9900ff))
+    onlineButton.on('pointerdown', () => {
+      this.scene.start('OnlineLobbyScene')
+    })
+
+    const onlineText = this.add.text(780, 485, '🌐 ONLINE CO-OP', {
+      fontSize: '26px',
+      color: '#ffffff',
+      fontStyle: 'bold'
+    })
+    onlineText.setOrigin(0.5)
 
     // Create Endless Mode Button
     const endlessButton = this.add.rectangle(640, 560, 300, 60, 0x0088aa)

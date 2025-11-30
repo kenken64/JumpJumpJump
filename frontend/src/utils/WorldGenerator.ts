@@ -26,29 +26,80 @@ export class WorldGenerator {
   private spikes: Phaser.Physics.Arcade.StaticGroup
   /** Array tracking spike positions for collision */
   private spikePositions: Array<{x: number, y: number, width: number}>
-  /** Current biome type for tile textures */
-  private currentBiome: 'metal' | 'stone' | 'dirt'
-  /** Remaining length of current biome before transition */
-  private biomeLength: number
   /** Current X position for world generation */
   private worldGenerationX: number
   /** Last X position where generation occurred */
   private lastGeneratedX: number
+  /** Seed for deterministic random generation */
+  private seed: number
+  /** Current state of the seeded RNG */
+  private rngState: number
 
   constructor(
     scene: Phaser.Scene,
     platforms: Phaser.Physics.Arcade.StaticGroup,
     spikes: Phaser.Physics.Arcade.StaticGroup,
-    spikePositions: Array<{x: number, y: number, width: number}>
+    spikePositions: Array<{x: number, y: number, width: number}>,
+    seed?: number
   ) {
     this.scene = scene
     this.platforms = platforms
     this.spikes = spikes
     this.spikePositions = spikePositions
-    this.currentBiome = 'metal'
-    this.biomeLength = 0
     this.worldGenerationX = 0
     this.lastGeneratedX = 0
+    // Initialize seeded random - use provided seed or generate random one
+    this.seed = seed ?? Math.floor(Math.random() * 1000000)
+    this.rngState = this.seed
+    console.log('🌱 WorldGenerator initialized with seed:', this.seed)
+  }
+
+  /**
+   * Seeded random number generator (mulberry32 algorithm)
+   * Returns a number between 0 and 1, deterministic based on seed
+   */
+  private seededRandom(): number {
+    this.rngState += 0x6D2B79F5
+    let t = this.rngState
+    t = Math.imul(t ^ (t >>> 15), t | 1)
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61)
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296
+  }
+
+  /**
+   * Seeded random integer between min and max (inclusive)
+   */
+  private seededBetween(min: number, max: number): number {
+    return Math.floor(this.seededRandom() * (max - min + 1)) + min
+  }
+
+  /**
+   * Reset RNG state for a specific chunk X position
+   * This ensures deterministic generation regardless of chunk order
+   */
+  resetRngForChunk(chunkX: number): void {
+    // Reset RNG state based on seed + chunk position for determinism
+    this.rngState = this.seed + Math.floor(chunkX / 800) * 7919  // 7919 is a prime number
+  }
+
+  /**
+   * Get deterministic biome for a world X position
+   * Biomes change every ~2000 units, determined purely by X position
+   */
+  private getBiomeForX(x: number): 'metal' | 'stone' | 'dirt' {
+    const biomes: Array<'metal' | 'stone' | 'dirt'> = ['metal', 'stone', 'dirt']
+    const biomeWidth = 2000 // Each biome is ~2000 units wide
+    const biomeIndex = Math.floor(x / biomeWidth) % biomes.length
+    // Use seed to offset which biome is first
+    const offsetIndex = (biomeIndex + (this.seed % biomes.length)) % biomes.length
+    return biomes[offsetIndex]
+  }
+
+  /**
+   * Get the seed used for world generation
+   */
+  getSeed(): number {
+    return this.seed
   }
 
   generateWorld(): number {
@@ -101,10 +152,7 @@ export class WorldGenerator {
       this.platforms.add(pillar2)
     }
     
-    // Choose initial biome for rest of world
-    const biomes: Array<'metal' | 'stone' | 'dirt'> = ['metal', 'stone', 'dirt']
-    this.currentBiome = biomes[Math.floor(Math.random() * biomes.length)]
-    this.biomeLength = Phaser.Math.Between(1500, 3000)
+    // Biomes are now determined by X position, no state needed
     this.worldGenerationX = spawnPlatformWidth
     
     // Generate initial world chunks after spawn platform
@@ -119,18 +167,28 @@ export class WorldGenerator {
   }
 
   generateChunk(startX: number) {
+    // Reset RNG for this chunk to ensure deterministic generation
+    this.resetRngForChunk(startX)
+    const chunkIndex = Math.floor(startX / 800)
+    const currentBiome = this.getBiomeForX(startX)
+    console.log(`🗺️ Generating chunk ${chunkIndex} at X=${startX}, biome=${currentBiome}, RNG state: ${this.rngState}`)
+    
     const tileSize = 70
     const chunkWidth = 800
     const floorY = 650
     
-    // Get biome-specific tiles
-    const floorTile = this.getBiomeFloorTile()
-    const platformTile = this.getBiomePlatformTile()
-    const wallTile = this.getBiomeWallTile()
+    // Get biome-specific tiles based on X position
+    const floorTile = this.getBiomeFloorTileForBiome(currentBiome)
+    const platformTile = this.getBiomePlatformTileForBiome(currentBiome)
+    const wallTile = this.getBiomeWallTileForBiome(currentBiome)
     
     // Create floor for this chunk
     for (let x = startX; x < startX + chunkWidth; x += tileSize) {
-      const floor = this.scene.add.sprite(x + tileSize/2, floorY, floorTile)
+      // Get biome for this specific X position (allows smooth transitions)
+      const tileBiome = this.getBiomeForX(x)
+      const tileFloorTexture = this.getBiomeFloorTileForBiome(tileBiome)
+      
+      const floor = this.scene.add.sprite(x + tileSize/2, floorY, tileFloorTexture)
       floor.setOrigin(0.5, 0.5)
       this.scene.physics.add.existing(floor, true)
       const body = floor.body as Phaser.Physics.Arcade.StaticBody
@@ -140,11 +198,6 @@ export class WorldGenerator {
       body.setSize(hitboxWidth, hitboxHeight)
       body.setOffset((floor.width - hitboxWidth) / 2, 0)  // Align to top
       this.platforms.add(floor)
-      
-      // Check if we need to switch biome
-      if (x - (this.worldGenerationX - this.lastGeneratedX) >= this.biomeLength) {
-        this.switchBiome()
-      }
     }
     
     // Define Y levels for platform spawning (above ground at Y=650)
@@ -161,12 +214,12 @@ export class WorldGenerator {
     const maxX = startX + chunkWidth - 100
     
     while (currentX < maxX) {
-      const structureType = Math.random()
+      const structureType = this.seededRandom()
       
       if (structureType < 0.3) {
         // Floating platform
-        const platformWidth = Phaser.Math.Between(2, 4)
-        const levelIndex = Phaser.Math.Between(0, yLevels.length - 2) // Don't use ground level
+        const platformWidth = this.seededBetween(2, 4)
+        const levelIndex = this.seededBetween(0, yLevels.length - 2) // Don't use ground level
         const platformY = yLevels[levelIndex]
         
         // Check if this position is occupied
@@ -192,8 +245,8 @@ export class WorldGenerator {
         currentX += minSpacing
       } else if (structureType < 0.5) {
         // Staircase - uses multiple levels
-        const steps = Phaser.Math.Between(4, 7)
-        const startLevelIndex = Phaser.Math.Between(2, yLevels.length - steps - 1)
+        const steps = this.seededBetween(4, 7)
+        const startLevelIndex = this.seededBetween(2, yLevels.length - steps - 1)
         
         let canPlace = true
         // Check if any step position is occupied
@@ -228,8 +281,8 @@ export class WorldGenerator {
         currentX += minSpacing + 100
       } else if (structureType < 0.7) {
         // Pillar with platform on top
-        const pillarHeight = Phaser.Math.Between(3, 6)
-        const topLevelIndex = Phaser.Math.Between(0, yLevels.length - pillarHeight - 1)
+        const pillarHeight = this.seededBetween(3, 6)
+        const topLevelIndex = this.seededBetween(0, yLevels.length - pillarHeight - 1)
         const pillarTopY = yLevels[topLevelIndex]
         
         const cellKey = `${Math.floor(currentX / tileSize)}-${topLevelIndex}`
@@ -271,10 +324,10 @@ export class WorldGenerator {
         currentX += minSpacing + 50
       } else if (structureType < 0.85) {
         // Gap (no structure)
-        currentX += Phaser.Math.Between(150, 250)
+        currentX += this.seededBetween(150, 250)
       } else {
         // Spike trap on ground level (always at Y=650)
-        const spikeWidth = Phaser.Math.Between(2, 4)
+        const spikeWidth = this.seededBetween(2, 4)
         const groundLevelIndex = yLevels.length - 1
         console.log(`Creating spike trap at X:${currentX}, width:${spikeWidth}`)
         
@@ -332,35 +385,28 @@ export class WorldGenerator {
     }
   }
 
-  private getBiomeFloorTile(): string {
-    switch (this.currentBiome) {
+  private getBiomeFloorTileForBiome(biome: 'metal' | 'stone' | 'dirt'): string {
+    switch (biome) {
       case 'metal': return 'metalMid'
       case 'stone': return 'stoneCaveBottom'
       case 'dirt': return 'dirtCaveBottom'
     }
   }
 
-  private getBiomePlatformTile(): string {
-    switch (this.currentBiome) {
+  private getBiomePlatformTileForBiome(biome: 'metal' | 'stone' | 'dirt'): string {
+    switch (biome) {
       case 'metal': return 'metalPlatform'
       case 'stone': return 'stoneCaveTop'
       case 'dirt': return 'dirtCaveTop'
     }
   }
 
-  private getBiomeWallTile(): string {
-    switch (this.currentBiome) {
+  private getBiomeWallTileForBiome(biome: 'metal' | 'stone' | 'dirt'): string {
+    switch (biome) {
       case 'metal': return 'metalCenter'
       case 'stone': return 'stoneCaveTop'
       case 'dirt': return 'dirtCaveTop'
     }
-  }
-
-  private switchBiome() {
-    const biomes: Array<'metal' | 'stone' | 'dirt'> = ['metal', 'stone', 'dirt']
-    const otherBiomes = biomes.filter(b => b !== this.currentBiome)
-    this.currentBiome = otherBiomes[Math.floor(Math.random() * otherBiomes.length)]
-    this.biomeLength = Phaser.Math.Between(1500, 3000)
   }
 
   // Getters for state that GameScene needs to track

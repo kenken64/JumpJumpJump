@@ -24,6 +24,7 @@ import InventoryScene from './scenes/InventoryScene'
 import BossGalleryScene from './scenes/BossGalleryScene'
 import CreditScene from './scenes/CreditScene'
 import CoopLobbyScene from './scenes/CoopLobbyScene'
+import OnlineLobbyScene from './scenes/OnlineLobbyScene'
 import DQNTrainingScene from './scenes/DQNTrainingScene'
 
 /**
@@ -61,7 +62,7 @@ function App() {
           crossOrigin: 'anonymous',
           maxParallelDownloads: 10
         },
-        scene: [MenuScene, GameScene, ShopScene, LeaderboardScene, InventoryScene, BossGalleryScene, CreditScene, CoopLobbyScene, DQNTrainingScene],
+        scene: [MenuScene, GameScene, ShopScene, LeaderboardScene, InventoryScene, BossGalleryScene, CreditScene, CoopLobbyScene, OnlineLobbyScene, DQNTrainingScene],
         scale: {
           mode: Phaser.Scale.FIT,
           autoCenter: Phaser.Scale.CENTER_BOTH,
