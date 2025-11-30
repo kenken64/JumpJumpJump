@@ -1,7 +1,16 @@
 /**
- * PowerUpManager.ts
- * Manages power-up spawning, collection, effects, and timers
- * Extracted from the monolithic GameScene.ts
+ * @fileoverview PowerUpManager - Manages power-up spawning and effects
+ * 
+ * Handles all power-up functionality:
+ * - Power-up spawning (speed, shield, life, health)
+ * - Collection and activation effects
+ * - Timed buff management with visual indicators
+ * - Shield sprite attachment to player
+ * - Speed boost movement multiplier
+ * 
+ * Power-ups spawn randomly throughout levels.
+ * 
+ * @module managers/PowerUpManager
  */
 
 import Phaser from 'phaser'

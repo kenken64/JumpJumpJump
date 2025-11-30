@@ -1,7 +1,20 @@
 /**
- * UIManager.ts
- * Manages all UI/HUD elements including health bars, score, debug info
- * Extracted from the monolithic GameScene.ts
+ * @fileoverview UIManager - Manages all HUD and UI elements during gameplay
+ * 
+ * Handles all UI-related functionality:
+ * - Health bar with color-coded fill
+ * - Lives counter display
+ * - Score and high score tracking
+ * - Coin counter with icon
+ * - Level indicator
+ * - Weapon reload bar
+ * - AI status indicator
+ * - Debug overlays (FPS, coordinates)
+ * - Game over and level complete screens
+ * 
+ * Supports both single player and co-op UI layouts.
+ * 
+ * @module managers/UIManager
  */
 
 import Phaser from 'phaser'

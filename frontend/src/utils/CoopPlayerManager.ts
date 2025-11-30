@@ -1,10 +1,23 @@
 /**
- * CoopPlayerManager - Manages two players in co-op mode
+ * @fileoverview CoopPlayerManager - Manages both players in local co-op mode
+ * 
+ * Handles all aspects of 2-player gameplay:
+ * - Player sprite creation with unique skins
+ * - Independent health bars and lives display
+ * - Gamepad input processing for each player
+ * - Collision handling and damage
+ * - Respawn logic when partner is alive
+ * - Gun/bullet management per player
+ * 
+ * @module utils/CoopPlayerManager
  */
 
 import Phaser from 'phaser'
 import { LocalCoopManager, PlayerState } from './LocalCoopManager'
 
+/**
+ * Complete state for a single co-op player including sprite, UI, and input
+ */
 export interface CoopPlayer {
   sprite: Phaser.Physics.Arcade.Sprite
   gun: Phaser.GameObjects.Image
@@ -26,10 +39,18 @@ export interface CoopPlayer {
   shieldSprite: Phaser.GameObjects.Sprite | null
 }
 
+/**
+ * Manages creation and control of both players in co-op mode
+ * Handles input, movement, combat, and UI for two players simultaneously
+ */
 export class CoopPlayerManager {
+  /** Reference to the Phaser scene */
   private scene: Phaser.Scene
+  /** Reference to co-op state manager */
   private coopManager: LocalCoopManager
+  /** Player 1 data and state */
   private player1: CoopPlayer | null = null
+  /** Player 2 data and state */
   private player2: CoopPlayer | null = null
   constructor(
     scene: Phaser.Scene,

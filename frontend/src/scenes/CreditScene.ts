@@ -1,5 +1,23 @@
+/**
+ * @fileoverview CreditScene - Displays game credits and attributions
+ * 
+ * Shows credits for:
+ * - Developer: Aiden Phang Rui Yin
+ * - AI Copilot: GitHub Copilot
+ * - Lead Tester: Mom
+ * - Infrastructure: Dad and developer
+ * 
+ * Features same blackhole background as MenuScene.
+ * 
+ * @module scenes/CreditScene
+ */
+
 import Phaser from 'phaser'
 
+/**
+ * Scene displaying game credits with animated background
+ * @extends Phaser.Scene
+ */
 export default class CreditScene extends Phaser.Scene {
   constructor() {
     super('CreditScene')

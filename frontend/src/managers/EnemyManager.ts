@@ -1,7 +1,16 @@
 /**
- * EnemyManager.ts
- * Manages enemy spawning, AI behavior, and collision handling
- * Extracted from the monolithic GameScene.ts
+ * @fileoverview EnemyManager - Manages enemy spawning, AI, and combat
+ * 
+ * Handles all enemy-related functionality:
+ * - Random enemy spawning with difficulty scaling
+ * - Multiple enemy types (fly, bee, slime, worm) in small/medium/large sizes
+ * - Enemy AI movement patterns
+ * - Collision and damage handling
+ * - Death animations and score rewards
+ * 
+ * Enemy difficulty increases with level progression.
+ * 
+ * @module managers/EnemyManager
  */
 
 import Phaser from 'phaser'

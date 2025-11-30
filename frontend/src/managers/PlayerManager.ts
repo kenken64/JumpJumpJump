@@ -1,7 +1,16 @@
 /**
- * PlayerManager.ts
- * Manages player state, movement, combat, and health
- * Extracted from the monolithic GameScene.ts
+ * @fileoverview PlayerManager - Manages player state, movement, and combat
+ * 
+ * Handles all player-related functionality:
+ * - Player sprite creation with equipped skin
+ * - Movement physics and animations
+ * - Single and double jumping with particles
+ * - Shooting with equipped weapon and reload mechanics
+ * - Health, lives, damage, and death handling
+ * - Shield and speed boost power-up effects
+ * - Coin collection and score tracking
+ * 
+ * @module managers/PlayerManager
  */
 
 import Phaser from 'phaser'

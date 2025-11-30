@@ -1,6 +1,22 @@
+/**
+ * @fileoverview LeaderboardScene - Displays high scores from the backend
+ * 
+ * Features:
+ * - Fetches scores from FastAPI backend
+ * - Pagination for browsing many scores
+ * - Filter by game mode (all, levels, endless)
+ * - Shows rank, player name, score, level, coins, enemies
+ * 
+ * @module scenes/LeaderboardScene
+ */
+
 import Phaser from 'phaser'
 import { GameAPI, type ScoreResponse } from '../services/api'
 
+/**
+ * Scene displaying high score leaderboard with filtering and pagination
+ * @extends Phaser.Scene
+ */
 export default class LeaderboardScene extends Phaser.Scene {
   private leaderboardData: ScoreResponse[] = []
   private selectedMode: 'all' | 'levels' | 'endless' = 'all'

@@ -1,6 +1,22 @@
+/**
+ * @fileoverview CoopLobbyScene - Local co-op game lobby for two players
+ * 
+ * Features:
+ * - Gamepad detection for two controllers
+ * - Player join indicators with ready status
+ * - Skin selection for each player
+ * - Game launch when both players ready
+ * 
+ * @module scenes/CoopLobbyScene
+ */
+
 import Phaser from 'phaser'
 import { LocalCoopManager } from '../utils/LocalCoopManager'
 
+/**
+ * Lobby scene for setting up local 2-player co-op games
+ * @extends Phaser.Scene
+ */
 export default class CoopLobbyScene extends Phaser.Scene {
   private coopManager: LocalCoopManager
   private player1Indicator?: Phaser.GameObjects.Container

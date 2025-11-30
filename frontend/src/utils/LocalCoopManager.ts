@@ -1,7 +1,21 @@
 /**
- * LocalCoopManager - Manages local cooperative multiplayer with dual gamepad support
+ * @fileoverview LocalCoopManager - Singleton manager for local 2-player co-op
+ * 
+ * Manages local cooperative multiplayer state:
+ * - Player join/leave and ready status
+ * - Gamepad assignments for each player
+ * - Individual player state (health, lives, score)
+ * - Co-op game settings (shared lives, friendly fire)
+ * - Skin and weapon selections per player
+ * 
+ * Uses singleton pattern for global state access.
+ * 
+ * @module utils/LocalCoopManager
  */
 
+/**
+ * Individual player state in co-op mode
+ */
 export interface PlayerState {
   playerNumber: 1 | 2
   gamepadIndex: number
@@ -14,6 +28,9 @@ export interface PlayerState {
   weapon: string
 }
 
+/**
+ * Configuration options for co-op gameplay
+ */
 export interface CoopSettings {
   isCoopMode: boolean
   player1: PlayerState
@@ -23,8 +40,14 @@ export interface CoopSettings {
   respawnOnPartnerAlive: boolean // If true, dead player respawns when partner is alive
 }
 
+/**
+ * Singleton manager for local cooperative multiplayer sessions
+ * Handles player state, gamepad assignments, and co-op settings
+ */
 export class LocalCoopManager {
+  /** Singleton instance */
   private static instance: LocalCoopManager
+  /** Current co-op settings and player states */
   private settings: CoopSettings
 
   private constructor() {

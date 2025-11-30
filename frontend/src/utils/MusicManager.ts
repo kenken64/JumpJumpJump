@@ -1,7 +1,24 @@
+/**
+ * @fileoverview MusicManager - Background music playback controller
+ * 
+ * Manages game background music:
+ * - Loads music settings from localStorage
+ * - Plays/stops music based on settings
+ * - Handles music volume control
+ * - Graceful fallback if audio not available
+ * 
+ * @module utils/MusicManager
+ */
+
 import Phaser from 'phaser'
 
+/**
+ * Controls background music playback for the game
+ */
 export class MusicManager {
+  /** Reference to the Phaser scene */
   private scene: Phaser.Scene
+  /** Current music track instance */
   private gameMusic: Phaser.Sound.BaseSound | null = null
 
   constructor(scene: Phaser.Scene) {

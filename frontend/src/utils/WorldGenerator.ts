@@ -1,13 +1,38 @@
+/**
+ * @fileoverview WorldGenerator - Procedural level generation for endless mode
+ * 
+ * Generates infinite side-scrolling platformer levels with:
+ * - Multiple biomes (metal, stone, dirt)
+ * - Platform placement with gaps and obstacles
+ * - Spike hazards with collision detection
+ * - Dynamic chunk generation as player progresses
+ * - Safe spawn area at level start
+ * 
+ * @module utils/WorldGenerator
+ */
+
 import Phaser from 'phaser'
 
+/**
+ * Procedural world generator for endless platformer levels
+ * Creates platforms, hazards, and biome transitions dynamically
+ */
 export class WorldGenerator {
+  /** Reference to the Phaser scene */
   private scene: Phaser.Scene
+  /** Static group for platform tiles */
   private platforms: Phaser.Physics.Arcade.StaticGroup
+  /** Static group for spike hazards */
   private spikes: Phaser.Physics.Arcade.StaticGroup
+  /** Array tracking spike positions for collision */
   private spikePositions: Array<{x: number, y: number, width: number}>
+  /** Current biome type for tile textures */
   private currentBiome: 'metal' | 'stone' | 'dirt'
+  /** Remaining length of current biome before transition */
   private biomeLength: number
+  /** Current X position for world generation */
   private worldGenerationX: number
+  /** Last X position where generation occurred */
   private lastGeneratedX: number
 
   constructor(

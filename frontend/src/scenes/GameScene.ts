@@ -1,3 +1,29 @@
+/**
+ * @fileoverview GameScene - Main gameplay scene for JumpJumpJump platformer
+ * 
+ * This is the core game scene handling all gameplay mechanics:
+ * - Player movement, jumping (single/double), and stomping
+ * - Shooting with multiple weapon types
+ * - Enemy spawning, AI, and combat
+ * - Boss encounters every 5 levels
+ * - Coin and power-up collection
+ * - Health, lives, and damage system
+ * - Level progression and portals
+ * - Endless mode world generation
+ * - AI player modes (rule-based, ML, DQN)
+ * - Local co-op support
+ * - Checkpoints and respawning
+ * - Score tracking and submission
+ * 
+ * Supports multiple game modes:
+ * - 'levels': Fixed-length levels with boss fights
+ * - 'endless': Procedurally generated infinite mode
+ * 
+ * Can be controlled by human player, AI, or DQN training agent.
+ * 
+ * @module scenes/GameScene
+ */
+
 import Phaser from 'phaser'
 import { GameAPI } from '../services/api'
 import { AudioManager } from '../utils/AudioManager'
@@ -8,6 +34,10 @@ import { AIPlayer } from '../utils/AIPlayer'
 import { MLAIPlayer } from '../utils/MLAIPlayer'
 import { DQNAgent, DQNState, DQNAction } from '../utils/DQNAgent'
 
+/**
+ * Main gameplay scene containing all game logic
+ * @extends Phaser.Scene
+ */
 export default class GameScene extends Phaser.Scene {
   private player!: Phaser.Physics.Arcade.Sprite
   private gun!: Phaser.GameObjects.Image

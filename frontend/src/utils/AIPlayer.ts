@@ -1,6 +1,24 @@
+/**
+ * @fileoverview AIPlayer - Rule-based AI for automated gameplay
+ * 
+ * Implements a heuristic AI that can play the game autonomously:
+ * - Threat assessment and avoidance
+ * - Combat targeting and shooting
+ * - Coin/power-up collection
+ * - Platform navigation and jumping
+ * - Portal detection for level completion
+ * 
+ * Used as fallback when ML/DQN models aren't available.
+ * 
+ * @module utils/AIPlayer
+ */
+
 import Phaser from 'phaser'
 import type GameScene from '../scenes/GameScene'
 
+/**
+ * AI decision output structure
+ */
 export interface AIDecision {
   moveLeft: boolean
   moveRight: boolean
@@ -10,10 +28,18 @@ export interface AIDecision {
   aimY: number
 }
 
+/**
+ * Rule-based AI player that makes decisions using heuristics
+ * Processes game state and outputs movement/combat decisions
+ */
 export class AIPlayer {
+  /** Reference to the game scene */
   private scene: GameScene
+  /** Milliseconds between AI decision updates */
   private updateInterval: number = 100 // AI thinks every 100ms
+  /** Timestamp of last decision update */
   private lastUpdateTime: number = 0
+  /** Current decision state */
   private currentDecision: AIDecision = {
     moveLeft: false,
     moveRight: false,

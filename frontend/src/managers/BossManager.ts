@@ -1,7 +1,16 @@
 /**
- * BossManager.ts
- * Manages boss encounters, attacks, phases, and defeat logic
- * Extracted from the monolithic GameScene.ts
+ * @fileoverview BossManager - Manages boss encounters, attacks, and defeat logic
+ * 
+ * Handles all boss-related functionality:
+ * - Boss spawning with unique sprites from backend data
+ * - Multi-phase boss attacks (lasers, projectiles, missiles)
+ * - Boss health bar UI and damage tracking
+ * - Defeat rewards (100 coins) and progression
+ * - Per-player boss defeat tracking via localStorage
+ * 
+ * Boss fights occur every 5 levels in level mode.
+ * 
+ * @module managers/BossManager
  */
 
 import Phaser from 'phaser'

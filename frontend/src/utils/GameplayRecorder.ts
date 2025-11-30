@@ -1,5 +1,22 @@
+/**
+ * @fileoverview GameplayRecorder - Records player gameplay for ML training
+ * 
+ * Captures game state and player actions at regular intervals:
+ * - Player position, velocity, health
+ * - Nearby enemies, coins, spikes, platforms
+ * - Player input actions (move, jump, shoot)
+ * - Saves recordings to localStorage for training
+ * 
+ * Used to generate training data for MLAIPlayer.
+ * 
+ * @module utils/GameplayRecorder
+ */
+
 import type GameScene from '../scenes/GameScene'
 
+/**
+ * Captured game state for a single frame
+ */
 export interface GameState {
   // Player state
   playerX: number
@@ -25,6 +42,9 @@ export interface GameState {
   coins: number
 }
 
+/**
+ * Player input actions for a single frame
+ */
 export interface PlayerAction {
   moveLeft: boolean
   moveRight: boolean
@@ -34,17 +54,29 @@ export interface PlayerAction {
   aimY: number
 }
 
+/**
+ * Complete frame data combining state and action with timestamp
+ */
 export interface GameplayFrame {
   state: GameState
   action: PlayerAction
   timestamp: number
 }
 
+/**
+ * Records gameplay sessions for machine learning training data
+ * Captures state-action pairs at 10 FPS for model training
+ */
 export class GameplayRecorder {
+  /** Reference to the game scene */
   private scene: GameScene
+  /** Whether recording is active */
   private isRecording: boolean = false
+  /** Recorded frames buffer */
   private frames: GameplayFrame[] = []
+  /** Timestamp of last recorded frame */
   private lastRecordTime: number = 0
+  /** Milliseconds between frame captures */
   private recordInterval: number = 100 // Record every 100ms (10 fps)
   
   constructor(scene: GameScene) {

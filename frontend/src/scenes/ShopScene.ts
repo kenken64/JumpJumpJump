@@ -1,14 +1,40 @@
+/**
+ * @fileoverview ShopScene - In-game shop for purchasing weapons and skins
+ * 
+ * Features:
+ * - Browse available weapons and alien skins
+ * - Purchase items with collected coins
+ * - Paginated shop display
+ * - Persistent purchases via localStorage
+ * - Procedurally generated weapon icons
+ * 
+ * @module scenes/ShopScene
+ */
+
 import Phaser from 'phaser'
 
+/**
+ * Shop item data structure
+ */
 interface ShopItem {
+  /** Unique item identifier */
   id: string
+  /** Display name */
   name: string
+  /** Item category */
   type: 'weapon' | 'skin'
+  /** Cost in coins */
   price: number
+  /** Texture key for display */
   icon: string
+  /** Item description text */
   description: string
 }
 
+/**
+ * Scene for purchasing weapons and skins with coins
+ * @extends Phaser.Scene
+ */
 export default class ShopScene extends Phaser.Scene {
   private coinCount: number = 0
   private coinText!: Phaser.GameObjects.Text

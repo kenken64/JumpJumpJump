@@ -1,3 +1,18 @@
+/**
+ * @fileoverview App - Main React component and Phaser game initialization
+ * 
+ * Initializes the Phaser game engine with:
+ * - Canvas rendering (auto-selects WebGL or Canvas)
+ * - Arcade physics with gravity
+ * - Gamepad input support
+ * - All game scenes registered
+ * - Responsive scaling to fit viewport
+ * 
+ * Shows a "Click to Start" screen to ensure audio context is unlocked.
+ * 
+ * @module App
+ */
+
 import { useEffect, useRef, useState } from 'react'
 import Phaser from 'phaser'
 import './App.css'
@@ -11,6 +26,10 @@ import CreditScene from './scenes/CreditScene'
 import CoopLobbyScene from './scenes/CoopLobbyScene'
 import DQNTrainingScene from './scenes/DQNTrainingScene'
 
+/**
+ * Main React component that initializes and hosts the Phaser game
+ * @returns JSX element containing the game container
+ */
 function App() {
   const gameRef = useRef<HTMLDivElement>(null)
   const phaserGameRef = useRef<Phaser.Game | null>(null)

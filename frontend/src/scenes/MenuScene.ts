@@ -1,8 +1,30 @@
+/**
+ * @fileoverview MenuScene - Main menu and navigation hub for JumpJumpJump
+ * 
+ * This scene serves as the primary entry point for the game, providing:
+ * - Game mode selection (Level Mode, Endless Mode, Local Co-op)
+ * - Player name management
+ * - Navigation to Shop, Inventory, Bosses, Leaderboard, Credits
+ * - Settings configuration (audio, controls)
+ * - DQN AI Training launcher
+ * - Tutorial/How to Play
+ * 
+ * Features a visually stunning blackhole background effect with particle animations.
+ * 
+ * @module scenes/MenuScene
+ */
+
 import Phaser from 'phaser'
 import { GameAPI } from '../services/api'
 
+/**
+ * Main menu scene handling game navigation and settings
+ * @extends Phaser.Scene
+ */
 export default class MenuScene extends Phaser.Scene {
+  /** Current player's coin balance loaded from localStorage */
   private coinCount: number = 0
+  /** Text element displaying API connection status */
   private apiStatusText?: Phaser.GameObjects.Text
 
   constructor() {
@@ -329,6 +351,11 @@ export default class MenuScene extends Phaser.Scene {
     kenney.setOrigin(0.5, 1)
   }
 
+  /**
+   * Displays the tutorial/how-to-play overlay with game controls and tips
+   * Shows automatically on first launch, can be accessed from menu button
+   * @private
+   */
   private showTutorial() {
     // Create dark overlay
     const overlay = this.add.rectangle(640, 360, 1280, 720, 0x000000, 0.85)
@@ -438,6 +465,11 @@ export default class MenuScene extends Phaser.Scene {
     closeText.setDepth(102)
   }
 
+  /**
+   * Shows dialog for player to enter/change their name
+   * Saves to localStorage and updates display when confirmed
+   * @private
+   */
   private showNameInputDialog() {
     // Create dark overlay
     const overlay = this.add.rectangle(640, 360, 1280, 720, 0x000000, 0.85)
@@ -596,6 +628,11 @@ export default class MenuScene extends Phaser.Scene {
     })
   }
 
+  /**
+   * Creates the animated blackhole background effect
+   * Includes accretion disk, gravitational lensing, energy jets, and star field
+   * @private
+   */
   private createBlackholeBackground() {
     // Create a single centered blackhole for the menu
     const centerX = 640
@@ -719,6 +756,12 @@ export default class MenuScene extends Phaser.Scene {
     }
   }
 
+  /**
+   * Checks backend API connection status and updates indicator
+   * Shows green for connected, red for offline/error
+   * @private
+   * @async
+   */
   private async checkAPIConnection() {
     // Add API status indicator in bottom right
     this.apiStatusText = this.add.text(1200, 690, '● Checking API...', {
@@ -743,6 +786,11 @@ export default class MenuScene extends Phaser.Scene {
     }
   }
 
+  /**
+   * Opens the settings panel with audio controls and access to control configuration
+   * Includes music/sound toggles and volume sliders
+   * @private
+   */
   private showSettings() {
     // Load current settings from localStorage
     const musicEnabled = localStorage.getItem('musicEnabled') !== 'false' // Default true
@@ -977,6 +1025,12 @@ export default class MenuScene extends Phaser.Scene {
     closeText.setDepth(102)
   }
 
+  /**
+   * Shows the DQN AI Training launcher panel
+   * Allows selection of game mode (endless/levels) before starting AI training
+   * @private
+   * @async
+   */
   private async showMLTraining() {
     // Create semi-transparent overlay (allows game to be visible behind)
     const overlay = this.add.rectangle(640, 360, 1280, 720, 0x000000, 0.7)
@@ -1236,6 +1290,11 @@ export default class MenuScene extends Phaser.Scene {
     startButtonText.setDepth(102)
   }
 
+  /**
+   * Shows control configuration panel for keyboard/gamepad selection
+   * Detects connected gamepads and displays mapping information
+   * @private
+   */
   private showControlSettings() {
     // Import ControlManager dynamically
     import('../utils/ControlManager').then(({ ControlManager }) => {

@@ -1,6 +1,31 @@
+/**
+ * @fileoverview AudioManager - Sound effects generation and playback
+ * 
+ * Generates game sound effects programmatically using Web Audio API:
+ * - Jump sounds (single and double jump)
+ * - Shooting sounds for various weapons
+ * - Melee/stomp sounds
+ * - Coin collection sounds
+ * - Enemy hit and death sounds
+ * - Power-up activation sounds
+ * - Boss-related sounds
+ * - Portal/checkpoint sounds
+ * 
+ * All sounds are synthesized rather than loaded from files.
+ * 
+ * @module utils/AudioManager
+ */
+
+/**
+ * Manages all game sound effect generation and playback
+ * Uses Web Audio API oscillators and noise for procedural audio
+ */
 export class AudioManager {
+  /** Web Audio API context for sound synthesis */
   private audioContext: AudioContext
+  /** Whether sound effects are enabled */
   private soundEnabled: boolean = true
+  /** Master volume for sound effects (0-1) */
   private soundVolume: number = 0.5
 
   constructor(audioContext: AudioContext) {

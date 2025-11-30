@@ -1,6 +1,10 @@
 /**
- * Managers Index
- * Export all manager classes for easy importing
+ * @fileoverview Manager Module Exports
+ * 
+ * Central export point for all game manager classes.
+ * Managers were extracted from GameScene for better code organization.
+ * 
+ * @module managers
  */
 
 export { PlayerManager } from './PlayerManager'

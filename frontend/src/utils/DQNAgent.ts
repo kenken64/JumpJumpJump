@@ -1,6 +1,24 @@
+/**
+ * @fileoverview DQNAgent - Deep Q-Network reinforcement learning agent
+ * 
+ * Implements a DQN (Deep Q-Network) agent for learning to play the game:
+ * - Neural network policy and target networks
+ * - Experience replay buffer
+ * - Epsilon-greedy exploration
+ * - Reward shaping for platform games
+ * - Model save/load functionality
+ * 
+ * Uses TensorFlow.js for neural network operations.
+ * 
+ * @module utils/DQNAgent
+ */
+
 import * as tf from '@tensorflow/tfjs'
 import type GameScene from '../scenes/GameScene'
 
+/**
+ * State representation for DQN input (14 features)
+ */
 export interface DQNState {
     playerX: number
     playerY: number
@@ -18,6 +36,9 @@ export interface DQNState {
     bossHealth: number
 }
 
+/**
+ * Action output from DQN agent
+ */
 export interface DQNAction {
     actionIndex: number
     moveLeft: boolean
@@ -26,6 +47,10 @@ export interface DQNAction {
     shoot: boolean
 }
 
+/**
+ * Experience tuple for replay buffer
+ * @internal
+ */
 interface Experience {
     state: number[]
     action: number
@@ -34,34 +59,65 @@ interface Experience {
     done: boolean
 }
 
+/**
+ * Deep Q-Network agent for reinforcement learning gameplay
+ * Uses dual networks (policy + target) with experience replay
+ */
 export class DQNAgent {
-    private policyNet!: tf.Sequential
-    private targetNet!: tf.Sequential
-    private readonly stateSize = 14  // Increased to include boss info
-    private readonly actionSize = 9  // Expanded to include shooting actions
-    private epsilon = 1.0
-    private readonly epsilonMin = 0.1  // Keep even more exploration
-    private readonly epsilonDecay = 0.999  // Very slow decay
-    private replayBuffer: Experience[] = []
-    private readonly maxBufferSize = 10000
-    private readonly minBufferSize = 100
-    private trainingSteps = 0
-    private readonly targetUpdateFrequency = 100
-    private totalReward = 0
-    private episodeRewards: number[] = []
-    private averageReward = 0
-    private lastX = 0
-    private lastY = 0
-    private lastScore = 0
-    private framesSinceProgress = 0
-    private alive = true
-    private stuckCounter = 0
-    private stuckRetreatMode = false
-    private retreatFrames = 0
-    private needsDoubleJump = false
-    private isDisposed = false
-    private forceRandomExploration = false
-    private randomExplorationFrames = 0
+  /** Policy network for action selection */
+  private policyNet!: tf.Sequential
+  /** Target network for stable Q-value targets */
+  private targetNet!: tf.Sequential
+  /** Number of state features (14 including boss info) */
+  private readonly stateSize = 14  // Increased to include boss info
+  /** Number of possible actions (9 including shooting) */
+  private readonly actionSize = 9  // Expanded to include shooting actions
+  /** Exploration rate (probability of random action) */
+  private epsilon = 1.0
+  /** Minimum exploration rate */
+  private readonly epsilonMin = 0.1  // Keep even more exploration
+  /** Exploration decay rate per step */
+  private readonly epsilonDecay = 0.999  // Very slow decay
+  /** Experience replay buffer */
+  private replayBuffer: Experience[] = []
+  /** Maximum replay buffer size */
+  private readonly maxBufferSize = 10000
+  /** Minimum experiences before training starts */
+  private readonly minBufferSize = 100
+  /** Total training steps completed */
+  private trainingSteps = 0
+  /** Steps between target network updates */
+  private readonly targetUpdateFrequency = 100
+  /** Cumulative reward for current episode */
+  private totalReward = 0
+  /** History of episode rewards */
+  private episodeRewards: number[] = []
+  /** Moving average of rewards */
+  private averageReward = 0
+  /** Last recorded X position */
+  private lastX = 0
+  /** Last recorded Y position */
+  private lastY = 0
+  /** Last recorded score */
+  private lastScore = 0
+  /** Frames without forward progress */
+  private framesSinceProgress = 0
+  /** Whether agent is still alive */
+  private alive = true
+  /** Counter for stuck detection */
+  private stuckCounter = 0
+  /** Whether retreat behavior is active */
+  private stuckRetreatMode = false
+  /** Frames remaining in retreat mode */
+  private retreatFrames = 0
+  /** Whether double jump is needed */
+  private needsDoubleJump = false
+  /** Whether agent resources have been disposed */
+  private isDisposed = false
+  /** Force random actions when completely stuck */
+  private forceRandomExploration = false
+  /** Frames remaining in random exploration */
+  private randomExplorationFrames = 0
 
     constructor(_scene: GameScene) {
         // Scene reference not used but kept for compatibility

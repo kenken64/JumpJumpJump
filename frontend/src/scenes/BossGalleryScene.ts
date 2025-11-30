@@ -1,6 +1,22 @@
+/**
+ * @fileoverview BossGalleryScene - Displays all game bosses in a paginated gallery
+ * 
+ * Features:
+ * - Fetches boss data from backend API
+ * - Shows boss sprites, names, and notorious titles
+ * - Indicates defeated/undefeated status per player
+ * - Paginated display with 8 bosses per page
+ * 
+ * @module scenes/BossGalleryScene
+ */
+
 import Phaser from 'phaser'
 import { GameAPI, type Boss } from '../services/api'
 
+/**
+ * Scene displaying a gallery of all game bosses with defeat status
+ * @extends Phaser.Scene
+ */
 export default class BossGalleryScene extends Phaser.Scene {
   private bosses: Boss[] = []
   private currentPage: number = 0

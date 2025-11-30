@@ -1,13 +1,39 @@
+/**
+ * @fileoverview InventoryScene - Player inventory management for weapons and skins
+ * 
+ * Features:
+ * - Display of owned weapons and alien skins
+ * - Equip/unequip functionality for items
+ * - Procedurally generated weapon icons
+ * - Visual indication of equipped items
+ * 
+ * Items are persisted to localStorage.
+ * 
+ * @module scenes/InventoryScene
+ */
+
 import Phaser from 'phaser'
 
+/**
+ * Inventory item data structure
+ */
 interface InventoryItem {
+  /** Unique item identifier */
   id: string
+  /** Display name */
   name: string
+  /** Item category */
   type: 'weapon' | 'skin'
+  /** Texture key for display */
   icon: string
+  /** Whether item is currently equipped */
   equipped: boolean
 }
 
+/**
+ * Scene for managing player's collected items and equipment
+ * @extends Phaser.Scene
+ */
 export default class InventoryScene extends Phaser.Scene {
   private inventory: InventoryItem[] = []
   private equippedWeapon: string = 'raygun'

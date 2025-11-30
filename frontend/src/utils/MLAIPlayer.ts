@@ -1,12 +1,34 @@
+/**
+ * @fileoverview MLAIPlayer - Machine Learning AI player using TensorFlow.js
+ * 
+ * Supervised learning AI that learns from recorded human gameplay:
+ * - Loads/saves neural network models to localStorage
+ * - Trains on GameplayRecorder data
+ * - Predicts actions from current game state
+ * - Handles model version compatibility
+ * 
+ * Alternative to DQN for imitation learning approach.
+ * 
+ * @module utils/MLAIPlayer
+ */
+
 import * as tf from '@tensorflow/tfjs'
 import type GameScene from '../scenes/GameScene'
 import { GameplayRecorder, type GameState, type GameplayFrame } from './GameplayRecorder'
 import type { AIDecision } from './AIPlayer'
 
+/**
+ * Machine learning AI player trained on recorded gameplay
+ * Uses TensorFlow.js for neural network inference
+ */
 export class MLAIPlayer {
+  /** Reference to the game scene */
   private scene: GameScene
+  /** Loaded TensorFlow model */
   private model: tf.LayersModel | null = null
+  /** Whether training is in progress */
   private isTraining: boolean = false
+  /** Training progress percentage (0-100) */
   private trainingProgress: number = 0
   
   constructor(scene: GameScene) {
