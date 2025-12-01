@@ -57,14 +57,14 @@ export class OnlinePlayerManager {
   private remotePlayer: OnlinePlayer | null = null
   private platforms: Phaser.Physics.Arcade.StaticGroup
   private lastStateSendTime: number = 0
-  private stateSendInterval: number = 33 // Send state every 33ms (30 times per second)
+  private stateSendInterval: number = 16 // Send state every 16ms (60 times per second)
   private interpolationSpeed: number = 0.35 // Faster interpolation for smoother movement
   private positionSnapThreshold: number = 200 // Snap if difference is too large
   
   // Enemy sync tracking
   private trackedEnemies: Map<string, TrackedEnemy> = new Map()
   private lastEnemySyncTime: number = 0
-  private enemySyncInterval: number = 100 // Sync enemies every 100ms (10 times per second)
+  private enemySyncInterval: number = 50 // Sync enemies every 50ms (20 times per second)
   
   // Tethered scrolling - camera won't scroll forward unless both players are close
   private tetherMaxScrollX: number = 0 // Maximum scroll X based on trailing player
@@ -865,6 +865,16 @@ export class OnlinePlayerManager {
    */
   getLocalSprite(): Phaser.Physics.Arcade.Sprite | null {
     return this.localPlayer?.sprite || null
+  }
+  
+  /**
+   * Get the X position of the furthest player (for chunk generation)
+   * This ensures both clients generate the same chunks at the same time
+   */
+  getFurthestPlayerX(): number {
+    const localX = this.localPlayer?.sprite?.x ?? 0
+    const remoteX = this.remotePlayer?.sprite?.x ?? 0
+    return Math.max(localX, remoteX)
   }
   
   /**

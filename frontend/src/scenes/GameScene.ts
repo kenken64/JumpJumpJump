@@ -845,6 +845,9 @@ export default class GameScene extends Phaser.Scene {
       this.onlinePlayerManager = new OnlinePlayerManager(this, this.platforms)
       this.onlinePlayerManager.initializePlayers(this.onlineGameState, this.bullets)
       
+      // Sync initial lives from GameScene to player manager
+      this.onlinePlayerManager.updateLocalState({ lives: this.playerLives })
+      
       // Setup entity sync callbacks for enemies and coins
       this.onlinePlayerManager.setEntityCallbacks({
         onEnemySpawned: (enemy) => this.handleRemoteEnemySpawn(enemy),
@@ -957,15 +960,20 @@ export default class GameScene extends Phaser.Scene {
     // Create enemies
     this.enemies = this.physics.add.group()
 
-    // Spawn enemies randomly across the world (host only in online mode)
-    if (!this.isOnlineMode || this.isOnlineHost) {
-      const numEnemies = 15
-      for (let i = 0; i < numEnemies; i++) {
-        const x = this.isOnlineMode ? this.onlineSeededBetween(300, 3000) : Phaser.Math.Between(300, 3000)
-        const y = this.isOnlineMode ? this.onlineSeededBetween(200, 900) : Phaser.Math.Between(200, 900)
+    // Spawn enemies randomly across the world
+    // In online mode, both clients spawn using the same seed for determinism
+    // Reset RNG state before initial enemy spawn for consistency
+    if (this.isOnlineMode && this.onlineGameState) {
+      this.onlineRngState = this.onlineGameState.seed * 11 + 99999  // Unique offset for initial enemies
+      console.log(`👾 Initial enemy RNG reset, seed state: ${this.onlineRngState}`)
+    }
+    
+    const numEnemies = 15
+    for (let i = 0; i < numEnemies; i++) {
+      const x = this.isOnlineMode ? this.onlineSeededBetween(300, 3000) : Phaser.Math.Between(300, 3000)
+      const y = this.isOnlineMode ? this.onlineSeededBetween(200, 900) : Phaser.Math.Between(200, 900)
 
-        this.spawnRandomEnemy(x, y, 1.0)
-      }
+      this.spawnRandomEnemy(x, y, 1.0, -1, i)  // Use -1 for chunk index to indicate initial spawn
     }
 
     // Create block fragments group
@@ -1620,9 +1628,9 @@ export default class GameScene extends Phaser.Scene {
   }
 
   private spawnCoins() {
-    if (this.isOnlineMode && !this.isOnlineHost) {
-      return
-    }
+    // In online mode, both host and non-host generate coins using the same seed
+    // This ensures identical initial state - non-host just doesn't report to server
+    
     // Spawn coins at various positions throughout the world (Y values are above floor at 650)
     const coinPositions = [
       { x: 600, y: 450 },
@@ -1670,7 +1678,10 @@ export default class GameScene extends Phaser.Scene {
         ease: 'Linear'
       })
 
-      this.reportCoinSpawnToServer(coin)
+      // Only host reports to server - non-host generates same coins locally
+      if (!this.isOnlineMode || this.isOnlineHost) {
+        this.reportCoinSpawnToServer(coin)
+      }
     })
   }
 
@@ -2628,6 +2639,11 @@ export default class GameScene extends Phaser.Scene {
       // Update lives display
       this.livesText.setText(`Lives: ${this.playerLives}`)
 
+      // Sync lives with online player manager
+      if (this.isOnlineMode && this.onlinePlayerManager) {
+        this.onlinePlayerManager.updateLocalState({ lives: this.playerLives })
+      }
+
       // Show notification
       const text = this.add.text(this.player.x, this.player.y - 50, '+1 LIFE!', {
         fontSize: '24px',
@@ -2749,9 +2765,10 @@ export default class GameScene extends Phaser.Scene {
 
 
   private spawnCoinsInArea(startX: number, endX: number) {
-    if (this.isOnlineMode && !this.isOnlineHost) {
-      return
-    }
+    // In online mode, both host and non-host generate coins using the same seed
+    // This ensures both clients see the same coins at the same time
+    // Only host reports spawns to server
+    
     // Reset RNG for this chunk to ensure deterministic coin spawning in online mode
     // Use a unique formula to differentiate from enemy RNG
     if (this.isOnlineMode && this.onlineGameState) {
@@ -2856,9 +2873,10 @@ export default class GameScene extends Phaser.Scene {
   }
 
   private spawnEnemiesInArea(startX: number, endX: number) {
-    if (this.isOnlineMode && !this.isOnlineHost) {
-      return
-    }
+    // In online mode, both host and non-host generate enemies using the same seed
+    // This ensures both clients see the same enemies at the same time
+    // Only host reports spawns to server
+    
     // Don't spawn enemies on the starting platform (first 500 pixels)
     if (startX < 500) return
 
@@ -2966,6 +2984,10 @@ export default class GameScene extends Phaser.Scene {
       ? `enemy_chunk_${chunkIndex}_${enemyIndex}`
       : `enemy_${Math.floor(x / 800)}_${Math.floor(x)}_${Math.floor(y)}`
     enemy.setData('enemyId', enemyId)
+    
+    if (this.isOnlineMode) {
+      console.log(`👾 Created enemy ${enemyId} of type ${enemyType} at (${Math.floor(x)}, ${Math.floor(y)})`);
+    }
 
     enemy.body!.setSize(enemy.width * 0.7, enemy.height * 0.7)
     enemy.body!.setOffset(enemy.width * 0.15, enemy.height * 0.15)
@@ -2992,6 +3014,10 @@ export default class GameScene extends Phaser.Scene {
         scale: scale
       })
       // Track local enemy so host can stream position/health periodically
+      this.onlinePlayerManager.trackLocalEnemy(enemy, enemyId)
+    } else if (this.isOnlineMode && this.onlinePlayerManager) {
+      // Non-host also tracks enemies locally for collision detection
+      // but doesn't report to server - host is authoritative
       this.onlinePlayerManager.trackLocalEnemy(enemy, enemyId)
     }
   }
@@ -3943,7 +3969,13 @@ export default class GameScene extends Phaser.Scene {
     }
 
     // Generate new world chunks as player moves forward
-    if (this.player.x > this.lastGeneratedX - 1600) {
+    // In online mode, use the furthest player's X to ensure both clients
+    // generate the same chunks at the same time
+    const generationTriggerX = this.isOnlineMode && this.onlinePlayerManager
+      ? this.onlinePlayerManager.getFurthestPlayerX()
+      : this.player.x
+    
+    if (generationTriggerX > this.lastGeneratedX - 1600) {
       // Check if we need to stop generation (levels mode only)
       const shouldGenerate = this.gameMode === 'endless' || this.worldGenerationX < this.levelLength
 
@@ -3963,7 +3995,7 @@ export default class GameScene extends Phaser.Scene {
       }
 
       // Generate checkpoints every 20 meters
-      if (this.player.x > this.lastCheckpointX + this.checkpointInterval) {
+      if (generationTriggerX > this.lastCheckpointX + this.checkpointInterval) {
         this.createCheckpoint(this.lastCheckpointX + this.checkpointInterval)
         this.lastCheckpointX += this.checkpointInterval
       }
@@ -7340,9 +7372,25 @@ export default class GameScene extends Phaser.Scene {
     // Use server-provided ID
     const eid = enemy.enemy_id
 
-    // Check if we already have this enemy
+    // Check if we already have this enemy (locally spawned via seeded generation)
     if (this.remoteEnemies.has(eid)) {
       console.log(`👾 Enemy ${eid} already exists, skipping spawn`)
+      return
+    }
+    
+    // Also check if enemy exists in local enemies group (seeded generation)
+    let existingEnemy: Phaser.Physics.Arcade.Sprite | null = null
+    this.enemies.getChildren().forEach((child) => {
+      const sprite = child as Phaser.Physics.Arcade.Sprite
+      if (sprite.getData('enemyId') === eid) {
+        existingEnemy = sprite
+      }
+    })
+    
+    if (existingEnemy) {
+      // Enemy was created via seeded generation - just track it
+      console.log(`👾 Enemy ${eid} found locally (seeded), tracking for sync`)
+      this.remoteEnemies.set(eid, existingEnemy)
       return
     }
 
@@ -7533,6 +7581,22 @@ export default class GameScene extends Phaser.Scene {
     // Check if we already have this coin
     const cid = coinState.coin_id
     if (this.remoteCoins.has(cid)) {
+      return
+    }
+    
+    // Also check if coin exists in local coins group (seeded generation)
+    let existingCoin: Phaser.Physics.Arcade.Sprite | null = null
+    this.coins.getChildren().forEach((child) => {
+      const sprite = child as Phaser.Physics.Arcade.Sprite
+      if (sprite.getData('coinId') === cid) {
+        existingCoin = sprite
+      }
+    })
+    
+    if (existingCoin) {
+      // Coin was created via seeded generation - just track it
+      console.log(`🪙 Coin ${cid} found locally (seeded), tracking for sync`)
+      this.remoteCoins.set(cid, existingCoin)
       return
     }
 
