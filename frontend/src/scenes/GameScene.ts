@@ -3980,10 +3980,9 @@ export default class GameScene extends Phaser.Scene {
     // Calculate which chunk index we need to generate up to
     // Chunks are 800 pixels wide, and we want to generate 2 chunks ahead (1600 pixels)
     const targetChunkIndex = Math.floor((generationTriggerX + 1600) / 800)
-    const currentChunkIndex = Math.floor(this.worldGenerationX / 800)
     
     // Generate any missing chunks up to the target
-    while (currentChunkIndex < targetChunkIndex) {
+    while (Math.floor(this.worldGenerationX / 800) < targetChunkIndex) {
       // Check if we need to stop generation (levels mode only)
       const shouldGenerate = this.gameMode === 'endless' || this.worldGenerationX < this.levelLength
 
