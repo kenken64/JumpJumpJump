@@ -107,7 +107,7 @@ export default class OnlineLobbyScene extends Phaser.Scene {
         }
       },
 
-      onPlayerDisconnected: (playerId, playerName, canReconnect, roomInfo) => {
+      onPlayerDisconnected: (_playerId, playerName, canReconnect, roomInfo) => {
         console.log('Player disconnected:', playerName, 'can_reconnect=', canReconnect)
         // Reset local ready status when peer disconnects - lobby requires re-ready
         this.isReady = false
@@ -121,14 +121,15 @@ export default class OnlineLobbyScene extends Phaser.Scene {
       },
 
       // A player reconnected to the room (useful to refresh waiting UI)
-      onPlayerReconnected: (playerId, playerName, roomInfo) => {
-        console.log('Player reconnected:', playerId, playerName)
+      onPlayerReconnected: (_playerId, playerName, roomInfo) => {
+        console.log('Player reconnected:', _playerId, playerName)
         this.roomInfo = roomInfo
         // Ensure lobby UI is up-to-date and start button / ready states are refreshed
         if (this.currentView === 'waiting') {
           // If we already have a waiting UI, update it rather than recreating everything
           // Update local ready state from authoritative game state
-          const localEntry = playersArr.find(p => p.player_id === this.onlineService.playerId)
+          const playersArr = roomInfo?.players || []
+          const localEntry = playersArr.find((p: { player_id: string; is_ready?: boolean }) => p.player_id === this.onlineService.playerId)
           this.isReady = !!localEntry?.is_ready
 
           this.updateWaitingRoom()
