@@ -88,7 +88,6 @@ export default class GameScene extends Phaser.Scene {
   private coinParticles!: Phaser.GameObjects.Particles.ParticleEmitter
   private wasOnGround: boolean = false
   private worldGenerationX: number = 0
-  private lastGeneratedX: number = 0
   private spikes!: Phaser.Physics.Arcade.StaticGroup
   private worldGenerator!: WorldGenerator
   private spikePositions: Array<{ x: number, y: number, width: number }> = []
@@ -473,7 +472,6 @@ export default class GameScene extends Phaser.Scene {
     this.shieldSprite = null
 
     this.worldGenerationX = 0
-    this.lastGeneratedX = 0
     this.canDoubleJump = true
     this.hasDoubleJumped = false
     this.isStomping = false
@@ -609,7 +607,6 @@ export default class GameScene extends Phaser.Scene {
 
     console.log('Generating world...')
     this.worldGenerationX = this.worldGenerator.generateWorld()
-    this.lastGeneratedX = this.worldGenerationX
     console.log('Platforms created:', this.platforms.getChildren().length)
 
     // Create player animations FIRST before creating the player sprite
@@ -3980,30 +3977,44 @@ export default class GameScene extends Phaser.Scene {
       ? this.onlinePlayerManager.getFurthestPlayerX()
       : this.player.x
     
-    if (generationTriggerX > this.lastGeneratedX - 1600) {
+    // Calculate which chunk index we need to generate up to
+    // Chunks are 800 pixels wide, and we want to generate 2 chunks ahead (1600 pixels)
+    const targetChunkIndex = Math.floor((generationTriggerX + 1600) / 800)
+    const currentChunkIndex = Math.floor(this.worldGenerationX / 800)
+    
+    // Generate any missing chunks up to the target
+    while (currentChunkIndex < targetChunkIndex) {
       // Check if we need to stop generation (levels mode only)
       const shouldGenerate = this.gameMode === 'endless' || this.worldGenerationX < this.levelLength
 
       if (shouldGenerate) {
-        this.worldGenerator.generateChunk(this.worldGenerationX)
+        const chunkStartX = this.worldGenerationX
+        
+        if (this.isOnlineMode) {
+          console.log(`🌍 Generating chunk ${Math.floor(chunkStartX / 800)} at X=${chunkStartX}`)
+        }
+        
+        this.worldGenerator.generateChunk(chunkStartX)
         this.worldGenerationX += 800
-        this.lastGeneratedX = this.worldGenerationX
 
         // Spawn coins in new area
-        this.spawnCoinsInArea(this.worldGenerationX - 800, this.worldGenerationX)
+        this.spawnCoinsInArea(chunkStartX, chunkStartX + 800)
 
         // Spawn enemies in new area with difficulty scaling
-        this.spawnEnemiesInArea(this.worldGenerationX - 800, this.worldGenerationX)
+        this.spawnEnemiesInArea(chunkStartX, chunkStartX + 800)
       } else if (!this.levelEndMarker) {
         // Create level end marker
         this.createLevelEndMarker()
+        break
+      } else {
+        break
       }
-
-      // Generate checkpoints every 20 meters
-      if (generationTriggerX > this.lastCheckpointX + this.checkpointInterval) {
-        this.createCheckpoint(this.lastCheckpointX + this.checkpointInterval)
-        this.lastCheckpointX += this.checkpointInterval
-      }
+    }
+    
+    // Generate checkpoints every 20 meters
+    if (generationTriggerX > this.lastCheckpointX + this.checkpointInterval) {
+      this.createCheckpoint(this.lastCheckpointX + this.checkpointInterval)
+      this.lastCheckpointX += this.checkpointInterval
     }
 
     // Update gun position and aiming
