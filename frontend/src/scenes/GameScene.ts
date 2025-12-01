@@ -1424,8 +1424,8 @@ export default class GameScene extends Phaser.Scene {
       const startX = this.cameras.main.width - 20
       const startY = 20
 
-      // Top-right: Lives and Health
-      this.livesText = this.add.text(startX, startY, `Lives: ${this.playerLives}`, {
+      // Top-right: Lives and Health - show player name in online mode
+      this.livesText = this.add.text(startX, startY, this.getLivesText(), {
         fontSize: '24px',
         color: '#ffffff',
         fontStyle: 'bold',
@@ -2642,7 +2642,7 @@ export default class GameScene extends Phaser.Scene {
       this.playerLives++
 
       // Update lives display
-      this.livesText.setText(`Lives: ${this.playerLives}`)
+      this.livesText.setText(this.getLivesText())
 
       // Sync lives with online player manager
       if (this.isOnlineMode && this.onlinePlayerManager) {
@@ -4102,7 +4102,7 @@ export default class GameScene extends Phaser.Scene {
     if (this.isCoopMode) {
       this.livesText.setText(`x${this.playerLives}`)
     } else {
-      this.livesText.setText(`Lives: ${this.playerLives}`)
+      this.livesText.setText(this.getLivesText())
     }
 
     // Update Player 2 health bar in co-op mode
@@ -5083,7 +5083,7 @@ export default class GameScene extends Phaser.Scene {
     })
 
     // Update lives display
-    this.livesText.setText(`Lives: ${this.playerLives}`)
+    this.livesText.setText(this.getLivesText())
 
     // Flash camera white
     this.cameras.main.flash(500, 255, 255, 255)
@@ -6833,6 +6833,18 @@ export default class GameScene extends Phaser.Scene {
       console.log('========================================\n')
       return { success: false, rank: null }
     }
+  }
+
+  /**
+   * Get formatted lives text - includes player name in online mode
+   */
+  private getLivesText(): string {
+    if (this.isOnlineMode) {
+      const onlineService = OnlineCoopService.getInstance()
+      const playerName = onlineService.playerName || 'Player'
+      return `${playerName} - Lives: ${this.playerLives}`
+    }
+    return `Lives: ${this.playerLives}`
   }
 
   private updateScore(points: number) {
