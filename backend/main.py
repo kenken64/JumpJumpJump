@@ -490,7 +490,25 @@ async def websocket_room_endpoint(websocket: WebSocket, room_id: str):
                 if current_room:
                     action = data.get("action")
                     action_data = data.get("data", {})
-                    
+                    # Special-case: assist requests — allow host to adjust partner position
+                    if action == 'assist' and player_id == current_room.host_id:
+                        target_id = action_data.get('target_player_id')
+                        new_x = action_data.get('x')
+                        new_y = action_data.get('y')
+                        if target_id and target_id in current_room.players:
+                            # Update authoritative server-side player position
+                            p = current_room.players[target_id]
+                            if isinstance(new_x, (int, float)):
+                                p.x = float(new_x)
+                            if isinstance(new_y, (int, float)):
+                                p.y = float(new_y)
+                            # Broadcast updated player position to all clients
+                            await current_room.broadcast({
+                                "type": "player_state_update",
+                                "player_id": target_id,
+                                "state": {"x": p.x, "y": p.y}
+                            })
+                    # Broadcast the game action to other clients for visual/UX feedback
                     await current_room.broadcast({
                         "type": "game_action",
                         "player_id": player_id,
@@ -506,12 +524,23 @@ async def websocket_room_endpoint(websocket: WebSocket, room_id: str):
                     
                     # Check if item was already collected
                     if current_room.mark_item_collected(item_type, item_id, player_id):
-                        # First to collect - broadcast to all
+                        # First to collect - update server's player totals where applicable
+                        player_state = current_room.players.get(player_id)
+                        if player_state:
+                            if item_type == 'coin':
+                                # Increment player's coins and award score
+                                player_state.coins = (player_state.coins or 0) + 1
+                                player_state.score = (player_state.score or 0) + 10
+                            # For powerups we currently do not change coins but could adjust score/effects server-side
+                        player_coins = player_state.coins if player_state else None
+                        player_score = player_state.score if player_state else None
                         await current_room.broadcast({
                             "type": "item_collected",
                             "player_id": player_id,
                             "item_type": item_type,
-                            "item_id": item_id
+                            "item_id": item_id,
+                            "player_coins": player_coins,
+                            "player_score": player_score
                         })
                     else:
                         # Item already collected by other player
@@ -519,6 +548,140 @@ async def websocket_room_endpoint(websocket: WebSocket, room_id: str):
                             "type": "item_already_collected",
                             "item_id": item_id
                         })
+            
+            elif message_type == "enemy_state":
+                # Handle enemy state update (host sends, all receive)
+                if current_room and player_id:
+                    enemy_id = data.get("enemy_id", "")
+                    state_update = data.get("state", {})
+                    
+                    # Logging for diagnostics
+                    print(f"[ROOM {current_room.room_id}] enemy_state from {player_id}: {enemy_id} -> {state_update}")
+
+                    # Update enemy state on server
+                    current_room.update_enemy_state(enemy_id, state_update)
+                    
+                    # Broadcast to other players
+                    await current_room.broadcast({
+                        "type": "enemy_state_update",
+                        "enemy_id": enemy_id,
+                        "state": state_update
+                    }, exclude=player_id)
+            
+            elif message_type == "enemy_spawn":
+                # Host spawns an enemy, register and broadcast
+                if current_room and player_id == current_room.host_id:
+                    enemy_data = data.get("enemy", {})
+                    print(f"[ROOM {current_room.room_id}] enemy_spawn from host: {enemy_data}")
+                    enemy_id = current_room.spawn_enemy(enemy_data)
+                    
+                    # Broadcast spawn to all players (including host for confirmation)
+                    await current_room.broadcast({
+                        "type": "enemy_spawned",
+                        "enemy": current_room.enemies.get(enemy_id, enemy_data)
+                    })
+            
+            elif message_type == "enemy_killed":
+                # Handle enemy death (first killer wins)
+                if current_room and player_id:
+                    enemy_id = data.get("enemy_id", "")
+                    print(f"[ROOM {current_room.room_id}] enemy_killed reported by {player_id}: {enemy_id}")
+                    
+                    # Check if enemy is still alive
+                    if current_room.kill_enemy(enemy_id, player_id):
+                        # First to kill - broadcast to all
+                        await current_room.broadcast({
+                            "type": "enemy_killed",
+                            "enemy_id": enemy_id,
+                            "killed_by": player_id
+                        })
+
+                        # Server (authoritative) will spawn coins for the killed enemy
+                        enemy_info = current_room.enemies.get(enemy_id, {})
+                        try:
+                            x = float(enemy_info.get('x', 0))
+                            y = float(enemy_info.get('y', 0))
+                        except Exception:
+                            x = 0.0
+                            y = 0.0
+
+                        # coin_reward may be provided by host or default
+                        coin_count = int(enemy_info.get('coin_reward', 0) or 0)
+
+                        # If there are coins to spawn, create deterministic spread and broadcast each coin
+                        for i in range(coin_count):
+                            # Deterministic offsets so all clients compute same motion later
+                            offset_x = ((int(x) * 7 + i * 13) % 61) - 30
+                            offset_y = ((int(y) * 11 + i * 17) % 21) - 20
+                            coin_x = x + offset_x
+                            coin_y = y + offset_y
+
+                            # Deterministic velocities so clients animate drops similarly
+                            vel_x = ((int(x) * 3 + i * 19) % 201) - 100
+                            vel_y = -200 + ((int(y) * 5 + i * 23) % 101)
+
+                            coin_data = {
+                                'x': coin_x,
+                                'y': coin_y,
+                                'value': 1,
+                                'velocity_x': vel_x,
+                                'velocity_y': vel_y
+                            }
+                            # Use deterministic coin_id so host-local coin IDs (coin_drop_...) match
+                            # the server-assigned id. This prevents mismatch when host spawns
+                            # coins locally and the server also registers them.
+                            coin_data['coin_id'] = f"coin_drop_{int(x)}_{int(y)}_{i}"
+                            coin_id = current_room.spawn_coin(coin_data)
+                            # Broadcast spawn to all players
+                            await current_room.broadcast({
+                                "type": "coin_spawned",
+                                "coin": current_room.coins.get(coin_id, coin_data)
+                            })
+                    else:
+                        # Enemy already dead
+                        await websocket.send_json({
+                            "type": "enemy_already_dead",
+                            "enemy_id": enemy_id
+                        })
+            
+            elif message_type == "coin_spawn":
+                # Host spawns a coin, register and broadcast
+                if current_room and player_id == current_room.host_id:
+                    coin_data = data.get("coin", {})
+                    print(f"[ROOM {current_room.room_id}] coin_spawn from host: {coin_data}")
+                    coin_id = current_room.spawn_coin(coin_data)
+                    
+                    # Broadcast spawn to all players
+                    await current_room.broadcast({
+                        "type": "coin_spawned",
+                        "coin": current_room.coins.get(coin_id, coin_data)
+                    })
+            
+            elif message_type == "sync_entities":
+                # Host sends full entity state periodically for sync verification
+                if current_room and player_id == current_room.host_id:
+                    enemies = data.get("enemies", [])
+                    coins = data.get("coins", [])
+                    print(f"[ROOM {current_room.room_id}] sync_entities from host (enemies: {len(enemies)}, coins: {len(coins)})")
+                    
+                    # Update server state from host
+                    for enemy in enemies:
+                        eid = enemy.get("enemy_id")
+                        if eid:
+                            current_room.enemies[eid] = enemy
+                    
+                    for coin in coins:
+                        cid = coin.get("coin_id")
+                        if cid and cid not in current_room.collected_coins:
+                            current_room.coins[cid] = coin
+                    
+                    # Broadcast to non-host players for sync
+                    await current_room.broadcast({
+                        "type": "entities_sync",
+                        "enemies": current_room.get_active_enemies(),
+                        "coins": current_room.get_uncollected_coins(),
+                        "sequence_id": current_room.get_next_sequence()
+                    }, exclude=player_id)
             
             elif message_type == "reconnect":
                 # Handle reconnection attempt

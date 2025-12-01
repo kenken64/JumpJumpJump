@@ -39,6 +39,33 @@ class PlayerState(BaseModel):
     coins: int = 0  # Collected coins
 
 
+class EnemyState(BaseModel):
+    """Represents an enemy's current state for synchronization"""
+    enemy_id: str
+    enemy_type: str
+    x: float
+    y: float
+    velocity_x: float = 0
+    velocity_y: float = 0
+    health: int = 10
+    max_health: int = 10
+    is_alive: bool = True
+    facing_right: bool = True
+    state: str = "idle"  # idle, moving, attacking, dead
+
+
+class CoinState(BaseModel):
+    """Represents a coin's current state for synchronization"""
+    coin_id: str
+    x: float
+    y: float
+    is_collected: bool = False
+    collected_by: Optional[str] = None
+    value: int = 1
+    velocity_x: float = 0
+    velocity_y: float = 0
+
+
 class GameRoom:
     """Represents an online multiplayer game room"""
     
@@ -66,8 +93,12 @@ class GameRoom:
         
         # Game state
         self.seed: int = secrets.randbelow(1000000)  # Random seed for world generation
-        self.enemies: List[dict] = []
+        self.enemies: Dict[str, dict] = {}  # enemy_id -> enemy state
+        self.coins: Dict[str, dict] = {}  # coin_id -> coin state
         self.projectiles: List[dict] = []
+        
+        # Host is authoritative for enemy/coin spawning
+        self.entity_spawn_counter: int = 0
         
         # Synchronization - server is the single source of truth
         self.game_start_timestamp: Optional[float] = None  # Unix timestamp when game should start
@@ -156,6 +187,13 @@ class GameRoom:
             self.host_id = self.player_order[0]
         
         # Notify remaining players
+        # If the game has not started, a player leaving invalidates "ready" states
+        # so that remaining players must re-ready before starting again.
+        if not self.game_started:
+            for pid, p in self.players.items():
+                if hasattr(p, 'is_ready'):
+                    p.is_ready = False
+
         await self.broadcast({
             "type": "player_left" if not allow_reconnect else "player_disconnected",
             "player_id": player_id,
@@ -222,12 +260,79 @@ class GameRoom:
         if item_type == "coin":
             if item_id not in self.collected_coins:
                 self.collected_coins.add(item_id)
+                # Update coin state if tracked
+                if item_id in self.coins:
+                    self.coins[item_id]['is_collected'] = True
+                    self.coins[item_id]['collected_by'] = player_id
                 return True
         elif item_type == "powerup":
             if item_id not in self.collected_powerups:
                 self.collected_powerups.add(item_id)
                 return True
         return False
+    
+    def update_enemy_state(self, enemy_id: str, state_update: dict) -> bool:
+        """Update an enemy's state, returns True if enemy exists"""
+        if enemy_id in self.enemies:
+            self.enemies[enemy_id].update(state_update)
+            return True
+        return False
+    
+    def spawn_enemy(self, enemy_data: dict) -> str:
+        """Register a new enemy, returns the enemy ID"""
+        enemy_id = enemy_data.get('enemy_id') or f"enemy_{self.entity_spawn_counter}"
+        self.entity_spawn_counter += 1
+        self.enemies[enemy_id] = {
+            'enemy_id': enemy_id,
+            'enemy_type': enemy_data.get('enemy_type', 'fly'),
+            'x': enemy_data.get('x', 0),
+            'y': enemy_data.get('y', 0),
+            'velocity_x': enemy_data.get('velocity_x', 0),
+            'velocity_y': enemy_data.get('velocity_y', 0),
+            'health': enemy_data.get('health', 10),
+            'max_health': enemy_data.get('max_health', 10),
+            # Store coin reward so server can spawn coins on death
+            'coin_reward': enemy_data.get('coin_reward', enemy_data.get('coinReward', 0)),
+            # Optional visual scale (kept if provided by host)
+            'scale': enemy_data.get('scale', 1.0),
+            'is_alive': True,
+            'facing_right': enemy_data.get('facing_right', True),
+            'state': enemy_data.get('state', 'idle')
+        }
+        return enemy_id
+    
+    def kill_enemy(self, enemy_id: str, killed_by: str) -> bool:
+        """Mark an enemy as dead, returns True if enemy was alive"""
+        if enemy_id in self.enemies and self.enemies[enemy_id].get('is_alive', True):
+            self.enemies[enemy_id]['is_alive'] = False
+            self.enemies[enemy_id]['killed_by'] = killed_by
+            self.enemies[enemy_id]['state'] = 'dead'
+            return True
+        return False
+    
+    def spawn_coin(self, coin_data: dict) -> str:
+        """Register a new coin, returns the coin ID"""
+        coin_id = coin_data.get('coin_id') or f"coin_{self.entity_spawn_counter}"
+        self.entity_spawn_counter += 1
+        self.coins[coin_id] = {
+            'coin_id': coin_id,
+            'x': coin_data.get('x', 0),
+            'y': coin_data.get('y', 0),
+            'is_collected': coin_data.get('is_collected', False),
+            'collected_by': coin_data.get('collected_by'),
+            'value': coin_data.get('value', 1),
+            'velocity_x': coin_data.get('velocity_x', 0),
+            'velocity_y': coin_data.get('velocity_y', 0)
+        }
+        return coin_id
+    
+    def get_active_enemies(self) -> List[dict]:
+        """Get list of all alive enemies"""
+        return [e for e in self.enemies.values() if e.get('is_alive', True)]
+    
+    def get_uncollected_coins(self) -> List[dict]:
+        """Get list of all uncollected coins"""
+        return [c for c in self.coins.values() if not c.get('is_collected', False)]
     
     async def broadcast(self, message: dict, exclude: Optional[str] = None):
         """Send a message to all connected players"""
@@ -320,7 +425,8 @@ class GameRoom:
                 }
                 for pid, p in self.players.items()
             },
-            "enemies": self.enemies,
+            "enemies": self.get_active_enemies(),
+            "coins": self.get_uncollected_coins(),
             "projectiles": self.projectiles,
             "collected_coins": list(self.collected_coins),
             "collected_powerups": list(self.collected_powerups),

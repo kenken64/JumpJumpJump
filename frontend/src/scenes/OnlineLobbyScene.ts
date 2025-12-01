@@ -87,18 +87,56 @@ export default class OnlineLobbyScene extends Phaser.Scene {
       
       onPlayerLeft: (_playerId, playerName, roomInfo) => {
         console.log('Player left:', playerName)
+        // Reset our local ready state when anyone leaves — lobby requires re-ready
+        this.isReady = false
         this.roomInfo = roomInfo
         this.updateWaitingRoom()
         this.addChatMessage(`${playerName} left the room`)
       },
       
       onPlayerReadyChanged: (playerId, isReady, roomInfo) => {
+        // Keep local ready flag in sync with server authoritative value
+        if (playerId === this.onlineService.playerId) {
+          this.isReady = isReady
+        }
         this.roomInfo = roomInfo
         this.updateWaitingRoom()
         const player = roomInfo.players.find(p => p.player_id === playerId)
         if (player) {
           this.addChatMessage(`${player.player_name} is ${isReady ? 'ready' : 'not ready'}`)
         }
+      },
+
+      onPlayerDisconnected: (playerId, playerName, canReconnect, roomInfo) => {
+        console.log('Player disconnected:', playerName, 'can_reconnect=', canReconnect)
+        // Reset local ready status when peer disconnects - lobby requires re-ready
+        this.isReady = false
+        this.roomInfo = roomInfo
+        this.updateWaitingRoom()
+        if (canReconnect) {
+          this.addChatMessage(`${playerName} disconnected (can reconnect)`)
+        } else {
+          this.addChatMessage(`${playerName} disconnected`)
+        }
+      },
+
+      // A player reconnected to the room (useful to refresh waiting UI)
+      onPlayerReconnected: (playerId, playerName, roomInfo) => {
+        console.log('Player reconnected:', playerId, playerName)
+        this.roomInfo = roomInfo
+        // Ensure lobby UI is up-to-date and start button / ready states are refreshed
+        if (this.currentView === 'waiting') {
+          // If we already have a waiting UI, update it rather than recreating everything
+          // Update local ready state from authoritative game state
+          const localEntry = playersArr.find(p => p.player_id === this.onlineService.playerId)
+          this.isReady = !!localEntry?.is_ready
+
+          this.updateWaitingRoom()
+        } else {
+          // If for some reason we are not showing waiting view, show it
+          this.showWaitingRoom()
+        }
+        this.addChatMessage(`${playerName} rejoined the room`)
       },
       
       onGameStarting: (gameState: NetworkGameState) => {
@@ -153,6 +191,36 @@ export default class OnlineLobbyScene extends Phaser.Scene {
         if (this.currentView === 'waiting') {
           this.showError('Disconnected from server')
           this.showMainMenu()
+        }
+      }
+    })
+
+    // Local client fully reconnected (received full game_state) — refresh UI appropriately
+    this.onlineService.setCallbacks({
+      onReconnected: (gameState: NetworkGameState) => {
+        // If we are in the waiting lobby, update players list and UI
+        if (this.currentView === 'waiting') {
+          // Convert gameState.players (map) to our RoomInfo-like players array for UI
+          const playersArr = Object.entries(gameState.players).map(([pid, p]) => ({
+            player_id: pid,
+            player_name: p.player_name,
+            player_number: p.player_number,
+            is_ready: p.is_ready,
+            skin: p.skin
+          }))
+
+          // Merge into a minimal roomInfo to allow updateWaitingRoom() to work
+          this.roomInfo = {
+            room_id: this.onlineService.roomId || 'unknown',
+            room_name: 'Game Room',
+            host_id: Object.keys(gameState.players).find(id => (gameState.players[id].player_number === 1)) || '',
+            player_count: playersArr.length,
+            max_players: 2,
+            game_started: !!gameState.game_start_timestamp,
+            players: playersArr as any
+          }
+
+          this.updateWaitingRoom()
         }
       }
     })
@@ -627,7 +695,9 @@ export default class OnlineLobbyScene extends Phaser.Scene {
     // Buttons at bottom center
     this.createReadyButton()
     
-    if (this.onlineService.isHost) {
+    // Show start button if current player is host according to service OR roomInfo
+    const amHost = this.onlineService.isHost || (this.roomInfo && this.roomInfo.host_id === this.onlineService.playerId)
+    if (amHost) {
       this.createStartButton()
     }
     
@@ -844,7 +914,13 @@ export default class OnlineLobbyScene extends Phaser.Scene {
     }
     
     // Update start button
-    if (this.startButton && this.onlineService.isHost) {
+    const amHost = this.onlineService.isHost || (this.roomInfo && this.roomInfo.host_id === this.onlineService.playerId)
+    // Ensure start button exists for hosts and update interactivity when appropriate
+    if (!this.startButton && amHost) {
+      this.createStartButton()
+    }
+
+    if (this.startButton && amHost) {
       const allReady = players.every(p => p.is_ready)
       const enoughPlayers = players.length >= 2
       

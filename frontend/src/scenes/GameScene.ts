@@ -34,7 +34,7 @@ import { AIPlayer } from '../utils/AIPlayer'
 import { MLAIPlayer } from '../utils/MLAIPlayer'
 import { DQNAgent, DQNState, DQNAction } from '../utils/DQNAgent'
 import { OnlinePlayerManager } from '../utils/OnlinePlayerManager'
-import { OnlineCoopService, NetworkGameState } from '../services/OnlineCoopService'
+import { OnlineCoopService, NetworkGameState, NetworkEnemyState, NetworkCoinState } from '../services/OnlineCoopService'
 
 /**
  * Main gameplay scene containing all game logic
@@ -53,6 +53,7 @@ export default class GameScene extends Phaser.Scene {
     d: Phaser.Input.Keyboard.Key
   }
   private gamepad: Phaser.Input.Gamepad.Gamepad | null = null
+  private assistKey?: Phaser.Input.Keyboard.Key
   private platforms!: Phaser.Physics.Arcade.StaticGroup
   private enemies!: Phaser.Physics.Arcade.Group
   private canDoubleJump: boolean = true
@@ -154,6 +155,10 @@ export default class GameScene extends Phaser.Scene {
   private onlinePlayerNumber?: number
   private onlineSeed?: number
   private onlineRngState: number = 0
+  // Track remote enemies and coins by network ID for online sync
+  private remoteEnemies: Map<string, Phaser.Physics.Arcade.Sprite> = new Map()
+  private remoteCoins: Map<string, Phaser.Physics.Arcade.Sprite> = new Map()
+  private isOnlineHost: boolean = false
 
   // DQN Training
   private dqnTraining: boolean = false
@@ -831,9 +836,22 @@ export default class GameScene extends Phaser.Scene {
     if (this.isOnlineMode && this.onlineGameState) {
       console.log('🌐 Initializing Online Co-op mode...')
       
+      // Determine if this player is the host (player 1)
+      this.isOnlineHost = this.onlinePlayerNumber === 1
+      console.log(`🌐 isOnlineHost: ${this.isOnlineHost} (player ${this.onlinePlayerNumber})`)
+      
       // Create online player manager
       this.onlinePlayerManager = new OnlinePlayerManager(this, this.platforms)
       this.onlinePlayerManager.initializePlayers(this.onlineGameState, this.bullets)
+      
+      // Setup entity sync callbacks for enemies and coins
+      this.onlinePlayerManager.setEntityCallbacks({
+        onEnemySpawned: (enemy) => this.handleRemoteEnemySpawn(enemy),
+        onEnemyKilled: (enemyId, killedBy) => this.handleRemoteEnemyKilled(enemyId, killedBy),
+        onEnemyStateUpdate: (enemyId, state) => this.handleRemoteEnemyStateUpdate(enemyId, state),
+        onCoinSpawned: (coin) => this.handleRemoteCoinSpawn(coin),
+        onEntitiesSync: (enemies, coins) => this.handleEntitiesSync(enemies, coins)
+      })
       
       // Get local player sprite for standard game mechanics
       const localSprite = this.onlinePlayerManager.getLocalSprite()
@@ -934,13 +952,15 @@ export default class GameScene extends Phaser.Scene {
     // Create enemies
     this.enemies = this.physics.add.group()
 
-    // Spawn enemies randomly across the world (use seeded random for online mode)
-    const numEnemies = 15
-    for (let i = 0; i < numEnemies; i++) {
-      const x = this.isOnlineMode ? this.onlineSeededBetween(300, 3000) : Phaser.Math.Between(300, 3000)
-      const y = this.isOnlineMode ? this.onlineSeededBetween(200, 900) : Phaser.Math.Between(200, 900)
+    // Spawn enemies randomly across the world (host only in online mode)
+    if (!this.isOnlineMode || this.isOnlineHost) {
+      const numEnemies = 15
+      for (let i = 0; i < numEnemies; i++) {
+        const x = this.isOnlineMode ? this.onlineSeededBetween(300, 3000) : Phaser.Math.Between(300, 3000)
+        const y = this.isOnlineMode ? this.onlineSeededBetween(200, 900) : Phaser.Math.Between(200, 900)
 
-      this.spawnRandomEnemy(x, y, 1.0)
+        this.spawnRandomEnemy(x, y, 1.0)
+      }
     }
 
     // Create block fragments group
@@ -953,6 +973,58 @@ export default class GameScene extends Phaser.Scene {
     // Create power-ups group
     this.powerUps = this.physics.add.group()
     this.spawnPowerUps()
+
+    // If we're the online host, register the deterministic map entities (enemies + coins)
+    // with the server so it has a full authoritative list for this session. We delay
+    // slightly so all initial spawn logic has finished.
+    if (this.isOnlineMode && this.isOnlineHost && this.onlinePlayerManager) {
+      this.time.delayedCall(300, () => {
+        try {
+          const enemiesPayload: NetworkEnemyState[] = []
+          this.enemies.getChildren().forEach((child: any) => {
+            const s = child as Phaser.Physics.Arcade.Sprite
+            const eid = s.getData('enemyId')
+            if (!eid) return
+            enemiesPayload.push({
+              enemy_id: eid,
+              enemy_type: s.getData('enemyType') || 'unknown',
+              x: Math.round(s.x),
+              y: Math.round(s.y),
+              velocity_x: Math.round((s.body as any)?.velocity?.x || 0),
+              velocity_y: Math.round((s.body as any)?.velocity?.y || 0),
+              health: s.getData('health') ?? 10,
+              max_health: s.getData('maxHealth') ?? (s.getData('health') ?? 10),
+              is_alive: !!s.active && ((s.getData('health') ?? 1) > 0),
+              facing_right: s.scaleX >= 0,
+              state: s.getData('state') || 'idle'
+            })
+          })
+
+          const coinsPayload: NetworkCoinState[] = []
+          this.coins.getChildren().forEach((child: any) => {
+            const c = child as Phaser.Physics.Arcade.Sprite
+            const cid = c.getData('coinId')
+            if (!cid) return
+            const body = c.body as Phaser.Physics.Arcade.Body | undefined
+            coinsPayload.push({
+              coin_id: cid,
+              x: Math.round(c.x),
+              y: Math.round(c.y),
+              is_collected: !!c.getData('isCollected') || false,
+              collected_by: c.getData('collectedBy') || null,
+              value: c.getData('value') ?? 1,
+              velocity_x: body?.velocity.x || 0,
+              velocity_y: body?.velocity.y || 0
+            })
+          })
+
+          console.log(`🌐 Host: syncing ${enemiesPayload.length} enemies and ${coinsPayload.length} coins to server`)
+          this.onlinePlayerManager?.syncEntities(enemiesPayload, coinsPayload)
+        } catch (e) {
+          console.warn('Failed to sync initial entities to server', e)
+        }
+      })
+    }
 
     // Setup collisions
     console.log('=== COLLISION SETUP ===')
@@ -1145,6 +1217,13 @@ export default class GameScene extends Phaser.Scene {
         this.openInGameChat()
       })
     }
+
+    // G key: rescue / assist partner when they are held back
+    const assistKey = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.G)
+    assistKey.on('down', () => {
+      this.attemptAssistPartner()
+    })
+    this.assistKey = assistKey
 
     // Camera follows player (or both players in co-op)
     if (this.isCoopMode) {
@@ -1536,6 +1615,9 @@ export default class GameScene extends Phaser.Scene {
   }
 
   private spawnCoins() {
+    if (this.isOnlineMode && !this.isOnlineHost) {
+      return
+    }
     // Spawn coins at various positions throughout the world (Y values are above floor at 650)
     const coinPositions = [
       { x: 600, y: 450 },
@@ -1562,6 +1644,7 @@ export default class GameScene extends Phaser.Scene {
       coin.setCollideWorldBounds(true)
       // Add unique ID for online sync
       coin.setData('coinId', `coin_init_${index}_${pos.x}_${pos.y}`)
+      coin.setData('value', 1)
 
       // Add floating animation
       this.tweens.add({
@@ -1581,6 +1664,8 @@ export default class GameScene extends Phaser.Scene {
         repeat: -1,
         ease: 'Linear'
       })
+
+      this.reportCoinSpawnToServer(coin)
     })
   }
 
@@ -2303,23 +2388,24 @@ export default class GameScene extends Phaser.Scene {
   }
 
   private collectCoin(_player: Phaser.Physics.Arcade.Sprite, coin: Phaser.Physics.Arcade.Sprite) {
-    // Get coin ID for online sync
-    const coinId = coin.getData('coinId') || `coin_${coin.x}_${coin.y}`
+    // Get coin ID for online sync - use deterministic ID based on stored data or position
+    const coinId = coin.getData('coinId') || `coin_${Math.floor(coin.x)}_${Math.floor(coin.y)}`
     
     // Report collection to online service (if online mode)
     if (this.isOnlineMode && this.onlinePlayerManager) {
       this.onlinePlayerManager.reportItemCollected('coin', coinId)
+      // Also remove from remote coins tracking if present
+      this.remoteCoins.delete(coinId)
     }
     
     // Remove coin
     coin.destroy()
 
     // Determine which player collected the coin
-
     const isPlayer2 = this.isCoopMode && _player === this.player2
 
     if (this.isCoopMode && isPlayer2) {
-      // Player 2 collected coin - track separately
+      // Player 2 collected coin - track separately (local co-op)
       const p2Coins = (_player.getData('coins') || 0) + 1
       const p2Score = (_player.getData('score') || 0) + 10
       _player.setData('coins', p2Coins)
@@ -2331,7 +2417,7 @@ export default class GameScene extends Phaser.Scene {
       if (p2CoinText) p2CoinText.setText(p2Coins.toString())
       if (p2ScoreText) p2ScoreText.setText(`Score: ${p2Score}`)
     } else {
-      // Player 1 collected coin - use existing tracking
+      // Local player collected coin (single player, online mode, or player 1 in local co-op)
       this.coinCount++
       this.updateScore(10)
 
@@ -2339,7 +2425,7 @@ export default class GameScene extends Phaser.Scene {
       if (this.isCoopMode) {
         const p1CoinText = this.children.getByName('p1CoinText') as Phaser.GameObjects.Text
         if (p1CoinText) p1CoinText.setText(this.coinCount.toString())
-      } else {
+      } else if (this.coinText) {
         this.coinText.setText(this.coinCount.toString())
       }
     }
@@ -2392,6 +2478,9 @@ export default class GameScene extends Phaser.Scene {
       powerUp.setScale(0.6)
       powerUp.setBounce(0.2)
       powerUp.setCollideWorldBounds(true)
+      // Deterministic id for online mode so collections are consistent
+      const powerupId = `powerup_chunk_${Math.floor(x / 800)}_${i}`
+      powerUp.setData('powerupId', powerupId)
       powerUp.setData('type', type)
 
       // Add floating animation
@@ -2419,7 +2508,13 @@ export default class GameScene extends Phaser.Scene {
   private collectPowerUp(_player: Phaser.Physics.Arcade.Sprite, powerUp: Phaser.Physics.Arcade.Sprite) {
     const type = powerUp.getData('type')
 
-    // Remove power-up
+    // Determine powerup ID for online sync and report collection
+    const powerupId = powerUp.getData('powerupId') || `powerup_${Math.floor(powerUp.x)}_${Math.floor(powerUp.y)}`
+    if (this.isOnlineMode && this.onlinePlayerManager) {
+      this.onlinePlayerManager.reportItemCollected('powerup', powerupId)
+    }
+
+    // Remove power-up locally (server will broadcast authoritative collection to other clients)
     powerUp.destroy()
 
     // Show tip on first power-up
@@ -2617,7 +2712,11 @@ export default class GameScene extends Phaser.Scene {
         const offsetY = this.isOnlineMode
           ? ((Math.floor(y) * 11 + i * 17) % 21) - 20  // Deterministic: -20 to 0
           : Phaser.Math.Between(-20, 0)
+        const coinId = `coin_drop_${Math.floor(x)}_${Math.floor(y)}_${i}`
         const coin = this.coins.create(x + offsetX, y + offsetY, 'coin')
+        // Set deterministic coin ID for online sync
+        coin.setData('coinId', coinId)
+        coin.setData('value', 1)
         coin.setBounce(0.7)
         const velX = this.isOnlineMode
           ? ((Math.floor(x) * 3 + i * 19) % 201) - 100  // Deterministic: -100 to 100
@@ -2645,6 +2744,9 @@ export default class GameScene extends Phaser.Scene {
 
 
   private spawnCoinsInArea(startX: number, endX: number) {
+    if (this.isOnlineMode && !this.isOnlineHost) {
+      return
+    }
     // Reset RNG for this chunk to ensure deterministic coin spawning in online mode
     // Use a unique formula to differentiate from enemy RNG
     if (this.isOnlineMode && this.onlineGameState) {
@@ -2701,6 +2803,7 @@ export default class GameScene extends Phaser.Scene {
     coin.setCollideWorldBounds(true)
     // Use deterministic ID based on chunk and index, not position
     coin.setData('coinId', `coin_chunk_${Math.floor(chunkStartX / 800)}_${index}`)
+    coin.setData('value', 1)
 
     // Add floating animation
     this.tweens.add({
@@ -2720,9 +2823,37 @@ export default class GameScene extends Phaser.Scene {
       repeat: -1,
       ease: 'Linear'
     })
+
+    this.reportCoinSpawnToServer(coin)
+  }
+
+  private reportCoinSpawnToServer(coin: Phaser.Physics.Arcade.Sprite) {
+    if (!this.isOnlineMode || !this.isOnlineHost || !this.onlinePlayerManager) {
+      return
+    }
+
+    const coinId = coin.getData('coinId')
+    if (!coinId) return
+
+    const body = coin.body as Phaser.Physics.Arcade.Body | undefined
+    const coinState: NetworkCoinState = {
+      coin_id: coinId,
+      x: Math.round(coin.x),
+      y: Math.round(coin.y),
+      is_collected: !!coin.getData('isCollected') || false,
+      collected_by: coin.getData('collectedBy') || null,
+      value: coin.getData('value') ?? 1,
+      velocity_x: body?.velocity.x || 0,
+      velocity_y: body?.velocity.y || 0
+    }
+
+    this.onlinePlayerManager.reportCoinSpawn(coinState)
   }
 
   private spawnEnemiesInArea(startX: number, endX: number) {
+    if (this.isOnlineMode && !this.isOnlineHost) {
+      return
+    }
     // Don't spawn enemies on the starting platform (first 500 pixels)
     if (startX < 500) return
 
@@ -2836,6 +2967,28 @@ export default class GameScene extends Phaser.Scene {
     enemy.body!.setMass(1)
     enemy.setPushable(true)
     enemy.body!.setMaxVelocity(200, 600)
+
+    // Report spawn to network if online host
+    if (this.isOnlineMode && this.isOnlineHost && this.onlinePlayerManager) {
+      // Report spawn using server-friendly field names
+      this.onlinePlayerManager.reportEnemySpawn({
+        enemy_id: enemyId,
+        enemy_type: enemyType,
+        x: x,
+        y: y,
+        velocity_x: 0,
+        velocity_y: 0,
+        health: Math.floor(baseHealth * difficultyMultiplier),
+        max_health: Math.floor(baseHealth * difficultyMultiplier),
+        is_alive: true,
+        facing_right: wanderDir >= 0,
+        state: 'idle',
+        coin_reward: coinReward,
+        scale: scale
+      })
+      // Track local enemy so host can stream position/health periodically
+      this.onlinePlayerManager.trackLocalEnemy(enemy, enemyId)
+    }
   }
 
   // Find next undefeated boss for current player (cycles through all 24 bosses)
@@ -3467,6 +3620,69 @@ export default class GameScene extends Phaser.Scene {
       }
       this.scene.restart(nextLevelData)
     })
+  }
+
+  /**
+   * Attempt to assist partner when they are held back/stuck.
+   * - Local coop: instantly nudge player2 forward if far behind
+   * - Online: host may issue an authoritative assist which the server will broadcast
+   */
+  private attemptAssistPartner() {
+    if (!this.isCoopMode) return
+
+    // Prefer online manager when in online mode
+    if (this.isOnlineMode && this.onlinePlayerManager) {
+      // Only host can issue authoritative assists
+      if (!this.isOnlineHost) {
+        this.showTip('assist_denied', 'Only the host can assist a remote partner')
+        return
+      }
+
+      const remote = this.onlinePlayerManager.getRemotePlayer()
+      if (!remote || !remote.sprite) {
+        this.showTip('assist_no_partner', 'No partner to assist')
+        return
+      }
+
+      const gap = this.player.x - remote.sprite.x
+      if (gap < 180) {
+        this.showTip('assist_unnecessary', 'Partner is not far behind')
+        return
+      }
+
+      // Compute target position safely ahead of partner but behind leader
+      const newX = Math.round(this.player.x - 150)
+      const newY = Math.round(remote.sprite.y)
+
+      // Send assist action to server (host-initiated)
+      try {
+        this.onlinePlayerManager.sendAction('assist', { target_player_id: remote.playerId, x: newX, y: newY })
+      } catch (e) {
+        console.warn('Assist send failed', e)
+      }
+
+      // Apply local visual nudge so host feels immediate effect
+      remote.sprite.setPosition(newX, newY)
+      this.showTip('assist_done', 'Partner pulled forward!')
+      return
+    }
+
+    // Local co-op: directly nudge player2 forward if they are far behind
+    if (this.player2 && this.isCoopMode) {
+      const gap = this.player.x - this.player2.x
+      if (gap < 120) {
+        this.showTip('assist_unnecessary', 'Partner is not far behind')
+        return
+      }
+
+      const targetX = this.player.x - 150
+      const targetY = this.player2.y
+      this.player2.setPosition(targetX, targetY)
+      const body = this.player2.body as Phaser.Physics.Arcade.Body
+      if (body) body.setVelocity(120, -120)
+
+      this.showTip('assist_done', 'Partner pulled forward!')
+    }
   }
 
   private checkLevelComplete() {
@@ -5443,9 +5659,6 @@ export default class GameScene extends Phaser.Scene {
               const coinReward = enemySprite.getData('coinReward')
               const scale = enemySprite.scaleX
 
-              // Drop coins
-              this.dropCoins(enemySprite.x, enemySprite.y, coinReward)
-
               // Award score for defeating enemy
               this.enemiesDefeated++
               const enemySize = enemySprite.getData('enemySize')
@@ -5454,7 +5667,20 @@ export default class GameScene extends Phaser.Scene {
               if (enemySize === 'large') scoreReward = 200
               this.updateScore(scoreReward)
 
-              // Death animation
+            // If we're in online mode, report the kill to the server and avoid spawning local coins
+            const enemyId = enemySprite.getData('enemyId')
+            if (this.isOnlineMode && this.onlinePlayerManager && enemyId) {
+              // Report kill, server will be authoritative and spawn coins
+              this.onlinePlayerManager.reportEnemyKilled(enemyId)
+              // Make sure remote tracking is clean
+              this.remoteEnemies.delete(enemyId)
+              // If we're the host, also untrack this enemy for periodic updates
+              if (this.isOnlineHost) {
+                this.onlinePlayerManager.untrackEnemy(enemyId)
+              }
+            }
+
+            // Death animation
               enemySprite.setVelocity(0, 0)
               const deadTexture = `${enemyType}_dead`
               if (this.textures.exists(deadTexture)) {
@@ -5933,6 +6159,14 @@ export default class GameScene extends Phaser.Scene {
       const enemyType = enemySprite.getData('enemyType')
       const coinReward = enemySprite.getData('coinReward')
       const scale = enemySprite.scaleX
+      const enemyId = enemySprite.getData('enemyId')
+
+      // Report kill to network (all players report their kills)
+      if (this.isOnlineMode && this.onlinePlayerManager && enemyId) {
+        this.onlinePlayerManager.reportEnemyKilled(enemyId)
+        // Remove from remote tracking
+        this.remoteEnemies.delete(enemyId)
+      }
 
       // Drop coins
       this.dropCoins(enemySprite.x, enemySprite.y, coinReward)
@@ -5966,7 +6200,8 @@ export default class GameScene extends Phaser.Scene {
         }
       })
 
-      // Respawn after 20 seconds only if location is ahead of player's progress
+      // Respawn after 20 seconds only if location is ahead of player's progress.
+      // Only host should schedule respawns in online mode.
       this.time.delayedCall(20000, () => {
         // Don't respawn if player has already passed this area
         if (spawnX < this.farthestPlayerX - 500) {
@@ -5976,7 +6211,10 @@ export default class GameScene extends Phaser.Scene {
         const difficultyMultiplier = this.gameMode === 'endless'
           ? 1 + Math.floor(this.player.x / 5000) * 0.2
           : 1 + (this.currentLevel - 1) * 0.3
-        this.spawnRandomEnemy(spawnX, spawnY, difficultyMultiplier)
+        if (!this.isOnlineMode) {
+          // Offline/single player - spawn locally
+          this.spawnRandomEnemy(spawnX, spawnY, difficultyMultiplier)
+        }
       })
     }
   }
@@ -7083,5 +7321,289 @@ export default class GameScene extends Phaser.Scene {
     this.chatContainer = null
     this.chatInputElement = null
     this.chatInputActive = false
+  }
+
+  // =====================================
+  // ONLINE ENTITY SYNC HANDLERS
+  // =====================================
+
+  /**
+   * Handle remote enemy spawn from network
+   */
+  private handleRemoteEnemySpawn(enemy: NetworkEnemyState) {
+    if (this.isOnlineHost) return // Host already spawned this enemy
+
+    // Use server-provided ID
+    const eid = enemy.enemy_id
+
+    // Check if we already have this enemy
+    if (this.remoteEnemies.has(eid)) {
+      console.log(`👾 Enemy ${eid} already exists, skipping spawn`)
+      return
+    }
+
+    console.log(`👾 Remote enemy spawned: ${eid} at (${enemy.x}, ${enemy.y})`)
+
+    // Create the enemy sprite using standardized server fields
+    const enemySprite = this.enemies.create(enemy.x, enemy.y, enemy.enemy_type) as Phaser.Physics.Arcade.Sprite
+    enemySprite.setScale(enemy.scale || 1)
+    enemySprite.setBounce(0.3)
+    enemySprite.setCollideWorldBounds(true)
+    enemySprite.clearTint()
+    enemySprite.play(`${enemy.type}_idle`)
+    enemySprite.setData('enemyType', enemy.enemy_type)
+    enemySprite.setData('enemyId', eid)
+    enemySprite.setData('health', enemy.health)
+    enemySprite.setData('maxHealth', enemy.max_health)
+    enemySprite.setData('coinReward', enemy.coin_reward || 0)
+    enemySprite.setData('spawnX', enemy.x)
+    enemySprite.setData('spawnY', enemy.y)
+    
+    // Determine size from scale
+    let enemySize: 'small' | 'medium' | 'large' = 'medium'
+    if ((enemy.scale || 1) < 0.8) enemySize = 'small'
+    else if ((enemy.scale || 1) > 1.1) enemySize = 'large'
+    enemySprite.setData('enemySize', enemySize)
+
+    enemySprite.body!.setSize(enemySprite.width * 0.7, enemySprite.height * 0.7)
+    enemySprite.body!.setOffset(enemySprite.width * 0.15, enemySprite.height * 0.15)
+    enemySprite.body!.setMass(1)
+    enemySprite.setPushable(true)
+    enemySprite.body!.setMaxVelocity(200, 600)
+
+    // Track the remote enemy
+    this.remoteEnemies.set(eid, enemySprite)
+  }
+
+  /**
+   * Handle remote enemy killed from network
+   */
+  private handleRemoteEnemyKilled(enemyId: string, _killedBy: string) {
+    console.log(`💀 Remote enemy killed: ${enemyId}`)
+
+    // Find the enemy by ID
+    let enemySprite: Phaser.Physics.Arcade.Sprite | undefined
+
+    // Check remote enemies map first
+    if (this.remoteEnemies.has(enemyId)) {
+      enemySprite = this.remoteEnemies.get(enemyId)
+      this.remoteEnemies.delete(enemyId)
+    } else {
+      // Search in local enemies group
+      this.enemies.getChildren().forEach((child) => {
+        const sprite = child as Phaser.Physics.Arcade.Sprite
+        if (sprite.getData('enemyId') === enemyId && sprite.active) {
+          enemySprite = sprite
+        }
+      })
+    }
+
+    if (!enemySprite || !enemySprite.active) {
+      console.log(`👾 Enemy ${enemyId} not found or already dead`)
+      return
+    }
+
+    const enemyType = enemySprite.getData('enemyType')
+    const coinReward = enemySprite.getData('coinReward') || 10
+    // Record original spawn location for potential respawn
+    const spawnX = enemySprite.getData('spawnX')
+    const spawnY = enemySprite.getData('spawnY')
+    const scale = enemySprite.scaleX
+
+    // NOTE: coin spawning is server-authoritative now — server will broadcast coin_spawned
+
+    // Award score
+    this.enemiesDefeated++
+    const enemySize = enemySprite.getData('enemySize')
+    let scoreReward = 50
+    if (enemySize === 'medium') scoreReward = 100
+    if (enemySize === 'large') scoreReward = 200
+    this.updateScore(scoreReward)
+
+    // Death animation
+    enemySprite.setVelocity(0, 0)
+    const deadTexture = `${enemyType}_dead`
+    if (this.textures.exists(deadTexture)) {
+      enemySprite.setTexture(deadTexture)
+    }
+    enemySprite.setTint(0xff0000)
+
+    this.tweens.add({
+      targets: enemySprite,
+      alpha: 0,
+      y: enemySprite.y + 20,
+      scaleX: scale * 1.2,
+      scaleY: scale * 0.8,
+      duration: 500,
+      onComplete: () => {
+        enemySprite!.destroy()
+      }
+    })
+
+    // Host should schedule respawn (server will be authoritative for coins)
+    if (this.isOnlineMode && this.isOnlineHost) {
+      this.time.delayedCall(20000, () => {
+        if (spawnX < this.farthestPlayerX - 500) return
+
+        const difficultyMultiplier = this.gameMode === 'endless'
+          ? 1 + Math.floor(this.player.x / 5000) * 0.2
+          : 1 + (this.currentLevel - 1) * 0.3
+
+        this.spawnRandomEnemy(spawnX, spawnY, difficultyMultiplier)
+      })
+    }
+  }
+
+  /**
+   * Handle remote enemy state update from network
+   */
+  private handleRemoteEnemyStateUpdate(enemyId: string, state: NetworkEnemyState) {
+    let enemySprite: Phaser.Physics.Arcade.Sprite | undefined
+
+    // Check remote enemies map first
+    if (this.remoteEnemies.has(enemyId)) {
+      enemySprite = this.remoteEnemies.get(enemyId)
+    } else {
+      // Search in local enemies group
+      this.enemies.getChildren().forEach((child) => {
+        const sprite = child as Phaser.Physics.Arcade.Sprite
+        if (sprite.getData('enemyId') === enemyId && sprite.active) {
+          enemySprite = sprite
+        }
+      })
+    }
+
+    if (!enemySprite || !enemySprite.active) {
+      return // Enemy not found
+    }
+
+    // Prediction + reconciliation to hide latency:
+    // Predict small advance using velocity (reduces perceived lag)
+    const currentX = enemySprite.x
+    const currentY = enemySprite.y
+    const predictedX = (state.x || 0) + (state.velocity_x || 0) * 0.05
+    const predictedY = (state.y || 0) + (state.velocity_y || 0) * 0.05
+
+    const targetX = predictedX
+    const targetY = predictedY
+
+    const dx = Math.abs(targetX - currentX)
+    const dy = Math.abs(targetY - currentY)
+
+    // Snap threshold: if too far, teleport to authoritative position
+    const SNAP_THRESHOLD = 150
+    if (dx > SNAP_THRESHOLD || dy > SNAP_THRESHOLD) {
+      enemySprite.setPosition(targetX, targetY)
+    } else {
+      // Smooth correction: lerp with a factor increasing with distance
+      const distance = Math.sqrt(dx * dx + dy * dy)
+      const factor = Math.min(0.75, 0.08 + Math.max(0, distance / 200) * 0.25)
+      enemySprite.setPosition(
+        Phaser.Math.Linear(currentX, targetX, factor),
+        Phaser.Math.Linear(currentY, targetY, factor)
+      )
+    }
+
+    // Update velocity (server uses snake_case)
+    enemySprite.setVelocity(state.velocity_x || 0, state.velocity_y || 0)
+
+    // Update health
+    if (state.health !== undefined) {
+      enemySprite.setData('health', state.health)
+    }
+
+    // Update animation if needed
+    if (!state.is_alive) {
+      enemySprite.setTint(0xff0000)
+    }
+  }
+
+  /**
+   * Handle remote coin spawn from network
+   */
+  private handleRemoteCoinSpawn(coinState: NetworkCoinState) {
+    if (this.isOnlineHost) return // Host already spawned this coin
+
+    // Check if we already have this coin
+    const cid = coinState.coin_id
+    if (this.remoteCoins.has(cid)) {
+      return
+    }
+
+    console.log(`🪙 Remote coin spawned: ${cid} at (${coinState.x}, ${coinState.y})`)
+
+    const coin = this.coins.create(coinState.x, coinState.y, 'coin') as Phaser.Physics.Arcade.Sprite
+    coin.setScale(0.5)
+    coin.setBounce(0.5)
+    coin.setCollideWorldBounds(true)
+    coin.body!.setAllowGravity(true)
+    coin.setData('coinId', cid)
+    coin.setData('value', coinState.value || 1)
+
+    // Apply deterministic velocity if provided by server (for dropped coins)
+    if (coinState.velocity_x !== undefined || coinState.velocity_y !== undefined) {
+      coin.setVelocity(coinState.velocity_x || 0, coinState.velocity_y || 0)
+    }
+
+    this.remoteCoins.set(cid, coin)
+  }
+
+  /**
+   * Handle full entities sync from host
+   */
+  private handleEntitiesSync(enemies: NetworkEnemyState[], coins: NetworkCoinState[]) {
+    console.log(`🔄 Full entities sync received: ${enemies.length} enemies, ${coins.length} coins`)
+
+    // Update or create enemies
+    const receivedEnemyIds = new Set<string>()
+    
+    enemies.forEach(enemyState => {
+      const eid = enemyState.enemy_id
+      receivedEnemyIds.add(eid)
+      
+      if (this.remoteEnemies.has(eid)) {
+        // Update existing enemy
+        this.handleRemoteEnemyStateUpdate(eid, enemyState)
+      } else {
+        // Check if it exists in local group but not in map
+        let found = false
+        this.enemies.getChildren().forEach((child) => {
+          const sprite = child as Phaser.Physics.Arcade.Sprite
+          if (sprite.getData('enemyId') === eid) {
+            found = true
+            this.remoteEnemies.set(eid, sprite)
+            this.handleRemoteEnemyStateUpdate(eid, enemyState)
+          }
+        })
+        
+        if (!found && enemyState.is_alive) {
+          // Spawn new enemy
+          this.handleRemoteEnemySpawn(enemyState)
+        }
+      }
+    })
+
+    // Remove enemies that no longer exist on host (only if we're not the host)
+    if (!this.isOnlineHost) {
+      this.remoteEnemies.forEach((sprite, id) => {
+        if (!receivedEnemyIds.has(id) && sprite.active) {
+          console.log(`👾 Removing stale enemy: ${id}`)
+          sprite.destroy()
+          this.remoteEnemies.delete(id)
+        }
+      })
+    }
+
+    // Handle coins similarly (simplified since coins are mostly static)
+    const receivedCoinIds = new Set<string>()
+    
+    coins.forEach(coinState => {
+      const cid = coinState.coin_id
+      receivedCoinIds.add(cid)
+      
+      if (!coinState.is_collected && !this.remoteCoins.has(cid)) {
+        this.handleRemoteCoinSpawn(coinState)
+      }
+    })
   }
 }

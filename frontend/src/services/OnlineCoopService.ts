@@ -68,11 +68,43 @@ export interface NetworkGameState {
   game_start_timestamp?: number  // When game should start (scheduled)
   sequence_id?: number  // For message ordering
   players: Record<string, NetworkPlayerState>
-  enemies: any[]
+  enemies: NetworkEnemyState[]
+  coins: NetworkCoinState[]
   projectiles: any[]
   collected_coins?: string[]
   collected_powerups?: string[]
   chat_history?: any[]
+}
+
+/**
+ * Enemy state for network synchronization
+ */
+export interface NetworkEnemyState {
+  enemy_id: string
+  enemy_type: string
+  x: number
+  y: number
+  velocity_x: number
+  velocity_y: number
+  health: number
+  max_health: number
+  is_alive: boolean
+  facing_right: boolean
+  state: string  // idle, moving, attacking, dead
+}
+
+/**
+ * Coin state for network synchronization
+ */
+export interface NetworkCoinState {
+  coin_id: string
+  x: number
+  y: number
+  is_collected: boolean
+  collected_by: string | null
+  value?: number
+  velocity_x?: number
+  velocity_y?: number
 }
 
 /**
@@ -97,6 +129,12 @@ export type MessageType =
   | 'item_already_collected'
   | 'reconnected'
   | 'time_sync_response'
+  | 'enemy_state_update'
+  | 'enemy_spawned'
+  | 'enemy_killed'
+  | 'enemy_already_dead'
+  | 'coin_spawned'
+  | 'entities_sync'
 
 /**
  * Event callbacks for WebSocket events
@@ -113,12 +151,21 @@ export interface OnlineCoopCallbacks {
   onGameAction?: (playerId: string, action: string, data: any) => void
   onGameStarting?: (gameState: NetworkGameState) => void
   onChat?: (playerId: string, playerName: string, message: string, timestamp?: string) => void
-  onItemCollected?: (playerId: string, itemType: string, itemId: string) => void
+  onItemCollected?: (playerId: string, itemType: string, itemId: string, playerCoins?: number | null, playerScore?: number | null) => void
   onItemAlreadyCollected?: (itemId: string) => void
   onReconnected?: (gameState: NetworkGameState) => void
   onError?: (message: string) => void
   onDisconnect?: () => void
   onConnect?: () => void
+  // Enemy sync callbacks
+  onEnemyStateUpdate?: (enemyId: string, state: Partial<NetworkEnemyState>) => void
+  onEnemySpawned?: (enemy: NetworkEnemyState) => void
+  onEnemyKilled?: (enemyId: string, killedBy: string) => void
+  onEnemyAlreadyDead?: (enemyId: string) => void
+  // Coin sync callbacks
+  onCoinSpawned?: (coin: NetworkCoinState) => void
+  // Full entity sync callback
+  onEntitiesSync?: (enemies: NetworkEnemyState[], coins: NetworkCoinState[], sequenceId: number) => void
 }
 
 /**
@@ -295,7 +342,7 @@ export class OnlineCoopService {
         break
         
       case 'item_collected':
-        this.callbacks.onItemCollected?.(data.player_id, data.item_type, data.item_id)
+        this.callbacks.onItemCollected?.(data.player_id, data.item_type, data.item_id, data.player_coins ?? null, data.player_score ?? null)
         break
         
       case 'item_already_collected':
@@ -313,6 +360,33 @@ export class OnlineCoopService {
       case 'time_sync_response':
         // NTP-style time sync calculation
         this.handleTimeSyncResponse(data.client_time, data.server_time, data.sequence_id)
+        break
+      
+      // Enemy sync messages
+      case 'enemy_state_update':
+        this.callbacks.onEnemyStateUpdate?.(data.enemy_id, data.state)
+        break
+        
+      case 'enemy_spawned':
+        this.callbacks.onEnemySpawned?.(data.enemy)
+        break
+        
+      case 'enemy_killed':
+        this.callbacks.onEnemyKilled?.(data.enemy_id, data.killed_by)
+        break
+        
+      case 'enemy_already_dead':
+        this.callbacks.onEnemyAlreadyDead?.(data.enemy_id)
+        break
+      
+      // Coin sync messages
+      case 'coin_spawned':
+        this.callbacks.onCoinSpawned?.(data.coin)
+        break
+      
+      // Full entity sync
+      case 'entities_sync':
+        this.callbacks.onEntitiesSync?.(data.enemies, data.coins, data.sequence_id)
         break
         
       case 'error':
@@ -558,6 +632,64 @@ export class OnlineCoopService {
       item_type: itemType,
       item_id: itemId
     })
+  }
+  
+  /**
+   * Send enemy state update (host sends periodically)
+   */
+  sendEnemyState(enemyId: string, state: Partial<NetworkEnemyState>): void {
+    this.send({
+      type: 'enemy_state',
+      enemy_id: enemyId,
+      state
+    })
+  }
+  
+  /**
+   * Report enemy spawn (host only)
+   */
+  spawnEnemy(enemy: NetworkEnemyState): void {
+    if (this._isHost) {
+      this.send({
+        type: 'enemy_spawn',
+        enemy
+      })
+    }
+  }
+  
+  /**
+   * Report enemy killed
+   */
+  killEnemy(enemyId: string): void {
+    this.send({
+      type: 'enemy_killed',
+      enemy_id: enemyId
+    })
+  }
+  
+  /**
+   * Report coin spawn (host only)
+   */
+  spawnCoin(coin: NetworkCoinState): void {
+    if (this._isHost) {
+      this.send({
+        type: 'coin_spawn',
+        coin
+      })
+    }
+  }
+  
+  /**
+   * Send full entity sync (host only, periodic)
+   */
+  syncEntities(enemies: NetworkEnemyState[], coins: NetworkCoinState[]): void {
+    if (this._isHost) {
+      this.send({
+        type: 'sync_entities',
+        enemies,
+        coins
+      })
+    }
   }
   
   /**

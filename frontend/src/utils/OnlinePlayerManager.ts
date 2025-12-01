@@ -7,12 +7,13 @@
  * - Network state synchronization
  * - Health bars and lives display for both players
  * - Collision handling
+ * - Enemy and coin synchronization
  * 
  * @module utils/OnlinePlayerManager
  */
 
 import Phaser from 'phaser'
-import { OnlineCoopService, NetworkPlayerState, NetworkGameState } from '../services/OnlineCoopService'
+import { OnlineCoopService, NetworkPlayerState, NetworkGameState, NetworkEnemyState, NetworkCoinState } from '../services/OnlineCoopService'
 
 /**
  * Complete state for a player in online mode
@@ -35,6 +36,18 @@ export interface OnlinePlayer {
 }
 
 /**
+ * Tracked enemy state for synchronization
+ */
+interface TrackedEnemy {
+  enemyId: string
+  sprite: Phaser.Physics.Arcade.Sprite
+  state: NetworkEnemyState
+  targetX?: number
+  targetY?: number
+  lastUpdateTime?: number
+}
+
+/**
  * Manages online multiplayer players
  */
 export class OnlinePlayerManager {
@@ -48,6 +61,22 @@ export class OnlinePlayerManager {
   private interpolationSpeed: number = 0.35 // Faster interpolation for smoother movement
   private positionSnapThreshold: number = 200 // Snap if difference is too large
   
+  // Enemy sync tracking
+  private trackedEnemies: Map<string, TrackedEnemy> = new Map()
+  private lastEnemySyncTime: number = 0
+  private enemySyncInterval: number = 100 // Sync enemies every 100ms (10 times per second)
+  
+  // Tethered scrolling - camera won't scroll forward unless both players are close
+  private tetherMaxScrollX: number = 0 // Maximum scroll X based on trailing player
+  private readonly TETHER_DISTANCE_THRESHOLD = 400 // Players must be within this distance to scroll forward
+  
+  // Entity sync callbacks for GameScene
+  private onEnemySpawnedCallback?: (enemy: NetworkEnemyState) => void
+  private onEnemyKilledCallback?: (enemyId: string, killedBy: string) => void
+  private onEnemyStateUpdateCallback?: (enemyId: string, state: Partial<NetworkEnemyState>) => void
+  private onCoinSpawnedCallback?: (coin: NetworkCoinState) => void
+  private onEntitiesSyncCallback?: (enemies: NetworkEnemyState[], coins: NetworkCoinState[]) => void
+  
   constructor(scene: Phaser.Scene, platforms: Phaser.Physics.Arcade.StaticGroup) {
     this.scene = scene
     this.platforms = platforms
@@ -55,6 +84,23 @@ export class OnlinePlayerManager {
     
     // Setup network callbacks
     this.setupNetworkCallbacks()
+  }
+  
+  /**
+   * Set callbacks for entity sync events (called by GameScene)
+   */
+  setEntityCallbacks(callbacks: {
+    onEnemySpawned?: (enemy: NetworkEnemyState) => void
+    onEnemyKilled?: (enemyId: string, killedBy: string) => void
+    onEnemyStateUpdate?: (enemyId: string, state: Partial<NetworkEnemyState>) => void
+    onCoinSpawned?: (coin: NetworkCoinState) => void
+    onEntitiesSync?: (enemies: NetworkEnemyState[], coins: NetworkCoinState[]) => void
+  }): void {
+    this.onEnemySpawnedCallback = callbacks.onEnemySpawned
+    this.onEnemyKilledCallback = callbacks.onEnemyKilled
+    this.onEnemyStateUpdateCallback = callbacks.onEnemyStateUpdate
+    this.onCoinSpawnedCallback = callbacks.onCoinSpawned
+    this.onEntitiesSyncCallback = callbacks.onEntitiesSync
   }
   
   /**
@@ -100,11 +146,87 @@ export class OnlinePlayerManager {
         this.showChatMessage(playerName, message)
       },
       
-      onItemCollected: (playerId: string, itemType: string, itemId: string) => {
+      onItemCollected: (playerId: string, itemType: string, itemId: string, playerCoins?: number | null, playerScore?: number | null) => {
         // Item was collected by remote player - destroy it locally if it exists
-        this.handleRemoteItemCollected(playerId, itemType, itemId)
+        this.handleRemoteItemCollected(playerId, itemType, itemId, playerCoins ?? undefined, playerScore ?? undefined)
+      },
+      
+      // Enemy sync callbacks
+      onEnemyStateUpdate: (enemyId: string, state: Partial<NetworkEnemyState>) => {
+        this.onEnemyStateUpdateCallback?.(enemyId, state)
+      },
+      
+      onEnemySpawned: (enemy: NetworkEnemyState) => {
+        console.log('👾 Remote enemy spawned:', enemy.enemy_id, enemy.enemy_type)
+        this.onEnemySpawnedCallback?.(enemy)
+        // If we are host and the spawn corresponds to our local enemy, ensure it is tracked
+        if (this.isHost() && enemy.enemy_id && !this.trackedEnemies.has(enemy.enemy_id)) {
+          // host-side will track enemies as they are created locally; if we missed one, add placeholder
+          // actual sprite association should be done by GameScene via trackLocalEnemy when available
+          this.trackedEnemies.set(enemy.enemy_id, {
+            enemyId: enemy.enemy_id,
+            sprite: null as any,
+            state: enemy
+          })
+        }
+      },
+      
+      onEnemyKilled: (enemyId: string, killedBy: string) => {
+        console.log('💀 Remote enemy killed:', enemyId, 'by', killedBy)
+        // Remove tracked enemy if present
+        if (this.trackedEnemies.has(enemyId)) {
+          this.trackedEnemies.delete(enemyId)
+        }
+        this.onEnemyKilledCallback?.(enemyId, killedBy)
+      },
+      
+      onEnemyAlreadyDead: (enemyId: string) => {
+        console.log('⚠️ Enemy already dead:', enemyId)
+        // Enemy was killed by other player before our request arrived
+      },
+      
+      // Coin sync callbacks
+      onCoinSpawned: (coin: NetworkCoinState) => {
+        console.log('🪙 Remote coin spawned:', coin.coin_id)
+        this.onCoinSpawnedCallback?.(coin)
+      },
+      
+      // Full entity sync
+      onEntitiesSync: (enemies: NetworkEnemyState[], coins: NetworkCoinState[], sequenceId: number) => {
+        console.log('🔄 Entities sync received, seq:', sequenceId, 'enemies:', enemies.length, 'coins:', coins.length)
+        this.onEntitiesSyncCallback?.(enemies, coins)
       }
     })
+  }
+
+  /**
+   * Register a locally spawned enemy for host-authoritative updates
+   */
+  trackLocalEnemy(sprite: Phaser.Physics.Arcade.Sprite, enemyId?: string): void {
+    if (!sprite) return
+    const id = enemyId || sprite.getData('enemyId')
+    if (!id) return
+    const state: NetworkEnemyState = {
+      enemy_id: id,
+      enemy_type: sprite.getData('enemyType') || 'fly',
+      x: sprite.x,
+      y: sprite.y,
+      velocity_x: (sprite.body as Phaser.Physics.Arcade.Body)?.velocity.x || 0,
+      velocity_y: (sprite.body as Phaser.Physics.Arcade.Body)?.velocity.y || 0,
+      health: sprite.getData('health') || 1,
+      max_health: sprite.getData('maxHealth') || sprite.getData('health') || 1,
+      is_alive: true,
+      facing_right: sprite.scaleX >= 0,
+      state: 'idle'
+    }
+    this.trackedEnemies.set(id, { enemyId: id, sprite, state })
+  }
+
+  /**
+   * Unregister enemy from tracking
+   */
+  untrackEnemy(enemyId: string): void {
+    if (this.trackedEnemies.has(enemyId)) this.trackedEnemies.delete(enemyId)
   }
   
   /**
@@ -145,6 +267,8 @@ export class OnlinePlayerManager {
       
       if (isLocal) {
         this.localPlayer = player
+        // Reset tether anchor when initializing local player
+        this.tetherMaxScrollX = player.sprite.x
       } else {
         this.remotePlayer = player
         // Initialize target position for interpolation
@@ -402,6 +526,33 @@ export class OnlinePlayerManager {
       case 'respawn':
         this.handleRemotePlayerRespawn(data)
         break
+      case 'assist':
+        // Remote player attempted to assist someone (usually host-initiated)
+        const targetId = data?.target_player_id
+        const newX = data?.x
+        const newY = data?.y
+        if (!targetId) return
+
+        // If the target is the local player, apply immediate correction
+        if (this.localPlayer && this.localPlayer.playerId === targetId) {
+          this.localPlayer.sprite.setPosition(newX ?? this.localPlayer.sprite.x, newY ?? this.localPlayer.sprite.y)
+        }
+
+        // If the target is the remote, apply position correction
+        if (this.remotePlayer && this.remotePlayer.playerId === targetId) {
+          this.remotePlayer.sprite.setPosition(newX ?? this.remotePlayer.sprite.x, newY ?? this.remotePlayer.sprite.y)
+        }
+
+        // Also fire a UI hint on the scene (best-effort)
+        try {
+          const sceneAny = this.scene as any
+          if (sceneAny && typeof sceneAny.showTip === 'function') {
+            sceneAny.showTip('assist_received', `${playerId} assisted ${targetId}`)
+          }
+        } catch (e) {
+          // silent
+        }
+        break
     }
   }
   
@@ -543,6 +694,43 @@ export class OnlinePlayerManager {
     
     // Send local player state to server
     this.sendLocalPlayerState(time)
+    // Send enemies states if host
+    this.sendTrackedEnemiesState(time)
+  }
+
+  /**
+   * Periodically send tracked enemy states to server (host only)
+   */
+  private sendTrackedEnemiesState(time: number): void {
+    if (!this.isHost()) return
+    if (time - this.lastEnemySyncTime < this.enemySyncInterval) return
+    this.lastEnemySyncTime = time
+
+    for (const [id, tracked] of this.trackedEnemies) {
+      const sprite = tracked.sprite
+      // If sprite is not yet attached (placeholder), skip
+      if (!sprite || !sprite.body) continue
+
+      const body = sprite.body as Phaser.Physics.Arcade.Body
+      const state: Partial<NetworkEnemyState> = {
+        x: Math.round(sprite.x),
+        y: Math.round(sprite.y),
+        velocity_x: Math.round(body.velocity.x),
+        velocity_y: Math.round(body.velocity.y),
+        health: sprite.getData('health'),
+        is_alive: sprite.active && (sprite.getData('health') === undefined ? true : sprite.getData('health') > 0)
+      }
+
+      // Update local cached state
+      tracked.state = { ...tracked.state, ...state }
+
+      // Send to server
+      try {
+        this.onlineService.sendEnemyState(id, state)
+      } catch (err) {
+        console.warn('Failed to send enemy state for', id, err)
+      }
+    }
   }
   
   /**
@@ -696,26 +884,83 @@ export class OnlinePlayerManager {
   }
   
   /**
-   * Get camera focus point between players
+   * Get camera focus point between players with tethered scrolling.
+   * The camera won't scroll forward unless both players are close together.
+   * This keeps both players on screen and encourages cooperative movement.
+   * 
+   * When one player dies (out of lives), tethered scrolling is disabled
+   * to allow the surviving player to continue playing freely.
    */
   getCameraFocusPoint(): { x: number, y: number } {
     if (!this.localPlayer) return { x: 640, y: 360 }
-    
+
     // If local player is dead and out of lives, follow remote player
     if (!this.localPlayer.state.is_alive && this.localPlayer.state.lives <= 0) {
       if (this.remotePlayer && this.remotePlayer.state.is_alive) {
         return { x: this.remotePlayer.sprite.x, y: this.remotePlayer.sprite.y }
       }
     }
-    
-    if (!this.remotePlayer || !this.remotePlayer.sprite.active || !this.remotePlayer.state.is_alive) {
+
+    // Single player or remote player unavailable - just follow local player (no tether)
+    if (!this.remotePlayer || !this.remotePlayer.sprite.active) {
       return { x: this.localPlayer.sprite.x, y: this.localPlayer.sprite.y }
     }
+
+    // Check if either player is out of lives - disable tethering to let survivor play freely
+    const localOutOfLives = this.localPlayer.state.lives <= 0
+    const remoteOutOfLives = this.remotePlayer.state.lives <= 0
     
-    // Calculate center point between players
-    return {
-      x: (this.localPlayer.sprite.x + this.remotePlayer.sprite.x) / 2,
-      y: (this.localPlayer.sprite.y + this.remotePlayer.sprite.y) / 2
+    if (localOutOfLives || remoteOutOfLives) {
+      // One player is out - follow the surviving player without tethering
+      if (localOutOfLives && this.remotePlayer.state.is_alive) {
+        return { x: this.remotePlayer.sprite.x, y: this.remotePlayer.sprite.y }
+      } else if (remoteOutOfLives && this.localPlayer.state.is_alive) {
+        return { x: this.localPlayer.sprite.x, y: this.localPlayer.sprite.y }
+      }
+      // Both out of lives - center between them
+      return {
+        x: (this.localPlayer.sprite.x + this.remotePlayer.sprite.x) / 2,
+        y: (this.localPlayer.sprite.y + this.remotePlayer.sprite.y) / 2
+      }
+    }
+
+    const lx = this.localPlayer.sprite.x
+    const ly = this.localPlayer.sprite.y
+    const rx = this.remotePlayer.sprite.x
+    const ry = this.remotePlayer.sprite.y
+
+    // Find leading and trailing player positions
+    const leadingX = Math.max(lx, rx)
+    const trailingX = Math.min(lx, rx)
+    const distanceX = leadingX - trailingX
+
+    // Calculate the center point between players for Y axis (always center vertically)
+    const centerY = (ly + ry) / 2
+
+    // Tethered scrolling logic:
+    // 1. If players are close together (within threshold), allow camera to advance to center
+    // 2. If players are far apart, anchor camera to trailing player's position
+    
+    if (distanceX <= this.TETHER_DISTANCE_THRESHOLD) {
+      // Players are close - allow camera to scroll forward to their center
+      const centerX = (lx + rx) / 2
+      // Update tether anchor to allow scrolling to this position
+      this.tetherMaxScrollX = Math.max(this.tetherMaxScrollX, centerX)
+      return { x: centerX, y: centerY }
+    } else {
+      // Players are far apart - tether camera to trailing player
+      // Camera focus should not go beyond trailing player + some buffer
+      // This keeps the trailing player visible and prevents camera from leaving them behind
+      const tetherFocusX = trailingX + (this.TETHER_DISTANCE_THRESHOLD / 2)
+      
+      // Don't let camera go backwards beyond what we've already scrolled
+      // (prevents jarring backward scrolling when a player dies and respawns)
+      const focusX = Math.max(tetherFocusX, this.tetherMaxScrollX - 200)
+      
+      // Update tether anchor
+      this.tetherMaxScrollX = Math.max(this.tetherMaxScrollX, focusX)
+      
+      return { x: focusX, y: centerY }
     }
   }
   
@@ -919,14 +1164,24 @@ export class OnlinePlayerManager {
   /**
    * Handle item collected by remote player
    */
-  private handleRemoteItemCollected(_playerId: string, itemType: string, itemId: string): void {
+  private handleRemoteItemCollected(_playerId: string, itemType: string, itemId: string, playerCoins?: number, playerScore?: number): void {
     const gameScene = this.scene as any
+    
+    console.log(`🪙 Remote item collected: ${itemType} ${itemId} by ${_playerId}`)
     
     if (itemType === 'coin' && gameScene.coins) {
       // Find and destroy the coin with matching ID
       const coins = gameScene.coins.getChildren()
+      let found = false
       for (const coin of coins) {
-        if (coin.getData('coinId') === itemId) {
+        const storedId = coin.getData('coinId')
+        if (storedId === itemId) {
+          found = true
+          console.log(`🪙 Found coin to remove: ${storedId}`)
+          // Remove from remote coins tracking if present
+          if (gameScene.remoteCoins) {
+            gameScene.remoteCoins.delete(itemId)
+          }
           // Play collection effect
           this.scene.tweens.add({
             targets: coin,
@@ -937,6 +1192,34 @@ export class OnlinePlayerManager {
           })
           break
         }
+      }
+      if (!found) {
+        console.log(`🪙 Coin ${itemId} not found locally (might already be collected)`)
+      }
+      // Update player UI/state: find which player collected this coin
+      const targetPlayer = this.localPlayer?.playerId === _playerId ? this.localPlayer : this.remotePlayer?.playerId === _playerId ? this.remotePlayer : null
+      if (targetPlayer) {
+        // Apply authoritative values if available, otherwise increment predictively
+        if (typeof playerCoins === 'number') {
+          (targetPlayer.state as any).coins = playerCoins
+        } else {
+          (targetPlayer.state as any).coins = (targetPlayer.state as any).coins ? (targetPlayer.state as any).coins + 1 : 1
+        }
+
+        if (typeof playerScore === 'number') {
+          (targetPlayer.state as any).score = playerScore
+        } else {
+          (targetPlayer.state as any).score = (targetPlayer.state as any).score ? (targetPlayer.state as any).score + 10 : 10
+        }
+
+        // Update top-right UI coin/score text in GameScene if present
+        const playerNumber = targetPlayer.playerNumber
+        const scoreName = playerNumber === 1 ? 'p1ScoreText' : 'p2ScoreText'
+        const coinName = playerNumber === 1 ? 'p1CoinText' : 'p2CoinText'
+        const sText = gameScene.children.getByName(scoreName) as Phaser.GameObjects.Text
+        const cText = gameScene.children.getByName(coinName) as Phaser.GameObjects.Text
+        if (sText) sText.setText(`Score: ${(targetPlayer.state as any).score}`)
+        if (cText) cText.setText(`${(targetPlayer.state as any).coins}`)
       }
     } else if (itemType === 'powerup' && gameScene.powerUps) {
       // Find and destroy the powerup with matching ID
@@ -953,6 +1236,15 @@ export class OnlinePlayerManager {
           break
         }
       }
+      // Also update remote player's UI/state to indicate they picked a powerup (best-effort)
+      const targetPlayer2 = this.localPlayer?.playerId === _playerId ? this.localPlayer : this.remotePlayer?.playerId === _playerId ? this.remotePlayer : null
+      if (targetPlayer2) {
+        // simple visual notification above player
+        const playerSprite = targetPlayer2.sprite
+        const text = this.scene.add.text(playerSprite.x, playerSprite.y - 50, 'POWER-UP!', { fontSize: '18px', color: '#ffff00' })
+        text.setOrigin(0.5)
+        this.scene.tweens.add({ targets: text, y: text.y - 30, alpha: 0, duration: 1500, onComplete: () => text.destroy() })
+      }
     }
   }
   
@@ -968,6 +1260,48 @@ export class OnlinePlayerManager {
    */
   reportItemCollected(itemType: 'coin' | 'powerup', itemId: string): void {
     this.onlineService.collectItem(itemType, itemId)
+  }
+  
+  /**
+   * Report enemy spawn to server (host only)
+   */
+  reportEnemySpawn(enemy: NetworkEnemyState): void {
+    this.onlineService.spawnEnemy(enemy)
+  }
+  
+  /**
+   * Report enemy killed to server
+   */
+  reportEnemyKilled(enemyId: string): void {
+    this.onlineService.killEnemy(enemyId)
+  }
+  
+  /**
+   * Send enemy state update (host only, for AI enemies)
+   */
+  sendEnemyState(enemyId: string, state: Partial<NetworkEnemyState>): void {
+    this.onlineService.sendEnemyState(enemyId, state)
+  }
+  
+  /**
+   * Report coin spawn to server (host only)
+   */
+  reportCoinSpawn(coin: NetworkCoinState): void {
+    this.onlineService.spawnCoin(coin)
+  }
+  
+  /**
+   * Send full entity sync (host only, periodic)
+   */
+  syncEntities(enemies: NetworkEnemyState[], coins: NetworkCoinState[]): void {
+    this.onlineService.syncEntities(enemies, coins)
+  }
+  
+  /**
+   * Check if this client is the host
+   */
+  isHost(): boolean {
+    return this.onlineService.isHost
   }
   
   /**
