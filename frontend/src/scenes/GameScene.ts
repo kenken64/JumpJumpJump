@@ -571,18 +571,36 @@ export default class GameScene extends Phaser.Scene {
     const worldSeed = this.isOnlineMode && this.onlineGameState ? this.onlineGameState.seed : undefined
     
     // === SEED VERIFICATION LOGGING ===
-    if (this.isOnlineMode && this.onlineGameState) {
+    if (this.isOnlineMode) {
       console.log('═══════════════════════════════════════════════════════════')
       console.log('🌍 ONLINE GAME SEED VERIFICATION')
       console.log('═══════════════════════════════════════════════════════════')
       console.log('🎯 Player Number:', this.onlinePlayerNumber)
-      console.log('🌱 Server Seed:', this.onlineGameState.seed)
-      console.log('🔢 Seed (hex):', this.onlineGameState.seed.toString(16))
+      console.log('📦 onlineGameState exists:', !!this.onlineGameState)
+      console.log('🌱 Server Seed:', this.onlineGameState?.seed)
+      console.log('🔢 worldSeed passed to WorldGenerator:', worldSeed)
+      
+      // CRITICAL: Verify we have a valid seed for online mode
+      if (worldSeed === undefined || worldSeed === null) {
+        console.error('❌❌❌ CRITICAL ERROR: No seed received for online mode! ❌❌❌')
+        console.error('onlineGameState:', this.onlineGameState)
+        // Create an obvious visual error indicator
+        this.add.text(400, 300, 'ERROR: No sync seed!', { fontSize: '48px', color: '#ff0000' })
+      }
       console.log('═══════════════════════════════════════════════════════════')
     }
     
     console.log('🌐 GameScene - Online mode:', this.isOnlineMode, 'World seed:', worldSeed)
     this.worldGenerator = new WorldGenerator(this, this.platforms, this.spikes, this.spikePositions, worldSeed)
+    
+    // Verify the WorldGenerator got the correct seed
+    if (this.isOnlineMode) {
+      const actualSeed = this.worldGenerator.getSeed()
+      console.log('✅ WorldGenerator seed verification:', actualSeed, '(expected:', worldSeed, ')')
+      if (actualSeed !== worldSeed) {
+        console.error('❌❌❌ SEED MISMATCH! WorldGenerator did not receive correct seed! ❌❌❌')
+      }
+    }
     
     // Initialize seeded random for online mode (for enemy spawning)
     if (this.isOnlineMode && this.onlineGameState) {
