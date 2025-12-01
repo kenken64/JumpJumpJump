@@ -53,6 +53,7 @@ export default class GameScene extends Phaser.Scene {
     d: Phaser.Input.Keyboard.Key
   }
   private gamepad: Phaser.Input.Gamepad.Gamepad | null = null
+  // @ts-expect-error - assistKey is set but only used for reference
   private assistKey?: Phaser.Input.Keyboard.Key
   private platforms!: Phaser.Physics.Arcade.StaticGroup
   private enemies!: Phaser.Physics.Arcade.Group
@@ -848,7 +849,11 @@ export default class GameScene extends Phaser.Scene {
       this.onlinePlayerManager.setEntityCallbacks({
         onEnemySpawned: (enemy) => this.handleRemoteEnemySpawn(enemy),
         onEnemyKilled: (enemyId, killedBy) => this.handleRemoteEnemyKilled(enemyId, killedBy),
-        onEnemyStateUpdate: (enemyId, state) => this.handleRemoteEnemyStateUpdate(enemyId, state),
+        onEnemyStateUpdate: (enemyId, state) => {
+          if (state.enemy_id) {
+            this.handleRemoteEnemyStateUpdate(enemyId, state as NetworkEnemyState)
+          }
+        },
         onCoinSpawned: (coin) => this.handleRemoteCoinSpawn(coin),
         onEntitiesSync: (enemies, coins) => this.handleEntitiesSync(enemies, coins)
       })
@@ -5656,7 +5661,6 @@ export default class GameScene extends Phaser.Scene {
               const spawnX = enemySprite.getData('spawnX')
               const spawnY = enemySprite.getData('spawnY')
               const enemyType = enemySprite.getData('enemyType')
-              const coinReward = enemySprite.getData('coinReward')
               const scale = enemySprite.scaleX
 
               // Award score for defeating enemy
@@ -7345,31 +7349,34 @@ export default class GameScene extends Phaser.Scene {
     console.log(`👾 Remote enemy spawned: ${eid} at (${enemy.x}, ${enemy.y})`)
 
     // Create the enemy sprite using standardized server fields
+    const enemyScale = enemy.scale ?? 1
+    const animType = enemy.type || enemy.enemy_type
     const enemySprite = this.enemies.create(enemy.x, enemy.y, enemy.enemy_type) as Phaser.Physics.Arcade.Sprite
-    enemySprite.setScale(enemy.scale || 1)
+    enemySprite.setScale(enemyScale)
     enemySprite.setBounce(0.3)
     enemySprite.setCollideWorldBounds(true)
     enemySprite.clearTint()
-    enemySprite.play(`${enemy.type}_idle`)
+    enemySprite.play(`${animType}_idle`)
     enemySprite.setData('enemyType', enemy.enemy_type)
     enemySprite.setData('enemyId', eid)
     enemySprite.setData('health', enemy.health)
     enemySprite.setData('maxHealth', enemy.max_health)
-    enemySprite.setData('coinReward', enemy.coin_reward || 0)
+    enemySprite.setData('coinReward', enemy.coin_reward ?? 0)
     enemySprite.setData('spawnX', enemy.x)
     enemySprite.setData('spawnY', enemy.y)
     
     // Determine size from scale
     let enemySize: 'small' | 'medium' | 'large' = 'medium'
-    if ((enemy.scale || 1) < 0.8) enemySize = 'small'
-    else if ((enemy.scale || 1) > 1.1) enemySize = 'large'
+    if (enemyScale < 0.8) enemySize = 'small'
+    else if (enemyScale > 1.1) enemySize = 'large'
     enemySprite.setData('enemySize', enemySize)
 
     enemySprite.body!.setSize(enemySprite.width * 0.7, enemySprite.height * 0.7)
     enemySprite.body!.setOffset(enemySprite.width * 0.15, enemySprite.height * 0.15)
     enemySprite.body!.setMass(1)
     enemySprite.setPushable(true)
-    enemySprite.body!.setMaxVelocity(200, 600)
+    const body = enemySprite.body as Phaser.Physics.Arcade.Body
+    body.setMaxVelocity(200, 600)
 
     // Track the remote enemy
     this.remoteEnemies.set(eid, enemySprite)
@@ -7404,7 +7411,6 @@ export default class GameScene extends Phaser.Scene {
     }
 
     const enemyType = enemySprite.getData('enemyType')
-    const coinReward = enemySprite.getData('coinReward') || 10
     // Record original spawn location for potential respawn
     const spawnX = enemySprite.getData('spawnX')
     const spawnY = enemySprite.getData('spawnY')
@@ -7536,7 +7542,7 @@ export default class GameScene extends Phaser.Scene {
     coin.setScale(0.5)
     coin.setBounce(0.5)
     coin.setCollideWorldBounds(true)
-    coin.body!.setAllowGravity(true)
+    ;(coin.body as Phaser.Physics.Arcade.Body).setAllowGravity(true)
     coin.setData('coinId', cid)
     coin.setData('value', coinState.value || 1)
 

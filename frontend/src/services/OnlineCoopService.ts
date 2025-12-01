@@ -91,6 +91,9 @@ export interface NetworkEnemyState {
   is_alive: boolean
   facing_right: boolean
   state: string  // idle, moving, attacking, dead
+  scale?: number
+  type?: string  // animation type (alias for enemy_type)
+  coin_reward?: number
 }
 
 /**
