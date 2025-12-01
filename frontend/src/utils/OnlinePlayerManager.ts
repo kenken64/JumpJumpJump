@@ -1206,6 +1206,10 @@ export class OnlinePlayerManager {
       if (!found) {
         console.log(`🪙 Coin ${itemId} not found locally (might already be collected)`)
       }
+      
+      // Check if the REMOTE player collected this coin (not us)
+      const isRemoteCollection = this.remotePlayer?.playerId === _playerId
+      
       // Update player UI/state: find which player collected this coin
       const targetPlayer = this.localPlayer?.playerId === _playerId ? this.localPlayer : this.remotePlayer?.playerId === _playerId ? this.remotePlayer : null
       if (targetPlayer) {
@@ -1222,7 +1226,7 @@ export class OnlinePlayerManager {
           (targetPlayer.state as any).score = (targetPlayer.state as any).score ? (targetPlayer.state as any).score + 10 : 10
         }
 
-        // Update top-right UI coin/score text in GameScene if present
+        // Update top-right UI coin/score text in GameScene if present (co-op style HUD)
         const playerNumber = targetPlayer.playerNumber
         const scoreName = playerNumber === 1 ? 'p1ScoreText' : 'p2ScoreText'
         const coinName = playerNumber === 1 ? 'p1CoinText' : 'p2CoinText'
@@ -1230,6 +1234,21 @@ export class OnlinePlayerManager {
         const cText = gameScene.children.getByName(coinName) as Phaser.GameObjects.Text
         if (sText) sText.setText(`Score: ${(targetPlayer.state as any).score}`)
         if (cText) cText.setText(`${(targetPlayer.state as any).coins}`)
+      }
+      
+      // For online mode: Also update the main HUD (coinCount, coinText, score, scoreText)
+      // When remote player collects a coin, we want to increment our local counter too
+      // so both players see the same total team coins
+      if (isRemoteCollection && gameScene.isOnlineMode) {
+        gameScene.coinCount = (gameScene.coinCount || 0) + 1
+        gameScene.score = (gameScene.score || 0) + 10
+        if (gameScene.coinText) {
+          gameScene.coinText.setText(gameScene.coinCount.toString())
+        }
+        if (gameScene.scoreText) {
+          gameScene.scoreText.setText(`Score: ${gameScene.score}`)
+        }
+        console.log(`🪙 Updated local HUD for remote collection: coins=${gameScene.coinCount}, score=${gameScene.score}`)
       }
     } else if (itemType === 'powerup' && gameScene.powerUps) {
       // Find and destroy the powerup with matching ID

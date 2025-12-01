@@ -437,9 +437,14 @@ export default class GameScene extends Phaser.Scene {
     this.debugMode = false  // Always reset debug mode on scene start/restart
     this.levelCompleteShown = false // Reset level complete flag
 
-    // Load coin count from localStorage
-    const savedCoins = localStorage.getItem('playerCoins')
-    this.coinCount = savedCoins ? parseInt(savedCoins) : 0
+    // Load coin count from localStorage (for single player / shop)
+    // In online mode, start fresh to show session coins only
+    if (this.isOnlineMode) {
+      this.coinCount = 0  // Online mode: show session coins only
+    } else {
+      const savedCoins = localStorage.getItem('playerCoins')
+      this.coinCount = savedCoins ? parseInt(savedCoins) : 0
+    }
 
     // Load equipped items from inventory
     const equippedWeapon = localStorage.getItem('equippedWeapon')
