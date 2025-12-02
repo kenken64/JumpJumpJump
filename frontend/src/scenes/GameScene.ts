@@ -159,6 +159,12 @@ export default class GameScene extends Phaser.Scene {
   private remoteEnemies: Map<string, Phaser.Physics.Arcade.Sprite> = new Map()
   private remoteCoins: Map<string, Phaser.Physics.Arcade.Sprite> = new Map()
   private isOnlineHost: boolean = false
+  // Counter for unique respawn enemy IDs
+  private respawnEnemyCounter: number = 0
+  // Counter for unique coin drop IDs
+  private coinDropCounter: number = 0
+  // Counter for unique power-up IDs
+  private powerUpCounter: number = 0
 
   // DQN Training
   private dqnTraining: boolean = false
@@ -873,9 +879,8 @@ export default class GameScene extends Phaser.Scene {
         onEnemySpawned: (enemy) => this.handleRemoteEnemySpawn(enemy),
         onEnemyKilled: (enemyId, killedBy) => this.handleRemoteEnemyKilled(enemyId, killedBy),
         onEnemyStateUpdate: (enemyId, state) => {
-          if (state.enemy_id) {
-            this.handleRemoteEnemyStateUpdate(enemyId, state as NetworkEnemyState)
-          }
+          // enemyId is passed separately, state is partial update
+          this.handleRemoteEnemyStateUpdate(enemyId, state as NetworkEnemyState)
         },
         onCoinSpawned: (coin) => this.handleRemoteCoinSpawn(coin),
         onEntitiesSync: (enemies, coins) => this.handleEntitiesSync(enemies, coins)
@@ -988,12 +993,29 @@ export default class GameScene extends Phaser.Scene {
       console.log(`👾 Initial enemy RNG reset, seed state: ${this.onlineRngState}`)
     }
     
-    const numEnemies = 15
-    for (let i = 0; i < numEnemies; i++) {
-      const x = this.isOnlineMode ? this.onlineSeededBetween(300, 3000) : Phaser.Math.Between(300, 3000)
-      const y = this.isOnlineMode ? this.onlineSeededBetween(200, 900) : Phaser.Math.Between(200, 900)
-
-      this.spawnRandomEnemy(x, y, 1.0, -1, i)  // Use -1 for chunk index to indicate initial spawn
+    // In online mode, only the HOST spawns enemies - non-host receives them via network
+    // This prevents duplicate enemies (local spawn + remote spawn messages)
+    const shouldSpawnEnemies = !this.isOnlineMode || this.isOnlineHost
+    
+    if (shouldSpawnEnemies) {
+      const numEnemies = 15
+      console.log('═══════════════════════════════════════════════════════════')
+      console.log('👾 ENEMY SPAWN - Host spawning enemies locally')
+      console.log('═══════════════════════════════════════════════════════════')
+      for (let i = 0; i < numEnemies; i++) {
+        const rngBefore = this.onlineRngState
+        const x = this.isOnlineMode ? this.onlineSeededBetween(300, 3000) : Phaser.Math.Between(300, 3000)
+        const y = this.isOnlineMode ? this.onlineSeededBetween(200, 900) : Phaser.Math.Between(200, 900)
+        if (this.isOnlineMode) {
+          console.log(`👾 Enemy ${i}: pos=(${x}, ${y}) rngBefore=${rngBefore}`)
+        }
+        this.spawnRandomEnemy(x, y, 1.0, -1, i)  // Use -1 for chunk index to indicate initial spawn
+      }
+      if (this.isOnlineMode) {
+        console.log('═══════════════════════════════════════════════════════════')
+      }
+    } else {
+      console.log('👾 Non-host: Waiting for enemy spawn messages from host...')
     }
 
     // Create block fragments group
@@ -1648,8 +1670,13 @@ export default class GameScene extends Phaser.Scene {
   }
 
   private spawnCoins() {
-    // In online mode, both host and non-host generate coins using the same seed
-    // This ensures identical initial state - non-host just doesn't report to server
+    // In online mode, only HOST spawns coins - non-host receives them via network
+    // This prevents duplicate coins
+    if (this.isOnlineMode && !this.isOnlineHost) {
+      console.log('🪙 COIN DEBUG: Non-host skipping spawnCoins() - waiting for network')
+      return
+    }
+    console.log(`🪙 COIN DEBUG: spawnCoins() called - isOnlineMode=${this.isOnlineMode}, isHost=${this.isOnlineHost}`)
     
     // Spawn coins at various positions throughout the world (Y values are above floor at 650)
     const coinPositions = [
@@ -1700,6 +1727,7 @@ export default class GameScene extends Phaser.Scene {
 
       // Only host reports to server - non-host generates same coins locally
       if (!this.isOnlineMode || this.isOnlineHost) {
+        console.log(`🪙 COIN DEBUG: Initial coin ${coin.getData('coinId')} at (${pos.x}, ${pos.y}) - reporting to server`)
         this.reportCoinSpawnToServer(coin)
       }
     })
@@ -2492,6 +2520,12 @@ export default class GameScene extends Phaser.Scene {
   }
 
   private spawnPowerUps() {
+    // In online mode, only HOST spawns power-ups - non-host receives them via network
+    if (this.isOnlineMode && !this.isOnlineHost) {
+      console.log('🎁 Non-host: Waiting for power-up spawn messages from host...')
+      return
+    }
+    
     // Spawn power-ups at random positions on platforms
     const powerUpTypes = ['powerSpeed', 'powerShield', 'powerLife', 'powerHealth', 'powerHealth']
     const numPowerUps = 10
@@ -2515,7 +2549,8 @@ export default class GameScene extends Phaser.Scene {
       powerUp.setBounce(0.2)
       powerUp.setCollideWorldBounds(true)
       // Deterministic id for online mode so collections are consistent
-      const powerupId = `powerup_chunk_${Math.floor(x / 800)}_${i}`
+      this.powerUpCounter++
+      const powerupId = `powerup_${this.powerUpCounter}_${Math.floor(x)}_${Math.floor(y)}`
       powerUp.setData('powerupId', powerupId)
       powerUp.setData('type', type)
 
@@ -2741,6 +2776,13 @@ export default class GameScene extends Phaser.Scene {
   }
 
   private dropCoins(x: number, y: number, count: number) {
+    // In online mode, only host spawns dropped coins - non-host receives via network
+    if (this.isOnlineMode && !this.isOnlineHost) {
+      console.log(`🪙 COIN DEBUG: Non-host skipping dropCoins(${Math.floor(x)}, ${Math.floor(y)}, ${count})`)
+      return
+    }
+    console.log(`🪙 COIN DEBUG: dropCoins(${Math.floor(x)}, ${Math.floor(y)}, ${count}) - isHost=${this.isOnlineHost}`)
+
     // Drop coins at the enemy's position
     // In online mode, use deterministic positions based on enemy position
     for (let i = 0; i < count; i++) {
@@ -2753,8 +2795,12 @@ export default class GameScene extends Phaser.Scene {
         const offsetY = this.isOnlineMode
           ? ((Math.floor(y) * 11 + i * 17) % 21) - 20  // Deterministic: -20 to 0
           : Phaser.Math.Between(-20, 0)
-        const coinId = `coin_drop_${Math.floor(x)}_${Math.floor(y)}_${i}`
-        const coin = this.coins.create(x + offsetX, y + offsetY, 'coin')
+        // Use unique counter for coin drop IDs to avoid duplicates
+        this.coinDropCounter++
+        const coinId = `coin_drop_${this.coinDropCounter}_${Math.floor(x)}_${Math.floor(y)}_${i}`
+        const coinX = x + offsetX
+        const coinY = y + offsetY
+        const coin = this.coins.create(coinX, coinY, 'coin')
         // Set deterministic coin ID for online sync
         coin.setData('coinId', coinId)
         coin.setData('value', 1)
@@ -2778,6 +2824,22 @@ export default class GameScene extends Phaser.Scene {
           duration: 200,
           ease: 'Cubic.easeOut'
         })
+
+        // Report dropped coin to server for non-host to receive
+        if (this.isOnlineMode && this.isOnlineHost && this.onlinePlayerManager) {
+          const coinState: NetworkCoinState = {
+            coin_id: coinId,
+            x: Math.round(coinX),
+            y: Math.round(coinY),
+            is_collected: false,
+            collected_by: null,
+            value: 1,
+            velocity_x: velX,
+            velocity_y: velY
+          }
+          console.log(`🪙 HOST: Reporting dropped coin ${coinId} at (${Math.round(coinX)}, ${Math.round(coinY)})`)
+          this.onlinePlayerManager.reportCoinSpawn(coinState)
+        }
       })
     }
   }
@@ -2785,9 +2847,13 @@ export default class GameScene extends Phaser.Scene {
 
 
   private spawnCoinsInArea(startX: number, endX: number) {
-    // In online mode, both host and non-host generate coins using the same seed
-    // This ensures both clients see the same coins at the same time
-    // Only host reports spawns to server
+    // In online mode, only HOST spawns coins - non-host receives them via network
+    // This prevents duplicate coins
+    if (this.isOnlineMode && !this.isOnlineHost) {
+      console.log(`🪙 COIN DEBUG: Non-host skipping spawnCoinsInArea(${startX}, ${endX})`)
+      return // Non-host doesn't spawn coins locally
+    }
+    console.log(`🪙 COIN DEBUG: spawnCoinsInArea(${startX}, ${endX}) - isHost=${this.isOnlineHost}`)
     
     // Reset RNG for this chunk to ensure deterministic coin spawning in online mode
     // Use a unique formula to differentiate from enemy RNG
@@ -2893,9 +2959,11 @@ export default class GameScene extends Phaser.Scene {
   }
 
   private spawnEnemiesInArea(startX: number, endX: number) {
-    // In online mode, both host and non-host generate enemies using the same seed
-    // This ensures both clients see the same enemies at the same time
-    // Only host reports spawns to server
+    // In online mode, only HOST spawns enemies - non-host receives them via network
+    // This prevents duplicate enemies
+    if (this.isOnlineMode && !this.isOnlineHost) {
+      return // Non-host doesn't spawn enemies locally
+    }
     
     // Don't spawn enemies on the starting platform (first 500 pixels)
     if (startX < 500) return
@@ -3000,9 +3068,15 @@ export default class GameScene extends Phaser.Scene {
     enemy.setData('spawnX', x)
     enemy.setData('spawnY', y)
     // Add unique ID for online sync - use chunk index and enemy index for determinism
-    const enemyId = chunkIndex !== undefined && enemyIndex !== undefined
-      ? `enemy_chunk_${chunkIndex}_${enemyIndex}`
-      : `enemy_${Math.floor(x / 800)}_${Math.floor(x)}_${Math.floor(y)}`
+    // For respawned enemies (no chunk index), use a counter to ensure uniqueness
+    let enemyId: string
+    if (chunkIndex !== undefined && enemyIndex !== undefined) {
+      enemyId = `enemy_chunk_${chunkIndex}_${enemyIndex}`
+    } else {
+      // Respawned enemy - use counter for unique ID
+      this.respawnEnemyCounter++
+      enemyId = `enemy_respawn_${this.respawnEnemyCounter}_${Math.floor(x)}_${Math.floor(y)}`
+    }
     enemy.setData('enemyId', enemyId)
     
     if (this.isOnlineMode) {
@@ -5771,17 +5845,20 @@ export default class GameScene extends Phaser.Scene {
               })
 
               // Respawn after 20 seconds only if location is ahead of player's progress
-              this.time.delayedCall(20000, () => {
-                // Don't respawn if player has already passed this area
-                if (spawnX < this.farthestPlayerX - 500) {
-                  return // Skip respawn in explored areas
-                }
+              // In online mode, only HOST respawns enemies
+              if (!this.isOnlineMode || this.isOnlineHost) {
+                this.time.delayedCall(20000, () => {
+                  // Don't respawn if player has already passed this area
+                  if (spawnX < this.farthestPlayerX - 500) {
+                    return // Skip respawn in explored areas
+                  }
 
-                const difficultyMultiplier = this.gameMode === 'endless'
-                  ? 1 + Math.floor(this.player.x / 5000) * 0.2
-                  : 1 + (this.currentLevel - 1) * 0.3
-                this.spawnRandomEnemy(spawnX, spawnY, difficultyMultiplier)
-              })
+                  const difficultyMultiplier = this.gameMode === 'endless'
+                    ? 1 + Math.floor(this.player.x / 5000) * 0.2
+                    : 1 + (this.currentLevel - 1) * 0.3
+                  this.spawnRandomEnemy(spawnX, spawnY, difficultyMultiplier)
+                })
+              }
             }
           }
         })
@@ -7439,18 +7516,26 @@ export default class GameScene extends Phaser.Scene {
       return
     }
 
-    console.log(`👾 Remote enemy spawned: ${eid} at (${enemy.x}, ${enemy.y})`)
+    console.log(`👾 Remote enemy spawned: ${eid} at (${enemy.x}, ${enemy.y}) type=${enemy.enemy_type} scale=${enemy.scale}`)
 
     // Create the enemy sprite using standardized server fields
     const enemyScale = enemy.scale ?? 1
-    const animType = enemy.type || enemy.enemy_type
-    const enemySprite = this.enemies.create(enemy.x, enemy.y, enemy.enemy_type) as Phaser.Physics.Arcade.Sprite
+    const enemyType = enemy.enemy_type
+    const enemySprite = this.enemies.create(enemy.x, enemy.y, enemyType) as Phaser.Physics.Arcade.Sprite
+    
+    if (!enemySprite) {
+      console.error(`❌ Failed to create enemy sprite for ${eid}`)
+      return
+    }
+    
+    console.log(`👾 Enemy sprite created: ${eid}, visible=${enemySprite.visible}, active=${enemySprite.active}`)
+    
     enemySprite.setScale(enemyScale)
     enemySprite.setBounce(0.3)
     enemySprite.setCollideWorldBounds(true)
     enemySprite.clearTint()
-    enemySprite.play(`${animType}_idle`)
-    enemySprite.setData('enemyType', enemy.enemy_type)
+    enemySprite.play(`${enemyType}_idle`)
+    enemySprite.setData('enemyType', enemyType)
     enemySprite.setData('enemyId', eid)
     enemySprite.setData('health', enemy.health)
     enemySprite.setData('maxHealth', enemy.max_health)
@@ -7463,6 +7548,13 @@ export default class GameScene extends Phaser.Scene {
     if (enemyScale < 0.8) enemySize = 'small'
     else if (enemyScale > 1.1) enemySize = 'large'
     enemySprite.setData('enemySize', enemySize)
+    
+    // Add AI behavior data
+    enemySprite.setData('detectionRange', 300)
+    enemySprite.setData('speed', 80)
+    enemySprite.setData('wanderDirection', enemy.facing_right ? 1 : -1)
+    enemySprite.setData('wanderTimer', 0)
+    enemySprite.setData('idleTimer', 0)
 
     enemySprite.body!.setSize(enemySprite.width * 0.7, enemySprite.height * 0.7)
     enemySprite.body!.setOffset(enemySprite.width * 0.15, enemySprite.height * 0.15)
@@ -7473,6 +7565,8 @@ export default class GameScene extends Phaser.Scene {
 
     // Track the remote enemy
     this.remoteEnemies.set(eid, enemySprite)
+    
+    console.log(`👾 Remote enemy ${eid} fully initialized and tracked. Total enemies: ${this.enemies.getChildren().length}`)
   }
 
   /**
@@ -7508,8 +7602,12 @@ export default class GameScene extends Phaser.Scene {
     const spawnX = enemySprite.getData('spawnX')
     const spawnY = enemySprite.getData('spawnY')
     const scale = enemySprite.scaleX
+    const coinReward = enemySprite.getData('coinReward') || 5
 
-    // NOTE: coin spawning is server-authoritative now — server will broadcast coin_spawned
+    // HOST spawns coins for remote kills and broadcasts to all players
+    if (this.isOnlineMode && this.isOnlineHost) {
+      this.dropCoins(enemySprite.x, enemySprite.y, coinReward)
+    }
 
     // Award score
     this.enemiesDefeated++
@@ -7621,7 +7719,11 @@ export default class GameScene extends Phaser.Scene {
    * Handle remote coin spawn from network
    */
   private handleRemoteCoinSpawn(coinState: NetworkCoinState) {
-    if (this.isOnlineHost) return // Host already spawned this coin
+    console.log(`🪙 COIN DEBUG: handleRemoteCoinSpawn received - id=${coinState.coin_id}, isHost=${this.isOnlineHost}`)
+    if (this.isOnlineHost) {
+      console.log(`🪙 COIN DEBUG: Host skipping handleRemoteCoinSpawn`)
+      return // Host already spawned this coin
+    }
 
     // Check if we already have this coin
     const cid = coinState.coin_id
@@ -7658,7 +7760,26 @@ export default class GameScene extends Phaser.Scene {
     // Apply deterministic velocity if provided by server (for dropped coins)
     if (coinState.velocity_x !== undefined || coinState.velocity_y !== undefined) {
       coin.setVelocity(coinState.velocity_x || 0, coinState.velocity_y || 0)
+    } else {
+      // Add floating animation for stationary coins
+      this.tweens.add({
+        targets: coin,
+        y: coinState.y - 20,
+        duration: 1000,
+        yoyo: true,
+        repeat: -1,
+        ease: 'Sine.easeInOut'
+      })
     }
+
+    // Add rotation animation
+    this.tweens.add({
+      targets: coin,
+      angle: 360,
+      duration: 3000,
+      repeat: -1,
+      ease: 'Linear'
+    })
 
     this.remoteCoins.set(cid, coin)
   }
