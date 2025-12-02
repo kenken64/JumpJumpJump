@@ -13,7 +13,7 @@
  */
 
 import Phaser from 'phaser'
-import { OnlineCoopService, NetworkPlayerState, NetworkGameState, NetworkEnemyState, NetworkCoinState } from '../services/OnlineCoopService'
+import { OnlineCoopService, NetworkPlayerState, NetworkGameState, NetworkEnemyState, NetworkCoinState, NetworkPowerUpState } from '../services/OnlineCoopService'
 
 /**
  * Complete state for a player in online mode
@@ -75,6 +75,7 @@ export class OnlinePlayerManager {
   private onEnemyKilledCallback?: (enemyId: string, killedBy: string) => void
   private onEnemyStateUpdateCallback?: (enemyId: string, state: Partial<NetworkEnemyState>) => void
   private onCoinSpawnedCallback?: (coin: NetworkCoinState) => void
+  private onPowerUpSpawnedCallback?: (powerup: NetworkPowerUpState) => void
   private onEntitiesSyncCallback?: (enemies: NetworkEnemyState[], coins: NetworkCoinState[]) => void
   
   constructor(scene: Phaser.Scene, platforms: Phaser.Physics.Arcade.StaticGroup) {
@@ -94,12 +95,14 @@ export class OnlinePlayerManager {
     onEnemyKilled?: (enemyId: string, killedBy: string) => void
     onEnemyStateUpdate?: (enemyId: string, state: Partial<NetworkEnemyState>) => void
     onCoinSpawned?: (coin: NetworkCoinState) => void
+    onPowerUpSpawned?: (powerup: NetworkPowerUpState) => void
     onEntitiesSync?: (enemies: NetworkEnemyState[], coins: NetworkCoinState[]) => void
   }): void {
     this.onEnemySpawnedCallback = callbacks.onEnemySpawned
     this.onEnemyKilledCallback = callbacks.onEnemyKilled
     this.onEnemyStateUpdateCallback = callbacks.onEnemyStateUpdate
     this.onCoinSpawnedCallback = callbacks.onCoinSpawned
+    this.onPowerUpSpawnedCallback = callbacks.onPowerUpSpawned
     this.onEntitiesSyncCallback = callbacks.onEntitiesSync
   }
   
@@ -190,6 +193,14 @@ export class OnlinePlayerManager {
         console.log('🪙 Remote coin spawned:', coin.coin_id)
         this.onCoinSpawnedCallback?.(coin)
       },
+      
+      // PowerUp sync callbacks
+      onPowerUpSpawned: (powerup: NetworkPowerUpState) => {
+        console.log('🎁 Remote powerup spawned:', powerup.powerup_id)
+        this.onPowerUpSpawnedCallback?.(powerup)
+      },
+      
+      // Full entity sync
       
       // Full entity sync
       onEntitiesSync: (enemies: NetworkEnemyState[], coins: NetworkCoinState[], sequenceId: number) => {
@@ -1317,6 +1328,13 @@ export class OnlinePlayerManager {
    */
   reportCoinSpawn(coin: NetworkCoinState): void {
     this.onlineService.spawnCoin(coin)
+  }
+
+  /**
+   * Report powerup spawn to server (host only)
+   */
+  reportPowerUpSpawn(powerup: NetworkPowerUpState): void {
+    this.onlineService.spawnPowerUp(powerup)
   }
   
   /**

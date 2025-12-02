@@ -34,7 +34,7 @@ import { AIPlayer } from '../utils/AIPlayer'
 import { MLAIPlayer } from '../utils/MLAIPlayer'
 import { DQNAgent, DQNState, DQNAction } from '../utils/DQNAgent'
 import { OnlinePlayerManager } from '../utils/OnlinePlayerManager'
-import { OnlineCoopService, NetworkGameState, NetworkEnemyState, NetworkCoinState } from '../services/OnlineCoopService'
+import { OnlineCoopService, NetworkGameState, NetworkEnemyState, NetworkCoinState, NetworkPowerUpState } from '../services/OnlineCoopService'
 
 /**
  * Main gameplay scene containing all game logic
@@ -883,6 +883,7 @@ export default class GameScene extends Phaser.Scene {
           this.handleRemoteEnemyStateUpdate(enemyId, state as NetworkEnemyState)
         },
         onCoinSpawned: (coin) => this.handleRemoteCoinSpawn(coin),
+        onPowerUpSpawned: (powerup) => this.handleRemotePowerUpSpawn(powerup),
         onEntitiesSync: (enemies, coins) => this.handleEntitiesSync(enemies, coins)
       })
       
@@ -1702,6 +1703,10 @@ export default class GameScene extends Phaser.Scene {
       coin.setScale(0.5)
       coin.setBounce(0.3)
       coin.setCollideWorldBounds(true)
+      // Disable gravity for floating level coins so they don't fall
+      if (coin.body) {
+        (coin.body as Phaser.Physics.Arcade.Body).setAllowGravity(false)
+      }
       // Add unique ID for online sync
       coin.setData('coinId', `coin_init_${index}_${pos.x}_${pos.y}`)
       coin.setData('value', 1)
@@ -2573,6 +2578,16 @@ export default class GameScene extends Phaser.Scene {
         repeat: -1,
         ease: 'Sine.easeInOut'
       })
+
+      // Report to server if host
+      if (this.isOnlineMode && this.isOnlineHost && this.onlinePlayerManager) {
+        this.onlinePlayerManager.reportPowerUpSpawn({
+          powerup_id: powerupId,
+          type: type,
+          x: Math.round(x),
+          y: Math.round(y)
+        })
+      }
     }
   }
 
@@ -2912,6 +2927,11 @@ export default class GameScene extends Phaser.Scene {
     // Use deterministic ID based on chunk and index, not position
     coin.setData('coinId', `coin_chunk_${Math.floor(chunkStartX / 800)}_${index}`)
     coin.setData('value', 1)
+
+    // Disable gravity for static level coins
+    if (coin.body) {
+      (coin.body as Phaser.Physics.Arcade.Body).setAllowGravity(false)
+    }
 
     // Add floating animation
     this.tweens.add({
@@ -4500,6 +4520,12 @@ export default class GameScene extends Phaser.Scene {
   }
 
   private handleEnemyAI() {
+    // In online mode, only HOST runs enemy AI logic
+    // Non-host receives position updates from host
+    if (this.isOnlineMode && !this.isOnlineHost) {
+      return
+    }
+
     this.enemies.children.entries.forEach((enemyObj) => {
       const enemy = enemyObj as Phaser.Physics.Arcade.Sprite
       const detectionRange = enemy.getData('detectionRange')
@@ -7750,17 +7776,18 @@ export default class GameScene extends Phaser.Scene {
     console.log(`🪙 Remote coin spawned: ${cid} at (${coinState.x}, ${coinState.y})`)
 
     const coin = this.coins.create(coinState.x, coinState.y, 'coin') as Phaser.Physics.Arcade.Sprite
-    coin.setScale(0.5)
-    coin.setBounce(0.5)
-    coin.setCollideWorldBounds(true)
-    ;(coin.body as Phaser.Physics.Arcade.Body).setAllowGravity(true)
     coin.setData('coinId', cid)
     coin.setData('value', coinState.value || 1)
 
     // Apply deterministic velocity if provided by server (for dropped coins)
-    if (coinState.velocity_x !== undefined || coinState.velocity_y !== undefined) {
+    // Use ID prefix to distinguish dropped coins (dynamic) from level coins (static)
+    if (cid.startsWith('coin_drop_')) {
+      (coin.body as Phaser.Physics.Arcade.Body).setAllowGravity(true)
       coin.setVelocity(coinState.velocity_x || 0, coinState.velocity_y || 0)
     } else {
+      // Static level coins should float and not fall
+      (coin.body as Phaser.Physics.Arcade.Body).setAllowGravity(false)
+      
       // Add floating animation for stationary coins
       this.tweens.add({
         targets: coin,
@@ -7782,6 +7809,58 @@ export default class GameScene extends Phaser.Scene {
     })
 
     this.remoteCoins.set(cid, coin)
+  }
+
+  /**
+   * Handle remote powerup spawn from network
+   */
+  private handleRemotePowerUpSpawn(powerupState: NetworkPowerUpState) {
+    if (this.isOnlineHost) return // Host already spawned this
+
+    const pid = powerupState.powerup_id
+    
+    // Check if we already have this powerup
+    let existingPowerUp: Phaser.Physics.Arcade.Sprite | null = null
+    this.powerUps.getChildren().forEach((child) => {
+      const sprite = child as Phaser.Physics.Arcade.Sprite
+      if (sprite.getData('powerupId') === pid) {
+        existingPowerUp = sprite
+      }
+    })
+    
+    if (existingPowerUp) {
+      console.log(`🎁 PowerUp ${pid} found locally, tracking`)
+      return
+    }
+
+    console.log(`🎁 Remote powerup spawned: ${pid} at (${powerupState.x}, ${powerupState.y})`)
+
+    const powerUp = this.powerUps.create(powerupState.x, powerupState.y, powerupState.type)
+    powerUp.setScale(0.6)
+    powerUp.setBounce(0.2)
+    powerUp.setCollideWorldBounds(true)
+    powerUp.setData('powerupId', pid)
+    powerUp.setData('type', powerupState.type)
+
+    // Add floating animation
+    this.tweens.add({
+      targets: powerUp,
+      y: powerupState.y - 15,
+      duration: 1200,
+      yoyo: true,
+      repeat: -1,
+      ease: 'Sine.easeInOut'
+    })
+
+    // Add glow effect
+    this.tweens.add({
+      targets: powerUp,
+      alpha: 0.7,
+      duration: 800,
+      yoyo: true,
+      repeat: -1,
+      ease: 'Sine.easeInOut'
+    })
   }
 
   /**
