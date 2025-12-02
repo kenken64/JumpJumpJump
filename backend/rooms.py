@@ -92,7 +92,7 @@ class GameRoom:
         self.reconnect_timeout = 60  # 60 seconds to reconnect
         
         # Game state
-        self.seed: int = secrets.randbelow(1000000)  # Random seed for world generation
+        self.seed: int = secrets.randbelow(999999) + 1  # Random seed 1-999999 (never 0)
         self.enemies: Dict[str, dict] = {}  # enemy_id -> enemy state
         self.coins: Dict[str, dict] = {}  # coin_id -> coin state
         self.projectiles: List[dict] = []

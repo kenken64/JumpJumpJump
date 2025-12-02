@@ -210,6 +210,7 @@ export class OnlineCoopService {
   // Getters for state
   get playerId(): string | null { return this._playerId }
   get playerNumber(): number { return this._playerNumber }
+  get playerName(): string | null { return this._playerName }
   get roomId(): string | null { return this._roomId }
   get isHost(): boolean { return this._isHost }
   get isConnected(): boolean { return this._isConnected }

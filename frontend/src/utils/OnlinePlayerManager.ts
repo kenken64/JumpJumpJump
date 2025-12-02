@@ -57,14 +57,14 @@ export class OnlinePlayerManager {
   private remotePlayer: OnlinePlayer | null = null
   private platforms: Phaser.Physics.Arcade.StaticGroup
   private lastStateSendTime: number = 0
-  private stateSendInterval: number = 33 // Send state every 33ms (30 times per second)
+  private stateSendInterval: number = 16 // Send state every 16ms (60 times per second)
   private interpolationSpeed: number = 0.35 // Faster interpolation for smoother movement
   private positionSnapThreshold: number = 200 // Snap if difference is too large
   
   // Enemy sync tracking
   private trackedEnemies: Map<string, TrackedEnemy> = new Map()
   private lastEnemySyncTime: number = 0
-  private enemySyncInterval: number = 100 // Sync enemies every 100ms (10 times per second)
+  private enemySyncInterval: number = 50 // Sync enemies every 50ms (20 times per second)
   
   // Tethered scrolling - camera won't scroll forward unless both players are close
   private tetherMaxScrollX: number = 0 // Maximum scroll X based on trailing player
@@ -868,6 +868,16 @@ export class OnlinePlayerManager {
   }
   
   /**
+   * Get the X position of the furthest player (for chunk generation)
+   * This ensures both clients generate the same chunks at the same time
+   */
+  getFurthestPlayerX(): number {
+    const localX = this.localPlayer?.sprite?.x ?? 0
+    const remoteX = this.remotePlayer?.sprite?.x ?? 0
+    return Math.max(localX, remoteX)
+  }
+  
+  /**
    * Update local player state
    */
   updateLocalState(updates: Partial<NetworkPlayerState>): void {
@@ -1196,6 +1206,10 @@ export class OnlinePlayerManager {
       if (!found) {
         console.log(`🪙 Coin ${itemId} not found locally (might already be collected)`)
       }
+      
+      // Check if the REMOTE player collected this coin (not us)
+      const isRemoteCollection = this.remotePlayer?.playerId === _playerId
+      
       // Update player UI/state: find which player collected this coin
       const targetPlayer = this.localPlayer?.playerId === _playerId ? this.localPlayer : this.remotePlayer?.playerId === _playerId ? this.remotePlayer : null
       if (targetPlayer) {
@@ -1212,7 +1226,7 @@ export class OnlinePlayerManager {
           (targetPlayer.state as any).score = (targetPlayer.state as any).score ? (targetPlayer.state as any).score + 10 : 10
         }
 
-        // Update top-right UI coin/score text in GameScene if present
+        // Update top-right UI coin/score text in GameScene if present (co-op style HUD)
         const playerNumber = targetPlayer.playerNumber
         const scoreName = playerNumber === 1 ? 'p1ScoreText' : 'p2ScoreText'
         const coinName = playerNumber === 1 ? 'p1CoinText' : 'p2CoinText'
@@ -1220,6 +1234,21 @@ export class OnlinePlayerManager {
         const cText = gameScene.children.getByName(coinName) as Phaser.GameObjects.Text
         if (sText) sText.setText(`Score: ${(targetPlayer.state as any).score}`)
         if (cText) cText.setText(`${(targetPlayer.state as any).coins}`)
+      }
+      
+      // For online mode: Also update the main HUD (coinCount, coinText, score, scoreText)
+      // When remote player collects a coin, we want to increment our local counter too
+      // so both players see the same total team coins
+      if (isRemoteCollection && gameScene.isOnlineMode) {
+        gameScene.coinCount = (gameScene.coinCount || 0) + 1
+        gameScene.score = (gameScene.score || 0) + 10
+        if (gameScene.coinText) {
+          gameScene.coinText.setText(gameScene.coinCount.toString())
+        }
+        if (gameScene.scoreText) {
+          gameScene.scoreText.setText(`Score: ${gameScene.score}`)
+        }
+        console.log(`🪙 Updated local HUD for remote collection: coins=${gameScene.coinCount}, score=${gameScene.score}`)
       }
     } else if (itemType === 'powerup' && gameScene.powerUps) {
       // Find and destroy the powerup with matching ID
