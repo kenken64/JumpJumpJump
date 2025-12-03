@@ -29,9 +29,12 @@ class TestScoreSubmission:
         response = client.post("/api/scores", json=sample_score)
         assert response.status_code == 200
         data = response.json()
-        assert data["message"] == "Score saved successfully"
         assert "id" in data
         assert isinstance(data["id"], int)
+        assert data["username"] == sample_score["username"]
+        assert data["score"] == sample_score["score"]
+        assert data["level_reached"] == sample_score["level_reached"]
+        assert "created_at" in data
     
     def test_submit_score_missing_username(self, client):
         """Test score submission without username"""

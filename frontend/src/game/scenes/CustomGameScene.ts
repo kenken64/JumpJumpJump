@@ -2,7 +2,7 @@ import Phaser from 'phaser';
 import { InputManager } from '../managers/InputManager';
 import { Player } from '../entities/Player';
 import { Vehicle } from '../entities/Vehicle';
-import type { CustomLevel, CustomLane } from '../types/CustomLevel';
+import type { CustomLevel } from '../types/CustomLevel';
 import { SettingsScene } from './SettingsScene';
 
 interface Lane {
@@ -30,11 +30,9 @@ export class CustomGameScene extends Phaser.Scene {
   private pausedText?: Phaser.GameObjects.Text;
   private goalY: number = 0;
   private goalX: number = 0;
-  private treeGraphics: Phaser.GameObjects.GameObject[] = [];
   private redTreesGraphics: Phaser.GameObjects.GameObject[] = [];
   private roadProps: Phaser.GameObjects.Sprite[] = [];
   private availableProps = ['barrier.png', 'light.png', 'light_double.png', 'sign_blue.png', 'sign_red.png', 'sign_street.png'];
-  private previousPlayerPosition: { x: number; y: number } = { x: 0, y: 0 };
   private static bgMusic?: Phaser.Sound.BaseSound;
 
   constructor() {
@@ -47,7 +45,6 @@ export class CustomGameScene extends Phaser.Scene {
 
   create(): void {
     const width = this.scale.width;
-    const height = this.scale.height;
 
     // Initialize and manage background music
     if (!CustomGameScene.bgMusic) {
@@ -217,15 +214,15 @@ export class CustomGameScene extends Phaser.Scene {
       foliage4Outline, foliage4
     ];
 
-    if (foliageColor === 0x228B22) {
-      this.treeGraphics = treeGraphicsArray;
-    } else {
+    // Only track red trees for special visual effects
+    if (foliageColor !== 0x228B22) {
       this.redTreesGraphics.push(...treeGraphicsArray);
     }
   }
 
   private createUI(): void {
     const width = this.scale.width;
+    const height = this.scale.height;
 
     this.add.text(width / 2, 16, this.customLevel.name, {
       fontSize: '20px',

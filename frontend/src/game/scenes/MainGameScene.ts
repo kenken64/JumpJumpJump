@@ -4,7 +4,6 @@ import { LevelManager } from '../managers/LevelManager';
 import { Player } from '../entities/Player';
 import { Vehicle } from '../entities/Vehicle';
 import { API_CONFIG } from '../apiConfig';
-import { MenuScene } from './MenuScene';
 import { SettingsScene } from './SettingsScene';
 
 interface Lane {

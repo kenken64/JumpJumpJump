@@ -124,7 +124,7 @@ export class CustomLevelSelectScene extends Phaser.Scene {
     });
 
     // Page indicator
-    const pageText = this.add.text(width / 2, height - 120, `Page ${this.currentPage + 1} of ${totalPages}`, {
+    this.add.text(width / 2, height - 120, `Page ${this.currentPage + 1} of ${totalPages}`, {
       fontSize: '20px',
       color: '#ecf0f1',
       fontStyle: 'bold'
@@ -165,7 +165,7 @@ export class CustomLevelSelectScene extends Phaser.Scene {
     }
   }
 
-  private editLevelName(level: CustomLevel, nameText: Phaser.GameObjects.Text): void {
+  private editLevelName(level: CustomLevel, _nameText: Phaser.GameObjects.Text): void {
     const width = this.scale.width;
     const height = this.scale.height;
 

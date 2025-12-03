@@ -70,7 +70,7 @@ export class Player {
   private createFireEffect(): void {
     // Create a simple particle texture if it doesn't exist
     if (!this.scene.textures.exists('fireParticle')) {
-      const graphics = this.scene.make.graphics({ x: 0, y: 0, add: false });
+      const graphics = this.scene.make.graphics({ x: 0, y: 0 });
       graphics.fillStyle(0xff6600);
       graphics.fillCircle(4, 4, 4);
       graphics.generateTexture('fireParticle', 8, 8);

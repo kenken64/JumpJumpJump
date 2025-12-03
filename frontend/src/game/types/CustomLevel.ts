@@ -18,7 +18,7 @@ export interface CustomLevel {
 export class LevelStorage {
   private static API_URL = 'http://localhost:8000/api/levels';
 
-  static async saveLevels(levels: CustomLevel[]): Promise<void> {
+  static async saveLevels(_levels: CustomLevel[]): Promise<void> {
     // Deprecated - use saveLevel instead
     console.warn('saveLevels is deprecated, use saveLevel for individual saves');
   }
