@@ -13,7 +13,7 @@
  */
 
 import Phaser from 'phaser'
-import { OnlineCoopService, NetworkPlayerState, NetworkGameState, NetworkEnemyState, NetworkCoinState } from '../services/OnlineCoopService'
+import { OnlineCoopService, NetworkPlayerState, NetworkGameState, NetworkEnemyState, NetworkCoinState, NetworkPowerUpState } from '../services/OnlineCoopService'
 
 /**
  * Complete state for a player in online mode
@@ -75,6 +75,7 @@ export class OnlinePlayerManager {
   private onEnemyKilledCallback?: (enemyId: string, killedBy: string) => void
   private onEnemyStateUpdateCallback?: (enemyId: string, state: Partial<NetworkEnemyState>) => void
   private onCoinSpawnedCallback?: (coin: NetworkCoinState) => void
+  private onPowerUpSpawnedCallback?: (powerup: NetworkPowerUpState) => void
   private onEntitiesSyncCallback?: (enemies: NetworkEnemyState[], coins: NetworkCoinState[]) => void
   
   constructor(scene: Phaser.Scene, platforms: Phaser.Physics.Arcade.StaticGroup) {
@@ -94,12 +95,14 @@ export class OnlinePlayerManager {
     onEnemyKilled?: (enemyId: string, killedBy: string) => void
     onEnemyStateUpdate?: (enemyId: string, state: Partial<NetworkEnemyState>) => void
     onCoinSpawned?: (coin: NetworkCoinState) => void
+    onPowerUpSpawned?: (powerup: NetworkPowerUpState) => void
     onEntitiesSync?: (enemies: NetworkEnemyState[], coins: NetworkCoinState[]) => void
   }): void {
     this.onEnemySpawnedCallback = callbacks.onEnemySpawned
     this.onEnemyKilledCallback = callbacks.onEnemyKilled
     this.onEnemyStateUpdateCallback = callbacks.onEnemyStateUpdate
     this.onCoinSpawnedCallback = callbacks.onCoinSpawned
+    this.onPowerUpSpawnedCallback = callbacks.onPowerUpSpawned
     this.onEntitiesSyncCallback = callbacks.onEntitiesSync
   }
   
@@ -190,6 +193,14 @@ export class OnlinePlayerManager {
         console.log('🪙 Remote coin spawned:', coin.coin_id)
         this.onCoinSpawnedCallback?.(coin)
       },
+      
+      // PowerUp sync callbacks
+      onPowerUpSpawned: (powerup: NetworkPowerUpState) => {
+        console.log('🎁 Remote powerup spawned:', powerup.powerup_id)
+        this.onPowerUpSpawnedCallback?.(powerup)
+      },
+      
+      // Full entity sync
       
       // Full entity sync
       onEntitiesSync: (enemies: NetworkEnemyState[], coins: NetworkCoinState[], sequenceId: number) => {
@@ -1253,8 +1264,11 @@ export class OnlinePlayerManager {
     } else if (itemType === 'powerup' && gameScene.powerUps) {
       // Find and destroy the powerup with matching ID
       const powerups = gameScene.powerUps.getChildren()
+      let specificType = ''
+      
       for (const powerup of powerups) {
         if (powerup.getData('powerupId') === itemId) {
+          specificType = powerup.getData('type')
           this.scene.tweens.add({
             targets: powerup,
             alpha: 0,
@@ -1265,12 +1279,63 @@ export class OnlinePlayerManager {
           break
         }
       }
+      
       // Also update remote player's UI/state to indicate they picked a powerup (best-effort)
+      // Visual sync for power-ups
       const targetPlayer2 = this.localPlayer?.playerId === _playerId ? this.localPlayer : this.remotePlayer?.playerId === _playerId ? this.remotePlayer : null
       if (targetPlayer2) {
-        // simple visual notification above player
         const playerSprite = targetPlayer2.sprite
-        const text = this.scene.add.text(playerSprite.x, playerSprite.y - 50, 'POWER-UP!', { fontSize: '18px', color: '#ffff00' })
+        let label = 'POWER-UP!'
+        let color = '#ffff00'
+        
+        if (specificType === 'powerSpeed') {
+          label = 'SPEED BOOST!'
+          color = '#ffff00'
+        } else if (specificType === 'powerShield') {
+          label = 'SHIELD!'
+          color = '#00ffff'
+          
+          // Add visual shield to remote player
+          const shield = this.scene.add.sprite(playerSprite.x, playerSprite.y, 'powerShield')
+          shield.setScale(1.5)
+          shield.setAlpha(0.6)
+          shield.setDepth(5)
+          
+          this.scene.tweens.add({
+            targets: shield,
+            angle: 360,
+            duration: 3000,
+            repeat: 0,
+            onComplete: () => {
+               this.scene.tweens.add({
+                 targets: shield,
+                 alpha: 0,
+                 duration: 300,
+                 onComplete: () => shield.destroy()
+               })
+            }
+          })
+          
+          // Make shield follow player
+          const updateShield = () => {
+            if (shield.active && playerSprite.active) {
+              shield.setPosition(playerSprite.x, playerSprite.y)
+            } else {
+              shield.destroy()
+              this.scene.events.off('update', updateShield)
+            }
+          }
+          this.scene.events.on('update', updateShield)
+        } else if (specificType === 'powerLife') {
+          label = 'EXTRA LIFE!'
+          color = '#00ff00'
+        } else if (specificType === 'powerHealth') {
+          label = 'HEALTH UP!'
+          color = '#ff0000'
+        }
+
+        // simple visual notification above player
+        const text = this.scene.add.text(playerSprite.x, playerSprite.y - 50, label, { fontSize: '18px', color: color, fontStyle: 'bold', stroke: '#000000', strokeThickness: 3 })
         text.setOrigin(0.5)
         this.scene.tweens.add({ targets: text, y: text.y - 30, alpha: 0, duration: 1500, onComplete: () => text.destroy() })
       }
@@ -1317,6 +1382,13 @@ export class OnlinePlayerManager {
    */
   reportCoinSpawn(coin: NetworkCoinState): void {
     this.onlineService.spawnCoin(coin)
+  }
+
+  /**
+   * Report powerup spawn to server (host only)
+   */
+  reportPowerUpSpawn(powerup: NetworkPowerUpState): void {
+    this.onlineService.spawnPowerUp(powerup)
   }
   
   /**

@@ -111,6 +111,16 @@ export interface NetworkCoinState {
 }
 
 /**
+ * PowerUp state for network synchronization
+ */
+export interface NetworkPowerUpState {
+  powerup_id: string
+  type: string
+  x: number
+  y: number
+}
+
+/**
  * WebSocket message types
  */
 export type MessageType = 
@@ -137,6 +147,7 @@ export type MessageType =
   | 'enemy_killed'
   | 'enemy_already_dead'
   | 'coin_spawned'
+  | 'powerup_spawned'
   | 'entities_sync'
 
 /**
@@ -167,6 +178,9 @@ export interface OnlineCoopCallbacks {
   onEnemyAlreadyDead?: (enemyId: string) => void
   // Coin sync callbacks
   onCoinSpawned?: (coin: NetworkCoinState) => void
+  
+  // PowerUp sync callbacks
+  onPowerUpSpawned?: (powerup: NetworkPowerUpState) => void
   // Full entity sync callback
   onEntitiesSync?: (enemies: NetworkEnemyState[], coins: NetworkCoinState[], sequenceId: number) => void
 }
@@ -386,6 +400,16 @@ export class OnlineCoopService {
       // Coin sync messages
       case 'coin_spawned':
         this.callbacks.onCoinSpawned?.(data.coin)
+        break
+      
+      // PowerUp sync messages
+      case 'powerup_spawned':
+        this.callbacks.onPowerUpSpawned?.(data.powerup)
+        break
+      
+      // PowerUp sync messages
+      case 'powerup_spawned':
+        this.callbacks.onPowerUpSpawned?.(data.powerup)
         break
       
       // Full entity sync
@@ -679,6 +703,18 @@ export class OnlineCoopService {
       this.send({
         type: 'coin_spawn',
         coin
+      })
+    }
+  }
+
+  /**
+   * Report powerup spawn (host only)
+   */
+  spawnPowerUp(powerup: NetworkPowerUpState): void {
+    if (this._isHost) {
+      this.send({
+        type: 'powerup_spawn',
+        powerup
       })
     }
   }
