@@ -7776,6 +7776,9 @@ export default class GameScene extends Phaser.Scene {
     console.log(`🪙 Remote coin spawned: ${cid} at (${coinState.x}, ${coinState.y})`)
 
     const coin = this.coins.create(coinState.x, coinState.y, 'coin') as Phaser.Physics.Arcade.Sprite
+    coin.setScale(0.5)
+    coin.setBounce(0.3)
+    coin.setCollideWorldBounds(true)
     coin.setData('coinId', cid)
     coin.setData('value', coinState.value || 1)
 
