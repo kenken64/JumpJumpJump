@@ -1,0 +1,5 @@
+assets/**/*.tsx
+public/**/*.tsx
+dist
+coverage
+node_modules

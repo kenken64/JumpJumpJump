@@ -23,6 +23,11 @@ if %errorlevel%==0 (
     echo No Backend processes found.
 )
 
+REM Clear game state log
+echo.
+echo Clearing game_state.log...
+type nul > "%~dp0..\backend\game_state.log"
+
 echo.
 echo ==================================
 echo All Services Stopped!

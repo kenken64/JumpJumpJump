@@ -7,6 +7,8 @@ echo -e "\033[0;32mStarting JumpJumpJump services...\033[0m"
 # Get the script directory
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+PIDS_DIR="$PROJECT_ROOT/.pids"
+mkdir -p "$PIDS_DIR"
 
 # Start Backend
 echo -e "\n\033[0;36mStarting Backend (FastAPI)...\033[0m"
@@ -29,7 +31,7 @@ if [ -d "$BACKEND_PATH" ]; then
         cd "$BACKEND_PATH"
         source venv/bin/activate
         python -m uvicorn main:app --reload --host 0.0.0.0 --port 8000 > /dev/null 2>&1 &
-        echo $! > /tmp/jumpjump_backend.pid
+        echo $! > "$PIDS_DIR/backend.pid"
     fi
     echo -e "\033[0;32mBackend started on http://localhost:8000\033[0m"
 else
@@ -59,7 +61,7 @@ if [ -d "$FRONTEND_PATH" ]; then
         cd "$FRONTEND_PATH"
         pnpm install > /dev/null 2>&1
         pnpm dev > /dev/null 2>&1 &
-        echo $! > /tmp/jumpjump_frontend.pid
+        echo $! > "$PIDS_DIR/frontend.pid"
     fi
     echo -e "\033[0;32mFrontend started on http://localhost:3000\033[0m"
 else

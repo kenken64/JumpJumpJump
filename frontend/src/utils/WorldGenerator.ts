@@ -49,7 +49,8 @@ export class WorldGenerator {
     this.worldGenerationX = 0
     this.lastGeneratedX = 0
     // Initialize seeded random - use provided seed or generate random one
-    this.seed = seed ?? Math.floor(Math.random() * 1000000)
+    // Ensure seed is an integer to prevent floating point drift
+    this.seed = Math.floor(seed ?? Math.floor(Math.random() * 1000000))
     this.rngState = this.seed
     console.log('🌱 WorldGenerator initialized with seed:', this.seed)
   }
