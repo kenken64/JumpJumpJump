@@ -1281,6 +1281,7 @@ export class OnlinePlayerManager {
       }
       
       // Also update remote player's UI/state to indicate they picked a powerup (best-effort)
+      // Visual sync for power-ups
       const targetPlayer2 = this.localPlayer?.playerId === _playerId ? this.localPlayer : this.remotePlayer?.playerId === _playerId ? this.remotePlayer : null
       if (targetPlayer2) {
         const playerSprite = targetPlayer2.sprite
