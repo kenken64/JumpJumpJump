@@ -48,7 +48,7 @@ export class MenuScene extends Phaser.Scene {
     this.createHyperspaceEffect(width, height);
 
     // Add game preview image on the left side
-    const gameImage = this.add.image(420, height / 2, 'game1');
+    const gameImage = this.add.image(280, height / 2, 'game1');
     gameImage.setDisplaySize(520, 520); // Set specific width and height
     gameImage.setOrigin(0.5).setDepth(200);
 
