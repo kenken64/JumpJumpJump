@@ -11,6 +11,18 @@ import os
 import secrets
 
 from rooms import room_manager, GameRoom
+import logging
+
+# Setup game state logger
+game_logger = logging.getLogger("game_state")
+game_logger.setLevel(logging.INFO)
+# Create file handler which logs even debug messages
+fh = logging.FileHandler('game_state.log')
+fh.setLevel(logging.INFO)
+# Create formatter and add it to the handlers
+formatter = logging.Formatter('%(asctime)s - %(message)s')
+fh.setFormatter(formatter)
+game_logger.addHandler(fh)
 
 app = FastAPI(title="JumpJumpJump API")
 
@@ -476,6 +488,10 @@ async def websocket_room_endpoint(websocket: WebSocket, room_id: str):
                 # Update player position and state
                 if current_room and player_id:
                     state_update = data.get("state", {})
+                    
+                    # Log player state
+                    game_logger.info(f"[ROOM:{current_room.room_id}] [PLAYER_STATE] Player:{player_id} Pos:({state_update.get('x')}, {state_update.get('y')})")
+                    
                     current_room.update_player_state(player_id, state_update)
                     
                     # Broadcast to other players
@@ -522,6 +538,9 @@ async def websocket_room_endpoint(websocket: WebSocket, room_id: str):
                     item_type = data.get("item_type", "coin")
                     item_id = data.get("item_id", "")
                     
+                    # Log item collection attempt
+                    game_logger.info(f"[ROOM:{current_room.room_id}] [ITEM_COLLECT] Player:{player_id} Type:{item_type} ID:{item_id}")
+                    
                     # Check if item was already collected
                     if current_room.mark_item_collected(item_type, item_id, player_id):
                         # First to collect - update server's player totals where applicable
@@ -556,7 +575,8 @@ async def websocket_room_endpoint(websocket: WebSocket, room_id: str):
                     state_update = data.get("state", {})
                     
                     # Logging for diagnostics
-                    print(f"[ROOM {current_room.room_id}] enemy_state from {player_id}: {enemy_id} -> {state_update}")
+                    # print(f"[ROOM {current_room.room_id}] enemy_state from {player_id}: {enemy_id} -> {state_update}")
+                    game_logger.info(f"[ROOM:{current_room.room_id}] [ENEMY_STATE] Enemy:{enemy_id} Pos:({state_update.get('x')}, {state_update.get('y')})")
 
                     # Update enemy state on server
                     current_room.update_enemy_state(enemy_id, state_update)
@@ -572,7 +592,9 @@ async def websocket_room_endpoint(websocket: WebSocket, room_id: str):
                 # Host spawns an enemy, register and broadcast
                 if current_room and player_id == current_room.host_id:
                     enemy_data = data.get("enemy", {})
-                    print(f"[ROOM {current_room.room_id}] enemy_spawn from host: {enemy_data}")
+                    # print(f"[ROOM {current_room.room_id}] enemy_spawn from host: {enemy_data}")
+                    game_logger.info(f"[ROOM:{current_room.room_id}] [ENEMY_SPAWN] ID:{enemy_data.get('enemy_id')} Pos:({enemy_data.get('x')}, {enemy_data.get('y')}) Type:{enemy_data.get('enemy_type')}")
+                    
                     enemy_id = current_room.spawn_enemy(enemy_data)
                     
                     # Broadcast spawn to all players (including host for confirmation)
@@ -648,13 +670,29 @@ async def websocket_room_endpoint(websocket: WebSocket, room_id: str):
                 # Host spawns a coin, register and broadcast
                 if current_room and player_id == current_room.host_id:
                     coin_data = data.get("coin", {})
-                    print(f"[ROOM {current_room.room_id}] coin_spawn from host: {coin_data}")
+                    # print(f"[ROOM {current_room.room_id}] coin_spawn from host: {coin_data}")
+                    game_logger.info(f"[ROOM:{current_room.room_id}] [COIN_SPAWN] ID:{coin_data.get('coin_id')} Pos:({coin_data.get('x')}, {coin_data.get('y')})")
+                    
                     coin_id = current_room.spawn_coin(coin_data)
                     
                     # Broadcast spawn to all players
                     await current_room.broadcast({
                         "type": "coin_spawned",
                         "coin": current_room.coins.get(coin_id, coin_data)
+                    })
+
+            elif message_type == "powerup_spawn":
+                # Host spawns a powerup, register and broadcast
+                if current_room and player_id == current_room.host_id:
+                    powerup_data = data.get("powerup", {})
+                    game_logger.info(f"[ROOM:{current_room.room_id}] [POWERUP_SPAWN] ID:{powerup_data.get('powerup_id')} Pos:({powerup_data.get('x')}, {powerup_data.get('y')}) Type:{powerup_data.get('type')}")
+                    
+                    powerup_id = current_room.spawn_powerup(powerup_data)
+                    
+                    # Broadcast spawn to all players
+                    await current_room.broadcast({
+                        "type": "powerup_spawned",
+                        "powerup": current_room.powerups.get(powerup_id, powerup_data)
                     })
             
             elif message_type == "sync_entities":

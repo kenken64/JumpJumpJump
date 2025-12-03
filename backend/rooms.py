@@ -66,6 +66,16 @@ class CoinState(BaseModel):
     velocity_y: float = 0
 
 
+class PowerUpState(BaseModel):
+    """Represents a powerup's current state for synchronization"""
+    powerup_id: str
+    type: str
+    x: float
+    y: float
+    is_collected: bool = False
+    collected_by: Optional[str] = None
+
+
 class GameRoom:
     """Represents an online multiplayer game room"""
     
@@ -95,6 +105,7 @@ class GameRoom:
         self.seed: int = secrets.randbelow(999999) + 1  # Random seed 1-999999 (never 0)
         self.enemies: Dict[str, dict] = {}  # enemy_id -> enemy state
         self.coins: Dict[str, dict] = {}  # coin_id -> coin state
+        self.powerups: Dict[str, dict] = {}  # powerup_id -> powerup state
         self.projectiles: List[dict] = []
         
         # Host is authoritative for enemy/coin spawning
@@ -268,6 +279,10 @@ class GameRoom:
         elif item_type == "powerup":
             if item_id not in self.collected_powerups:
                 self.collected_powerups.add(item_id)
+                # Update powerup state if tracked
+                if item_id in self.powerups:
+                    self.powerups[item_id]['is_collected'] = True
+                    self.powerups[item_id]['collected_by'] = player_id
                 return True
         return False
     
@@ -325,6 +340,20 @@ class GameRoom:
             'velocity_y': coin_data.get('velocity_y', 0)
         }
         return coin_id
+
+    def spawn_powerup(self, powerup_data: dict) -> str:
+        """Register a new powerup, returns the powerup ID"""
+        powerup_id = powerup_data.get('powerup_id') or f"powerup_{self.entity_spawn_counter}"
+        self.entity_spawn_counter += 1
+        self.powerups[powerup_id] = {
+            'powerup_id': powerup_id,
+            'type': powerup_data.get('type', 'unknown'),
+            'x': powerup_data.get('x', 0),
+            'y': powerup_data.get('y', 0),
+            'is_collected': powerup_data.get('is_collected', False),
+            'collected_by': powerup_data.get('collected_by')
+        }
+        return powerup_id
     
     def get_active_enemies(self) -> List[dict]:
         """Get list of all alive enemies"""
@@ -333,6 +362,10 @@ class GameRoom:
     def get_uncollected_coins(self) -> List[dict]:
         """Get list of all uncollected coins"""
         return [c for c in self.coins.values() if not c.get('is_collected', False)]
+
+    def get_uncollected_powerups(self) -> List[dict]:
+        """Get list of all uncollected powerups"""
+        return [p for p in self.powerups.values() if not p.get('is_collected', False)]
     
     async def broadcast(self, message: dict, exclude: Optional[str] = None):
         """Send a message to all connected players"""
@@ -427,6 +460,7 @@ class GameRoom:
             },
             "enemies": self.get_active_enemies(),
             "coins": self.get_uncollected_coins(),
+            "powerups": self.get_uncollected_powerups(),
             "projectiles": self.projectiles,
             "collected_coins": list(self.collected_coins),
             "collected_powerups": list(self.collected_powerups),

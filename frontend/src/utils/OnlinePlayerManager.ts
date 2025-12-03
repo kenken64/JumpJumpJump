@@ -537,7 +537,7 @@ export class OnlinePlayerManager {
       case 'respawn':
         this.handleRemotePlayerRespawn(data)
         break
-      case 'assist':
+      case 'assist': {
         // Remote player attempted to assist someone (usually host-initiated)
         const targetId = data?.target_player_id
         const newX = data?.x
@@ -563,6 +563,7 @@ export class OnlinePlayerManager {
         } catch (e) {
           // silent
         }
+      }
         break
     }
   }

@@ -129,7 +129,7 @@ export class MLAIPlayer {
     const jumpThreshold = 0.1
     const shootThreshold = 0.15
     
-    let decision = {
+    const decision = {
       moveLeft: left > moveThreshold && left > right,
       moveRight: right > moveThreshold && right > left,
       jump: jump > jumpThreshold,

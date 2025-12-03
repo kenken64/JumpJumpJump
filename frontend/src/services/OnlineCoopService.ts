@@ -407,11 +407,6 @@ export class OnlineCoopService {
         this.callbacks.onPowerUpSpawned?.(data.powerup)
         break
       
-      // PowerUp sync messages
-      case 'powerup_spawned':
-        this.callbacks.onPowerUpSpawned?.(data.powerup)
-        break
-      
       // Full entity sync
       case 'entities_sync':
         this.callbacks.onEntitiesSync?.(data.enemies, data.coins, data.sequence_id)
@@ -538,10 +533,10 @@ export class OnlineCoopService {
   async createRoom(roomName: string, playerName: string): Promise<void> {
     this._playerName = playerName
     
-    return new Promise(async (resolve, reject) => {
+    await this.connect('new')
+
+    return new Promise((resolve, reject) => {
       try {
-        await this.connect('new')
-        
         // Set up one-time handlers for room creation response
         const originalOnRoomCreated = this.callbacks.onRoomCreated
         const originalOnError = this.callbacks.onError

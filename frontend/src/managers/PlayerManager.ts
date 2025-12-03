@@ -270,8 +270,8 @@ export class PlayerManager extends Phaser.Events.EventEmitter {
   }
 
   private handleGunAiming(input: PlayerInput): void {
-    let aimX = input.aimX ?? this.player.x + (this.player.flipX ? -100 : 100)
-    let aimY = input.aimY ?? this.player.y
+    const aimX = input.aimX ?? this.player.x + (this.player.flipX ? -100 : 100)
+    const aimY = input.aimY ?? this.player.y
 
     const angleToAim = Phaser.Math.Angle.Between(
       this.player.x,

@@ -574,7 +574,9 @@ export default class GameScene extends Phaser.Scene {
     this.spikes = this.physics.add.staticGroup()
 
     // Initialize WorldGenerator with seed from online game state (if online mode)
-    const worldSeed = this.isOnlineMode && this.onlineGameState ? this.onlineGameState.seed : undefined
+    const rawSeed = this.isOnlineMode && this.onlineGameState ? this.onlineGameState.seed : undefined
+    // Ensure seed is an integer
+    const worldSeed = rawSeed !== undefined ? Math.floor(rawSeed) : undefined
     
     // === SEED VERIFICATION LOGGING ===
     if (this.isOnlineMode) {
@@ -583,7 +585,7 @@ export default class GameScene extends Phaser.Scene {
       console.log('═══════════════════════════════════════════════════════════')
       console.log('🎯 Player Number:', this.onlinePlayerNumber)
       console.log('📦 onlineGameState exists:', !!this.onlineGameState)
-      console.log('🌱 Server Seed:', this.onlineGameState?.seed)
+      console.log('🌱 Server Seed (raw):', rawSeed)
       console.log('🔢 worldSeed passed to WorldGenerator:', worldSeed)
       
       // CRITICAL: Verify we have a valid seed for online mode
@@ -2830,6 +2832,8 @@ export default class GameScene extends Phaser.Scene {
         coin.setScale(0.5)
         coin.setCollideWorldBounds(true)
         coin.body.setAllowGravity(true)
+        // Add drag to prevent coins from sliding forever and causing sync issues
+        coin.setDragX(200)
 
         // Fade in animation
         coin.setAlpha(0)
@@ -2892,7 +2896,7 @@ export default class GameScene extends Phaser.Scene {
       const x = this.isOnlineMode 
         ? this.onlineSeededBetween(startX + 100, endX - 100)
         : Phaser.Math.Between(startX + 100, endX - 100)
-      let y = this.isOnlineMode 
+      const y = this.isOnlineMode 
         ? this.onlineSeededBetween(300, 600)
         : Phaser.Math.Between(300, 600)
 
@@ -2982,6 +2986,7 @@ export default class GameScene extends Phaser.Scene {
     // In online mode, only HOST spawns enemies - non-host receives them via network
     // This prevents duplicate enemies
     if (this.isOnlineMode && !this.isOnlineHost) {
+      console.log(`👾 Non-host skipping spawnEnemiesInArea(${startX}, ${endX})`)
       return // Non-host doesn't spawn enemies locally
     }
     
@@ -7527,17 +7532,31 @@ export default class GameScene extends Phaser.Scene {
     }
     
     // Also check if enemy exists in local enemies group (seeded generation)
-    let existingEnemy: Phaser.Physics.Arcade.Sprite | null = null
-    this.enemies.getChildren().forEach((child) => {
+    const existingEnemy = this.enemies.getChildren().find((child) => {
       const sprite = child as Phaser.Physics.Arcade.Sprite
-      if (sprite.getData('enemyId') === eid) {
-        existingEnemy = sprite
-      }
-    })
+      return sprite.getData('enemyId') === eid
+    }) as Phaser.Physics.Arcade.Sprite | undefined
     
     if (existingEnemy) {
       // Enemy was created via seeded generation - just track it
       console.log(`👾 Enemy ${eid} found locally (seeded), tracking for sync`)
+      
+      // FORCE SYNC: Update the local enemy to match the authoritative server state
+      // This fixes issues where RNG desync caused different enemy types or positions
+      existingEnemy.setPosition(enemy.x, enemy.y)
+      existingEnemy.setVelocity(enemy.velocity_x || 0, enemy.velocity_y || 0)
+      existingEnemy.setData('health', enemy.health)
+      existingEnemy.setData('maxHealth', enemy.max_health)
+      
+      // If types don't match, we should probably destroy and recreate, but for now let's just log it
+      const localType = existingEnemy.getData('enemyType')
+      if (localType !== enemy.enemy_type) {
+        console.warn(`⚠️ Enemy type mismatch for ${eid}: Local=${localType}, Remote=${enemy.enemy_type}. Forcing texture update.`)
+        existingEnemy.setTexture(`${enemy.enemy_type}_idle`)
+        existingEnemy.setData('enemyType', enemy.enemy_type)
+        existingEnemy.play(`${enemy.enemy_type}_idle`)
+      }
+      
       this.remoteEnemies.set(eid, existingEnemy)
       return
     }
@@ -7714,7 +7733,8 @@ export default class GameScene extends Phaser.Scene {
     const dy = Math.abs(targetY - currentY)
 
     // Snap threshold: if too far, teleport to authoritative position
-    const SNAP_THRESHOLD = 150
+    // Reduced from 150 to 50 to prevent large desyncs
+    const SNAP_THRESHOLD = 50
     if (dx > SNAP_THRESHOLD || dy > SNAP_THRESHOLD) {
       enemySprite.setPosition(targetX, targetY)
     } else {
@@ -7758,17 +7778,21 @@ export default class GameScene extends Phaser.Scene {
     }
     
     // Also check if coin exists in local coins group (seeded generation)
-    let existingCoin: Phaser.Physics.Arcade.Sprite | null = null
-    this.coins.getChildren().forEach((child) => {
+    const existingCoin = this.coins.getChildren().find((child) => {
       const sprite = child as Phaser.Physics.Arcade.Sprite
-      if (sprite.getData('coinId') === cid) {
-        existingCoin = sprite
-      }
-    })
+      return sprite.getData('coinId') === cid
+    }) as Phaser.Physics.Arcade.Sprite | undefined
     
     if (existingCoin) {
       // Coin was created via seeded generation - just track it
       console.log(`🪙 Coin ${cid} found locally (seeded), tracking for sync`)
+      
+      // FORCE SYNC: Update position to match server authoritative state
+      if (Math.abs(existingCoin.x - coinState.x) > 2 || Math.abs(existingCoin.y - coinState.y) > 2) {
+        console.log(`🪙 Syncing coin position for ${cid}: (${existingCoin.x},${existingCoin.y}) -> (${coinState.x},${coinState.y})`)
+        existingCoin.setPosition(coinState.x, coinState.y)
+      }
+      
       this.remoteCoins.set(cid, existingCoin)
       return
     }
@@ -7787,6 +7811,8 @@ export default class GameScene extends Phaser.Scene {
     if (cid.startsWith('coin_drop_')) {
       (coin.body as Phaser.Physics.Arcade.Body).setAllowGravity(true)
       coin.setVelocity(coinState.velocity_x || 0, coinState.velocity_y || 0)
+      // Add drag to match host physics and prevent desync
+      coin.setDragX(200)
     } else {
       // Static level coins should float and not fall
       (coin.body as Phaser.Physics.Arcade.Body).setAllowGravity(false)
@@ -7823,16 +7849,20 @@ export default class GameScene extends Phaser.Scene {
     const pid = powerupState.powerup_id
     
     // Check if we already have this powerup
-    let existingPowerUp: Phaser.Physics.Arcade.Sprite | null = null
-    this.powerUps.getChildren().forEach((child) => {
+    const existingPowerUp = this.powerUps.getChildren().find((child) => {
       const sprite = child as Phaser.Physics.Arcade.Sprite
-      if (sprite.getData('powerupId') === pid) {
-        existingPowerUp = sprite
-      }
-    })
+      return sprite.getData('powerupId') === pid
+    }) as Phaser.Physics.Arcade.Sprite | undefined
     
     if (existingPowerUp) {
       console.log(`🎁 PowerUp ${pid} found locally, tracking`)
+      
+      // FORCE SYNC: Update position to match server authoritative state
+      if (Math.abs(existingPowerUp.x - powerupState.x) > 2 || Math.abs(existingPowerUp.y - powerupState.y) > 2) {
+        console.log(`🎁 Syncing powerup position for ${pid}: (${existingPowerUp.x},${existingPowerUp.y}) -> (${powerupState.x},${powerupState.y})`)
+        existingPowerUp.setPosition(powerupState.x, powerupState.y)
+      }
+      
       return
     }
 
@@ -7903,11 +7933,23 @@ export default class GameScene extends Phaser.Scene {
 
     // Remove enemies that no longer exist on host (only if we're not the host)
     if (!this.isOnlineHost) {
+      // Check tracked remote enemies
       this.remoteEnemies.forEach((sprite, id) => {
         if (!receivedEnemyIds.has(id) && sprite.active) {
-          console.log(`👾 Removing stale enemy: ${id}`)
+          console.log(`👾 Removing stale enemy (tracked): ${id}`)
           sprite.destroy()
           this.remoteEnemies.delete(id)
+        }
+      })
+
+      // Also check ALL local enemies to catch any that were RNG-spawned but not yet tracked
+      // This is critical for removing enemies that exist locally due to RNG but shouldn't exist
+      this.enemies.getChildren().forEach((child) => {
+        const sprite = child as Phaser.Physics.Arcade.Sprite
+        const eid = sprite.getData('enemyId')
+        if (eid && !receivedEnemyIds.has(eid) && sprite.active) {
+           console.log(`👾 Removing stale enemy (untracked): ${eid}`)
+           sprite.destroy()
         }
       })
     }
@@ -7919,9 +7961,55 @@ export default class GameScene extends Phaser.Scene {
       const cid = coinState.coin_id
       receivedCoinIds.add(cid)
       
-      if (!coinState.is_collected && !this.remoteCoins.has(cid)) {
+      // Check if we have this coin locally
+      let existingCoin = this.remoteCoins.get(cid)
+      if (!existingCoin) {
+        // Try to find it in the group if not in the map
+        this.coins.getChildren().forEach((child) => {
+          const sprite = child as Phaser.Physics.Arcade.Sprite
+          if (sprite.getData('coinId') === cid) {
+            existingCoin = sprite
+            this.remoteCoins.set(cid, sprite)
+          }
+        })
+      }
+
+      if (existingCoin) {
+        // Force sync position if significantly different
+        if (Math.abs(existingCoin.x - coinState.x) > 5 || Math.abs(existingCoin.y - coinState.y) > 5) {
+          existingCoin.setPosition(coinState.x, coinState.y)
+        }
+        
+        // Handle collection state
+        if (coinState.is_collected && existingCoin.active) {
+          existingCoin.destroy()
+        }
+      } else if (!coinState.is_collected) {
         this.handleRemoteCoinSpawn(coinState)
       }
     })
+
+    // Remove local coins that are NOT in the server list (if we are not host)
+    // This ensures coins collected/removed by host are removed from client
+    if (!this.isOnlineHost) {
+      // Check tracked remote coins
+      this.remoteCoins.forEach((sprite, id) => {
+        if (!receivedCoinIds.has(id) && sprite.active) {
+          console.log(`🪙 Removing stale coin (tracked): ${id}`)
+          sprite.destroy()
+          this.remoteCoins.delete(id)
+        }
+      })
+
+      // Also check ALL local coins to catch any that were RNG-spawned but not yet tracked
+      this.coins.getChildren().forEach((child) => {
+        const sprite = child as Phaser.Physics.Arcade.Sprite
+        const cid = sprite.getData('coinId')
+        if (cid && !receivedCoinIds.has(cid) && sprite.active) {
+          console.log(`🪙 Removing stale coin (untracked): ${cid}`)
+          sprite.destroy()
+        }
+      })
+    }
   }
 }

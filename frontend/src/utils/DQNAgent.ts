@@ -298,8 +298,6 @@ export class DQNAgent {
                     this.needsDoubleJump = platformTooHigh || platformAbove
                     reward += 0.3  // Small reward for starting retreat
                 }
-            } else if (this.stuckCounter > 5) {
-                reward -= 0.5  // Medium penalty
             }
         } else if (progress > 0) {
             this.stuckCounter = 0

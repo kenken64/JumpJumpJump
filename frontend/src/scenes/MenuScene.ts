@@ -1316,7 +1316,7 @@ export default class MenuScene extends Phaser.Scene {
     import('../utils/ControlManager').then(({ ControlManager }) => {
       const currentSettings = ControlManager.getControlSettings()
       let inputMethod = currentSettings.inputMethod
-      let gamepadMapping = { ...currentSettings.gamepadMapping }
+      const gamepadMapping = { ...currentSettings.gamepadMapping }
       // Gamepad plugin is already initialized via game config
 
       // Function to count actual connected gamepads
