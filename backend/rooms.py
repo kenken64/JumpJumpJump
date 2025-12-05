@@ -15,6 +15,7 @@ from datetime import datetime
 import json
 import asyncio
 import secrets
+from utils import round_floats
 
 
 class PlayerState(BaseModel):
@@ -289,12 +290,18 @@ class GameRoom:
     def update_enemy_state(self, enemy_id: str, state_update: dict) -> bool:
         """Update an enemy's state, returns True if enemy exists"""
         if enemy_id in self.enemies:
-            self.enemies[enemy_id].update(state_update)
+            # Optimize: Round floats before storing
+            # Note: Type checking ignored for dynamic dict update
+            optimized_state = round_floats(state_update) # type: ignore
+            self.enemies[enemy_id].update(optimized_state)
             return True
         return False
     
     def spawn_enemy(self, enemy_data: dict) -> str:
         """Register a new enemy, returns the enemy ID"""
+        # Optimize: Round floats in initial data
+        enemy_data = round_floats(enemy_data) # type: ignore
+        
         enemy_id = enemy_data.get('enemy_id') or f"enemy_{self.entity_spawn_counter}"
         self.entity_spawn_counter += 1
         self.enemies[enemy_id] = {
@@ -322,11 +329,16 @@ class GameRoom:
             self.enemies[enemy_id]['is_alive'] = False
             self.enemies[enemy_id]['killed_by'] = killed_by
             self.enemies[enemy_id]['state'] = 'dead'
+            # Record death time for sync cleanup
+            self.enemies[enemy_id]['death_timestamp'] = datetime.now().timestamp()
             return True
         return False
     
     def spawn_coin(self, coin_data: dict) -> str:
         """Register a new coin, returns the coin ID"""
+        # Optimize: Round floats
+        coin_data = round_floats(coin_data) # type: ignore
+        
         coin_id = coin_data.get('coin_id') or f"coin_{self.entity_spawn_counter}"
         self.entity_spawn_counter += 1
         self.coins[coin_id] = {
@@ -343,6 +355,9 @@ class GameRoom:
 
     def spawn_powerup(self, powerup_data: dict) -> str:
         """Register a new powerup, returns the powerup ID"""
+        # Optimize: Round floats
+        powerup_data = round_floats(powerup_data) # type: ignore
+        
         powerup_id = powerup_data.get('powerup_id') or f"powerup_{self.entity_spawn_counter}"
         self.entity_spawn_counter += 1
         self.powerups[powerup_id] = {
@@ -359,6 +374,16 @@ class GameRoom:
         """Get list of all alive enemies"""
         return [e for e in self.enemies.values() if e.get('is_alive', True)]
     
+    def get_sync_enemies(self) -> List[dict]:
+        """Get list of enemies for sync (active + recently dead)"""
+        now = datetime.now().timestamp()
+        # Include active enemies AND enemies that died in the last 10 seconds
+        # This ensures clients receive the 'dead' state update even if they missed the event
+        return [
+            e for e in self.enemies.values() 
+            if e.get('is_alive', True) or (now - e.get('death_timestamp', 0) < 10)
+        ]
+    
     def get_uncollected_coins(self) -> List[dict]:
         """Get list of all uncollected coins"""
         return [c for c in self.coins.values() if not c.get('is_collected', False)]
@@ -371,10 +396,13 @@ class GameRoom:
         """Send a message to all connected players"""
         disconnected = []
         
+        # Optimize: Serialize once
+        json_message = json.dumps(message)
+        
         for player_id, websocket in self.connections.items():
             if player_id != exclude:
                 try:
-                    await websocket.send_json(message)
+                    await websocket.send_text(json_message)
                 except Exception:
                     disconnected.append(player_id)
         
@@ -394,6 +422,8 @@ class GameRoom:
         """Update a player's state"""
         if player_id in self.players:
             player = self.players[player_id]
+            # Optimize: Round floats
+            state_update = round_floats(state_update) # type: ignore
             for key, value in state_update.items():
                 if hasattr(player, key):
                     setattr(player, key, value)

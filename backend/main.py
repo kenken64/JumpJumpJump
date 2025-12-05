@@ -11,6 +11,7 @@ import os
 import secrets
 
 from rooms import room_manager, GameRoom
+from utils import round_floats
 import logging
 
 # Setup game state logger
@@ -489,8 +490,11 @@ async def websocket_room_endpoint(websocket: WebSocket, room_id: str):
                 if current_room and player_id:
                     state_update = data.get("state", {})
                     
-                    # Log player state
-                    game_logger.info(f"[ROOM:{current_room.room_id}] [PLAYER_STATE] Player:{player_id} Pos:({state_update.get('x')}, {state_update.get('y')})")
+                    # Optimization: Round floats before processing
+                    state_update = round_floats(state_update) # type: ignore
+                    
+                    # Optimization: Removed high-frequency logging
+                    # game_logger.info(f"[ROOM:{current_room.room_id}] [PLAYER_STATE] Player:{player_id} Pos:({state_update.get('x')}, {state_update.get('y')})")
                     
                     current_room.update_player_state(player_id, state_update)
                     
@@ -538,8 +542,8 @@ async def websocket_room_endpoint(websocket: WebSocket, room_id: str):
                     item_type = data.get("item_type", "coin")
                     item_id = data.get("item_id", "")
                     
-                    # Log item collection attempt
-                    game_logger.info(f"[ROOM:{current_room.room_id}] [ITEM_COLLECT] Player:{player_id} Type:{item_type} ID:{item_id}")
+                    # Optimization: Removed logging
+                    # game_logger.info(f"[ROOM:{current_room.room_id}] [ITEM_COLLECT] Player:{player_id} Type:{item_type} ID:{item_id}")
                     
                     # Check if item was already collected
                     if current_room.mark_item_collected(item_type, item_id, player_id):
@@ -574,9 +578,11 @@ async def websocket_room_endpoint(websocket: WebSocket, room_id: str):
                     enemy_id = data.get("enemy_id", "")
                     state_update = data.get("state", {})
                     
-                    # Logging for diagnostics
-                    # print(f"[ROOM {current_room.room_id}] enemy_state from {player_id}: {enemy_id} -> {state_update}")
-                    game_logger.info(f"[ROOM:{current_room.room_id}] [ENEMY_STATE] Enemy:{enemy_id} Pos:({state_update.get('x')}, {state_update.get('y')})")
+                    # Optimization: Round floats before processing
+                    state_update = round_floats(state_update) # type: ignore
+                    
+                    # Optimization: Removed high-frequency logging
+                    # game_logger.info(f"[ROOM:{current_room.room_id}] [ENEMY_STATE] Enemy:{enemy_id} Pos:({state_update.get('x')}, {state_update.get('y')})")
 
                     # Update enemy state on server
                     current_room.update_enemy_state(enemy_id, state_update)
@@ -592,8 +598,8 @@ async def websocket_room_endpoint(websocket: WebSocket, room_id: str):
                 # Host spawns an enemy, register and broadcast
                 if current_room and player_id == current_room.host_id:
                     enemy_data = data.get("enemy", {})
-                    # print(f"[ROOM {current_room.room_id}] enemy_spawn from host: {enemy_data}")
-                    game_logger.info(f"[ROOM:{current_room.room_id}] [ENEMY_SPAWN] ID:{enemy_data.get('enemy_id')} Pos:({enemy_data.get('x')}, {enemy_data.get('y')}) Type:{enemy_data.get('enemy_type')}")
+                    # Optimization: Removed logging
+                    # game_logger.info(f"[ROOM:{current_room.room_id}] [ENEMY_SPAWN] ID:{enemy_data.get('enemy_id')} Pos:({enemy_data.get('x')}, {enemy_data.get('y')}) Type:{enemy_data.get('enemy_type')}")
                     
                     enemy_id = current_room.spawn_enemy(enemy_data)
                     
@@ -665,13 +671,20 @@ async def websocket_room_endpoint(websocket: WebSocket, room_id: str):
                             "type": "enemy_already_dead",
                             "enemy_id": enemy_id
                         })
+                        
+                        # Force state update to ensure client removes the ghost enemy
+                        await websocket.send_json({
+                            "type": "enemy_state_update",
+                            "enemy_id": enemy_id,
+                            "state": {"is_alive": False, "state": "dead"}
+                        })
             
             elif message_type == "coin_spawn":
                 # Host spawns a coin, register and broadcast
                 if current_room and player_id == current_room.host_id:
                     coin_data = data.get("coin", {})
-                    # print(f"[ROOM {current_room.room_id}] coin_spawn from host: {coin_data}")
-                    game_logger.info(f"[ROOM:{current_room.room_id}] [COIN_SPAWN] ID:{coin_data.get('coin_id')} Pos:({coin_data.get('x')}, {coin_data.get('y')})")
+                    # Optimization: Removed logging
+                    # game_logger.info(f"[ROOM:{current_room.room_id}] [COIN_SPAWN] ID:{coin_data.get('coin_id')} Pos:({coin_data.get('x')}, {coin_data.get('y')})")
                     
                     coin_id = current_room.spawn_coin(coin_data)
                     
@@ -685,7 +698,8 @@ async def websocket_room_endpoint(websocket: WebSocket, room_id: str):
                 # Host spawns a powerup, register and broadcast
                 if current_room and player_id == current_room.host_id:
                     powerup_data = data.get("powerup", {})
-                    game_logger.info(f"[ROOM:{current_room.room_id}] [POWERUP_SPAWN] ID:{powerup_data.get('powerup_id')} Pos:({powerup_data.get('x')}, {powerup_data.get('y')}) Type:{powerup_data.get('type')}")
+                    # Optimization: Removed logging
+                    # game_logger.info(f"[ROOM:{current_room.room_id}] [POWERUP_SPAWN] ID:{powerup_data.get('powerup_id')} Pos:({powerup_data.get('x')}, {powerup_data.get('y')}) Type:{powerup_data.get('type')}")
                     
                     powerup_id = current_room.spawn_powerup(powerup_data)
                     
@@ -700,12 +714,23 @@ async def websocket_room_endpoint(websocket: WebSocket, room_id: str):
                 if current_room and player_id == current_room.host_id:
                     enemies = data.get("enemies", [])
                     coins = data.get("coins", [])
+                    
+                    # Optimization: Round floats in sync data
+                    enemies = round_floats(enemies) # type: ignore
+                    coins = round_floats(coins) # type: ignore
+                    
                     print(f"[ROOM {current_room.room_id}] sync_entities from host (enemies: {len(enemies)}, coins: {len(coins)})")
                     
                     # Update server state from host
                     for enemy in enemies:
                         eid = enemy.get("enemy_id")
                         if eid:
+                            # Fix: Prevent resurrection of dead enemies due to race conditions
+                            # If server has already marked enemy as dead (via enemy_killed event),
+                            # ignore stale sync data from host that might still show it as alive.
+                            if eid in current_room.enemies and not current_room.enemies[eid].get('is_alive', True):
+                                continue
+                                
                             current_room.enemies[eid] = enemy
                     
                     for coin in coins:
@@ -716,7 +741,7 @@ async def websocket_room_endpoint(websocket: WebSocket, room_id: str):
                     # Broadcast to non-host players for sync
                     await current_room.broadcast({
                         "type": "entities_sync",
-                        "enemies": current_room.get_active_enemies(),
+                        "enemies": current_room.get_sync_enemies(),
                         "coins": current_room.get_uncollected_coins(),
                         "sequence_id": current_room.get_next_sequence()
                     }, exclude=player_id)
