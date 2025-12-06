@@ -147,7 +147,7 @@ update(time: number, delta: number) {
 
 ## Known Limitations
 
-1. **No online multiplayer** - Local only
+1. **Local Focus** - This document covers local shared-screen co-op. For online play, see `Online-Multiplayer-Implementation.md`.
 2. **Requires two gamepads** - Keyboard not supported for player 2
 3. **Shared screen** - No split-screen mode
 4. **Game balance** - Enemy spawns not adjusted for 2 players yet

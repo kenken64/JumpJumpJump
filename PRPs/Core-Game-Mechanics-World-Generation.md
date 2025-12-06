@@ -69,6 +69,14 @@ generateChunk(chunkIndex) {
 4. **Short Platforms**: Challenge zones, precise jumping
 5. **Gap Platforms**: Far apart, test jump distance
 
+### Platform Physics & Collision
+To ensure smooth gameplay and prevent physics glitches (jittering/falling through):
+- **Hitboxes**: All platforms use full-width hitboxes matching the visual sprite width.
+- **Collision Direction**: One-way collision enabled (checkCollision.down = false).
+  - Players can jump up through platforms from below.
+  - Players land solidly on top.
+- **Stability**: Hitbox height set to 20px to provide a stable landing surface without visual disconnects.
+
 ### Enemy AI Integration
 - Enemies patrol platforms
 - Turn around at platform edges
