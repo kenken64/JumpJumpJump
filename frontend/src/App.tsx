@@ -26,6 +26,7 @@ import CreditScene from './scenes/CreditScene'
 import CoopLobbyScene from './scenes/CoopLobbyScene'
 import OnlineLobbyScene from './scenes/OnlineLobbyScene'
 import DQNTrainingScene from './scenes/DQNTrainingScene'
+import EndingScene from './scenes/EndingScene'
 
 /**
  * Main React component that initializes and hosts the Phaser game
@@ -62,7 +63,7 @@ function App() {
           crossOrigin: 'anonymous',
           maxParallelDownloads: 10
         },
-        scene: [MenuScene, GameScene, ShopScene, LeaderboardScene, InventoryScene, BossGalleryScene, CreditScene, CoopLobbyScene, OnlineLobbyScene, DQNTrainingScene],
+        scene: [MenuScene, GameScene, ShopScene, LeaderboardScene, InventoryScene, BossGalleryScene, CreditScene, CoopLobbyScene, OnlineLobbyScene, DQNTrainingScene, EndingScene],
         scale: {
           mode: Phaser.Scale.FIT,
           autoCenter: Phaser.Scale.CENTER_BOTH,

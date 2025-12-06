@@ -164,6 +164,30 @@ export default class ShopScene extends Phaser.Scene {
     
     bazookaGraphics.generateTexture('bazooka', 80, 80)
     bazookaGraphics.destroy()
+
+    // Create LFG icon
+    const lfgGraphics = this.make.graphics({ x: 0, y: 0 })
+    
+    // Heavy machine gun body
+    lfgGraphics.fillStyle(0x222222, 1)
+    lfgGraphics.fillRect(5, 25, 60, 25) // Main body
+    
+    // Barrels (Minigun style)
+    lfgGraphics.fillStyle(0x444444, 1)
+    lfgGraphics.fillRect(65, 28, 15, 5)
+    lfgGraphics.fillRect(65, 35, 15, 5)
+    lfgGraphics.fillRect(65, 42, 15, 5)
+    
+    // Ammo box
+    lfgGraphics.fillStyle(0x004400, 1)
+    lfgGraphics.fillRect(25, 50, 20, 15)
+    
+    // Gold trim
+    lfgGraphics.lineStyle(2, 0xFFD700)
+    lfgGraphics.strokeRect(5, 25, 60, 25)
+    
+    lfgGraphics.generateTexture('lfg', 90, 80)
+    lfgGraphics.destroy()
   }
 
   create() {
@@ -189,9 +213,17 @@ export default class ShopScene extends Phaser.Scene {
         id: 'bazooka',
         name: 'Bazooka',
         type: 'weapon',
-        price: 150,
+        price: 1000,
         icon: 'bazooka',
         description: 'Explosive rocket launcher with splash damage'
+      },
+      {
+        id: 'lfg',
+        name: 'LFG (Large Fxxk Gun)',
+        type: 'weapon',
+        price: 99999,
+        icon: 'lfg',
+        description: 'Ultimate weapon. Instantly destroys bosses.'
       },
       {
         id: 'skinBlue',
