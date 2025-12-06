@@ -87,12 +87,18 @@ export class GameAPI {
       })
       
       if (!response.ok) {
+        if (response.status === 404) {
+          throw new Error('Not Found')
+        }
         throw new Error(`API error: ${response.statusText}`)
       }
       
       return await response.json()
-    } catch (error) {
-      console.error('API request failed:', error)
+    } catch (error: any) {
+      // Don't log 404 errors as they are expected when checking for non-existent resources
+      if (error.message !== 'Not Found') {
+        console.error('API request failed:', error)
+      }
       throw error
     }
   }

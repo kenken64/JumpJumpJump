@@ -198,6 +198,20 @@ getDifficultyMultiplier(distance) {
 - **Difficulty**: Boss health scales with level
 - **Reward**: Bonus coins/points on defeat
 - **Portal Blocking**: Level end portal blocked until boss defeated
+- **Final Boss**: Level 110 (Boss Index 21)
+  - Defeating this boss unblocks the final portal
+  - Entering the portal triggers the Ending Scene
+
+## Ending System
+- **Trigger**: Completing Level 110 (Final Boss defeated + Portal entered)
+- **Scene**: `EndingScene`
+  - Scrolling text narrative ("They Came From the Dark Between Stars")
+  - Starfield background
+  - Custom ending music
+- **Game Reset**:
+  - Upon completion or skipping the ending, the player's save file is deleted
+  - Returns to Main Menu with "Continue" button removed
+  - Forces a fresh start for the next playthrough ("New Game+")
 
 ## Level Transition System
 When transitioning to next level, game state is preserved:
