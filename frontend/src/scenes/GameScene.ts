@@ -6870,13 +6870,22 @@ export default class GameScene extends Phaser.Scene {
     rocketGraphics.fillStyle(0xff4400, 1)
     rocketGraphics.fillRect(0, 4, 20, 8)
     rocketGraphics.fillStyle(0xff6600, 1)
+    // Top fin
     rocketGraphics.beginPath()
     rocketGraphics.moveTo(20, 8)
     rocketGraphics.lineTo(26, 8)
     rocketGraphics.lineTo(23, 4)
     rocketGraphics.closePath()
     rocketGraphics.fillPath()
-    rocketGraphics.generateTexture('rocket', 26, 16)
+    // Bottom fin
+    rocketGraphics.beginPath()
+    rocketGraphics.moveTo(20, 8)
+    rocketGraphics.lineTo(26, 8)
+    rocketGraphics.lineTo(23, 12)
+    rocketGraphics.closePath()
+    rocketGraphics.fillPath()
+    
+    rocketGraphics.generateTexture('rocket', 28, 16)
     rocketGraphics.destroy()
 
     // Create LFG Projectile (Large Red/Gold Beam)
@@ -6911,14 +6920,6 @@ export default class GameScene extends Phaser.Scene {
     lfgGraphics.strokeRect(3, 11, 36, 15)
     lfgGraphics.generateTexture('lfg', 48, 36)
     lfgGraphics.destroy()
-    rocketGraphics.beginPath()
-    rocketGraphics.moveTo(20, 8)
-    rocketGraphics.lineTo(26, 8)
-    rocketGraphics.lineTo(23, 12)
-    rocketGraphics.closePath()
-    rocketGraphics.fillPath()
-    rocketGraphics.generateTexture('rocket', 28, 16)
-    rocketGraphics.destroy()
 
     // Create Sword (Purple energy blade - matching shop style)
     const swordGraphics = this.make.graphics({ x: 0, y: 0 })
