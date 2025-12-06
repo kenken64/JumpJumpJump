@@ -267,6 +267,15 @@ export default class GameScene extends Phaser.Scene {
       this.initScore = undefined
     }
 
+    // Carry over coins from previous level
+    if (data && typeof data.coins === 'number') {
+      this.initCoins = data.coins
+      console.log(`💰 Carrying over ${data.coins} coins from previous level`)
+    } else if (!data?.isLoadedGame) {
+      // Only reset if not a loaded game (loaded games handle this above)
+      this.initCoins = undefined
+    }
+
     // Carry over recording state from previous level
     if (data && data.isRecording) {
       this.isRecordingForDQN = true
@@ -1612,7 +1621,7 @@ export default class GameScene extends Phaser.Scene {
     this.coinIcon.setScrollFactor(0)
     this.coinIcon.setScale(0.35)
 
-    this.coinText = this.add.text(50, 12, '0', {
+    this.coinText = this.add.text(50, 12, `${this.coinCount}`, {
       fontSize: '24px',
       color: '#FFD700',
       fontStyle: 'bold',
@@ -1621,7 +1630,7 @@ export default class GameScene extends Phaser.Scene {
     })
     this.coinText.setScrollFactor(0)
 
-    this.scoreText = this.add.text(20, 40, 'Score: 0', {
+    this.scoreText = this.add.text(20, 40, `Score: ${this.score}`, {
       fontSize: '22px',
       color: '#00ff00',
       fontStyle: 'bold',
@@ -3856,6 +3865,7 @@ export default class GameScene extends Phaser.Scene {
         level: this.currentLevel + 1,
         lives: this.playerLives,
         score: this.score,
+        coins: this.coinCount,
         isRecording: this.isRecordingForDQN
       }
       if (this.isCoopMode) {
