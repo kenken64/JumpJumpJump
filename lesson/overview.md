@@ -5,6 +5,8 @@ JumpJumpJump is an *exciting web-based platformer game* where players **jump and
 
 ## Visual Overview
 
+![Project Infographic](infographic.png)
+
 ```mermaid
 flowchart TD
     A0["Phaser Scene System
@@ -39,16 +41,16 @@ flowchart TD
 ## Chapters
 
 1. [Player & Combat System
-](01_player___combat_system_.md)
+](01_player___combat_system.md)
 2. [Phaser Scene System
-](02_phaser_scene_system_.md)
+](02_phaser_scene_system.md)
 3. [World Generator
-](03_world_generator_.md)
+](03_world_generator.md)
 4. [UI Manager
-](04_ui_manager_.md)
+](04_ui_manager.md)
 5. [Multiplayer System
-](05_multiplayer_system_.md)
+](05_multiplayer_system.md)
 6. [FastAPI Backend
-](06_fastapi_backend_.md)
+](06_fastapi_backend.md)
 7. [DQN AI Agent
-](07_dqn_ai_agent_.md)
+](07_dqn_ai_agent.md)
