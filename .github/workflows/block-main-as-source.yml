@@ -1,0 +1,14 @@
+name: Block main as source
+on:
+  pull_request:
+    types: [opened, synchronize]
+
+jobs:
+  check-source:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Block PRs from main
+        if: github.head_ref == 'main'
+        run: |
+          echo "PRs from main branch are not allowed"
+          exit 1
