@@ -114,13 +114,13 @@ export default class MenuScene extends Phaser.Scene {
     version.setOrigin(1, 1)
 
     // Add player character preview with equipped skin
-    const playerPreview = this.add.image(640, 320, `${equippedSkin}_stand`)
+    const playerPreview = this.add.image(640, 260, `${equippedSkin}_stand`)
     playerPreview.setScale(2)
 
     // Floating animation for player
     this.tweens.add({
       targets: playerPreview,
-      y: 300,
+      y: 240,
       duration: 1500,
       yoyo: true,
       repeat: -1,
@@ -128,8 +128,8 @@ export default class MenuScene extends Phaser.Scene {
     })
 
     // Add coin decorations
-    const coin1 = this.add.image(450, 320, 'coin')
-    const coin2 = this.add.image(830, 320, 'coin')
+    const coin1 = this.add.image(450, 260, 'coin')
+    const coin2 = this.add.image(830, 260, 'coin')
     coin1.setScale(0.6)
     coin2.setScale(0.6)
 
@@ -143,7 +143,7 @@ export default class MenuScene extends Phaser.Scene {
     })
 
     // Create Level Mode Button
-    const levelButton = this.add.rectangle(640, 410, 300, 60, 0x00aa00)
+    const levelButton = this.add.rectangle(640, 430, 300, 60, 0x00aa00)
     levelButton.setInteractive({ useHandCursor: true })
     levelButton.on('pointerover', () => levelButton.setFillStyle(0x00ff00))
     levelButton.on('pointerout', () => levelButton.setFillStyle(0x00aa00))
@@ -151,7 +151,7 @@ export default class MenuScene extends Phaser.Scene {
       this.scene.start('GameScene', { gameMode: 'levels', level: 1 })
     })
 
-    const levelText = this.add.text(640, 410, 'LEVEL MODE', {
+    const levelText = this.add.text(640, 430, 'LEVEL MODE', {
       fontSize: '32px',
       color: '#ffffff',
       fontStyle: 'bold'
@@ -159,7 +159,7 @@ export default class MenuScene extends Phaser.Scene {
     levelText.setOrigin(0.5)
 
     // Create Local Co-op Button
-    const coopButton = this.add.rectangle(500, 485, 220, 60, 0xff6600)
+    const coopButton = this.add.rectangle(500, 500, 220, 60, 0xff6600)
     coopButton.setInteractive({ useHandCursor: true })
     coopButton.on('pointerover', () => coopButton.setFillStyle(0xff9933))
     coopButton.on('pointerout', () => coopButton.setFillStyle(0xff6600))
@@ -167,7 +167,7 @@ export default class MenuScene extends Phaser.Scene {
       this.scene.start('CoopLobbyScene')
     })
 
-    const coopText = this.add.text(500, 485, '🎮 LOCAL CO-OP', {
+    const coopText = this.add.text(500, 500, '🎮 LOCAL CO-OP', {
       fontSize: '26px',
       color: '#ffffff',
       fontStyle: 'bold'
@@ -175,7 +175,7 @@ export default class MenuScene extends Phaser.Scene {
     coopText.setOrigin(0.5)
 
     // Create Online Co-op Button
-    const onlineButton = this.add.rectangle(780, 485, 250, 60, 0x9900ff)
+    const onlineButton = this.add.rectangle(780, 500, 250, 60, 0x9900ff)
     onlineButton.setInteractive({ useHandCursor: true })
     onlineButton.on('pointerover', () => onlineButton.setFillStyle(0xbb33ff))
     onlineButton.on('pointerout', () => onlineButton.setFillStyle(0x9900ff))
@@ -183,7 +183,7 @@ export default class MenuScene extends Phaser.Scene {
       this.scene.start('OnlineLobbyScene')
     })
 
-    const onlineText = this.add.text(780, 485, '🌐 ONLINE CO-OP', {
+    const onlineText = this.add.text(780, 500, '🌐 ONLINE CO-OP', {
       fontSize: '26px',
       color: '#ffffff',
       fontStyle: 'bold'
@@ -191,7 +191,7 @@ export default class MenuScene extends Phaser.Scene {
     onlineText.setOrigin(0.5)
 
     // Create Endless Mode Button
-    const endlessButton = this.add.rectangle(640, 560, 300, 60, 0x0088aa)
+    const endlessButton = this.add.rectangle(640, 570, 300, 60, 0x0088aa)
     endlessButton.setInteractive({ useHandCursor: true })
     endlessButton.on('pointerover', () => endlessButton.setFillStyle(0x00ccff))
     endlessButton.on('pointerout', () => endlessButton.setFillStyle(0x0088aa))
@@ -199,7 +199,7 @@ export default class MenuScene extends Phaser.Scene {
       this.scene.start('GameScene', { gameMode: 'endless', level: 1 })
     })
 
-    const endlessText = this.add.text(640, 560, 'ENDLESS MODE', {
+    const endlessText = this.add.text(640, 570, 'ENDLESS MODE', {
       fontSize: '32px',
       color: '#ffffff',
       fontStyle: 'bold'
@@ -1675,7 +1675,7 @@ export default class MenuScene extends Phaser.Scene {
    */
   private createLoadGameButton(save: any) {
     // Create button above Level Mode
-    const loadButton = this.add.rectangle(640, 340, 300, 50, 0x00aa00)
+    const loadButton = this.add.rectangle(640, 360, 300, 50, 0x00aa00)
     loadButton.setInteractive({ useHandCursor: true })
     loadButton.on('pointerover', () => loadButton.setFillStyle(0x00cc00))
     loadButton.on('pointerout', () => loadButton.setFillStyle(0x00aa00))
@@ -1692,7 +1692,7 @@ export default class MenuScene extends Phaser.Scene {
       })
     })
 
-    const loadText = this.add.text(640, 340, `CONTINUE: LEVEL ${save.level}`, {
+    const loadText = this.add.text(640, 360, `CONTINUE: LEVEL ${save.level}`, {
       fontSize: '24px',
       color: '#ffffff',
       fontStyle: 'bold'
