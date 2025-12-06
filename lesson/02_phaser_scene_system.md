@@ -408,7 +408,7 @@ You've successfully explored the "Phaser Scene System," the powerful organizatio
 
 Now that you know how to structure your game into different sections, how do you actually build those endless, exciting levels within the `GameScene`? That's where the "World Generator" comes in.
 
-[Next Chapter: World Generator](03_world_generator_.md)
+[Next Chapter: World Generator](03_world_generator.md)
 
 ---
 

@@ -332,7 +332,7 @@ You've successfully explored the "Player & Combat System," the beating heart of 
 
 This system defines *who* your character is and *what* they can do. But how does the game visually show all these actions and handle all the objects like platforms, enemies, and power-ups on the screen? That's where the "Phaser Scene System" comes in.
 
-[Next Chapter: Phaser Scene System](02_phaser_scene_system_.md)
+[Next Chapter: Phaser Scene System](02_phaser_scene_system.md)
 
 ---
 

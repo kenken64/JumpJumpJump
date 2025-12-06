@@ -571,7 +571,7 @@ You've successfully explored the "Multiplayer System," the sophisticated setup t
 
 This entire multiplayer functionality relies heavily on a robust communication backbone. How does the game send messages, store scores, and manage game rooms over the internet? That's where the "FastAPI Backend" comes in.
 
-[Next Chapter: FastAPI Backend](06_fastapi_backend_.md)
+[Next Chapter: FastAPI Backend](06_fastapi_backend.md)
 
 ---
 

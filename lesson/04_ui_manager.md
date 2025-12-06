@@ -268,7 +268,7 @@ You've successfully explored the "UI Manager," the game's essential information 
 
 Now that your player can move, the world is endless, and you have clear UI, how do you bring other players into the action, whether side-by-side or across the internet? That's where the "Multiplayer System" comes in.
 
-[Next Chapter: Multiplayer System](05_multiplayer_system_.md)
+[Next Chapter: Multiplayer System](05_multiplayer_system.md)
 
 ---
 

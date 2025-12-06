@@ -312,7 +312,7 @@ You've successfully explored the "FastAPI Backend," the powerful, silent partner
 
 Now that the game has a solid foundation for both single-player and multiplayer, what if we wanted to teach a computer to play `JumpJumpJump` just like a human (or even better)? That's where the "DQN AI Agent" comes in.
 
-[Next Chapter: DQN AI Agent](07_dqn_ai_agent_.md)
+[Next Chapter: DQN AI Agent](07_dqn_ai_agent.md)
 
 ---
 

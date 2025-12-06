@@ -286,7 +286,7 @@ You've successfully explored the "World Generator," the infinite architect behin
 
 Now that your player can move and an endless world exists, how does the game show you your score, health, or weapon reload progress? That's where the "UI Manager" comes in.
 
-[Next Chapter: UI Manager](04_ui_manager_.md)
+[Next Chapter: UI Manager](04_ui_manager.md)
 
 ---
 
