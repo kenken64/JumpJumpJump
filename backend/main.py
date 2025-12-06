@@ -97,6 +97,21 @@ def init_db():
             frame_y INTEGER NOT NULL
         )
     """)
+
+    # Create saved_games table
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS saved_games (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            player_name TEXT NOT NULL UNIQUE,
+            level INTEGER NOT NULL,
+            score INTEGER NOT NULL,
+            lives INTEGER NOT NULL,
+            health INTEGER NOT NULL,
+            coins INTEGER NOT NULL,
+            weapon TEXT NOT NULL,
+            timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    """)
     
     # Insert boss data if not exists (22 bosses from individual images)
     cursor.execute("SELECT COUNT(*) FROM bosses")
@@ -150,6 +165,15 @@ class ScoreSubmit(BaseModel):
     distance: int
     level: int
     game_mode: str
+
+class SaveGame(BaseModel):
+    player_name: str
+    level: int
+    score: int
+    lives: int
+    health: int
+    coins: int
+    weapon: str
 
 class ScoreResponse(BaseModel):
     id: int
@@ -220,6 +244,74 @@ def submit_score(score_data: ScoreSubmit, api_key: str = Security(verify_api_key
             game_mode=row[7],
             created_at=row[8]
         )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/save_game")
+def save_game(save_data: SaveGame, api_key: str = Security(verify_api_key)):
+    """Save game progress"""
+    try:
+        conn = sqlite3.connect(DB_PATH)
+        cursor = conn.cursor()
+        
+        # Upsert save game
+        cursor.execute("""
+            INSERT INTO saved_games (player_name, level, score, lives, health, coins, weapon, timestamp)
+            VALUES (?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+            ON CONFLICT(player_name) DO UPDATE SET
+                level=excluded.level,
+                score=excluded.score,
+                lives=excluded.lives,
+                health=excluded.health,
+                coins=excluded.coins,
+                weapon=excluded.weapon,
+                timestamp=CURRENT_TIMESTAMP
+        """, (
+            save_data.player_name,
+            save_data.level,
+            save_data.score,
+            save_data.lives,
+            save_data.health,
+            save_data.coins,
+            save_data.weapon
+        ))
+        
+        conn.commit()
+        conn.close()
+        return {"message": "Game saved successfully"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/api/load_game/{player_name}", response_model=SaveGame)
+def load_game(player_name: str, api_key: str = Security(verify_api_key)):
+    """Load game progress"""
+    try:
+        conn = sqlite3.connect(DB_PATH)
+        cursor = conn.cursor()
+        
+        cursor.execute("""
+            SELECT player_name, level, score, lives, health, coins, weapon
+            FROM saved_games
+            WHERE player_name = ?
+        """, (player_name,))
+        
+        row = cursor.fetchone()
+        conn.close()
+        
+        if not row:
+            raise HTTPException(status_code=404, detail="Save game not found")
+            
+        return SaveGame(
+            player_name=row[0],
+            level=row[1],
+            score=row[2],
+            lives=row[3],
+            health=row[4],
+            coins=row[5],
+            weapon=row[6]
+        )
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -494,7 +586,7 @@ async def websocket_room_endpoint(websocket: WebSocket, room_id: str):
                     state_update = round_floats(state_update) # type: ignore
                     
                     # Optimization: Removed high-frequency logging
-                    # game_logger.info(f"[ROOM:{current_room.room_id}] [PLAYER_STATE] Player:{player_id} Pos:({state_update.get('x')}, {state_update.get('y')})")
+                    game_logger.info(f"[ROOM:{current_room.room_id}] [PLAYER_STATE] Player:{player_id} Pos:({state_update.get('x')}, {state_update.get('y')})")
                     
                     current_room.update_player_state(player_id, state_update)
                     
@@ -543,7 +635,7 @@ async def websocket_room_endpoint(websocket: WebSocket, room_id: str):
                     item_id = data.get("item_id", "")
                     
                     # Optimization: Removed logging
-                    # game_logger.info(f"[ROOM:{current_room.room_id}] [ITEM_COLLECT] Player:{player_id} Type:{item_type} ID:{item_id}")
+                    game_logger.info(f"[ROOM:{current_room.room_id}] [ITEM_COLLECT] Player:{player_id} Type:{item_type} ID:{item_id}")
                     
                     # Check if item was already collected
                     if current_room.mark_item_collected(item_type, item_id, player_id):
@@ -582,7 +674,7 @@ async def websocket_room_endpoint(websocket: WebSocket, room_id: str):
                     state_update = round_floats(state_update) # type: ignore
                     
                     # Optimization: Removed high-frequency logging
-                    # game_logger.info(f"[ROOM:{current_room.room_id}] [ENEMY_STATE] Enemy:{enemy_id} Pos:({state_update.get('x')}, {state_update.get('y')})")
+                    game_logger.info(f"[ROOM:{current_room.room_id}] [ENEMY_STATE] Enemy:{enemy_id} Pos:({state_update.get('x')}, {state_update.get('y')})")
 
                     # Update enemy state on server
                     current_room.update_enemy_state(enemy_id, state_update)
@@ -599,7 +691,7 @@ async def websocket_room_endpoint(websocket: WebSocket, room_id: str):
                 if current_room and player_id == current_room.host_id:
                     enemy_data = data.get("enemy", {})
                     # Optimization: Removed logging
-                    # game_logger.info(f"[ROOM:{current_room.room_id}] [ENEMY_SPAWN] ID:{enemy_data.get('enemy_id')} Pos:({enemy_data.get('x')}, {enemy_data.get('y')}) Type:{enemy_data.get('enemy_type')}")
+                    game_logger.info(f"[ROOM:{current_room.room_id}] [ENEMY_SPAWN] ID:{enemy_data.get('enemy_id')} Pos:({enemy_data.get('x')}, {enemy_data.get('y')}) Type:{enemy_data.get('enemy_type')}")
                     
                     enemy_id = current_room.spawn_enemy(enemy_data)
                     
@@ -684,7 +776,7 @@ async def websocket_room_endpoint(websocket: WebSocket, room_id: str):
                 if current_room and player_id == current_room.host_id:
                     coin_data = data.get("coin", {})
                     # Optimization: Removed logging
-                    # game_logger.info(f"[ROOM:{current_room.room_id}] [COIN_SPAWN] ID:{coin_data.get('coin_id')} Pos:({coin_data.get('x')}, {coin_data.get('y')})")
+                    game_logger.info(f"[ROOM:{current_room.room_id}] [COIN_SPAWN] ID:{coin_data.get('coin_id')} Pos:({coin_data.get('x')}, {coin_data.get('y')})")
                     
                     coin_id = current_room.spawn_coin(coin_data)
                     
@@ -699,7 +791,7 @@ async def websocket_room_endpoint(websocket: WebSocket, room_id: str):
                 if current_room and player_id == current_room.host_id:
                     powerup_data = data.get("powerup", {})
                     # Optimization: Removed logging
-                    # game_logger.info(f"[ROOM:{current_room.room_id}] [POWERUP_SPAWN] ID:{powerup_data.get('powerup_id')} Pos:({powerup_data.get('x')}, {powerup_data.get('y')}) Type:{powerup_data.get('type')}")
+                    game_logger.info(f"[ROOM:{current_room.room_id}] [POWERUP_SPAWN] ID:{powerup_data.get('powerup_id')} Pos:({powerup_data.get('x')}, {powerup_data.get('y')}) Type:{powerup_data.get('type')}")
                     
                     powerup_id = current_room.spawn_powerup(powerup_data)
                     

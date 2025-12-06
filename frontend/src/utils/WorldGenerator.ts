@@ -124,10 +124,10 @@ export class WorldGenerator {
       
       // Get the body and configure it to match texture dimensions
       const body = tile.body as Phaser.Physics.Arcade.StaticBody
-      // Use 95% of texture size for more accurate hitbox
-      const hitboxSize = tileSize * 0.95
+      // Use full texture size to prevent gaps between tiles
+      const hitboxSize = tileSize
       body.setSize(hitboxSize, hitboxSize)
-      body.setOffset((tile.width - hitboxSize) / 2, (tile.height - hitboxSize) / 2)
+      body.setOffset(0, 0)
       body.updateFromGameObject()
       
       // Add to platforms group AFTER physics is set up
@@ -231,12 +231,19 @@ export class WorldGenerator {
             plat.setOrigin(0.5, 0.5)
             this.scene.physics.add.existing(plat, true)
             const body = plat.body as Phaser.Physics.Arcade.StaticBody
-            // Floating platform hitbox - minimal to allow player through gaps and horizontal movement
-            const hitboxWidth = plat.width * 0.2  // 20% width - thin to avoid blocking horizontal movement
-            const hitboxHeight = plat.height * 0.05  // 5% height - minimal surface
+            // Floating platform hitbox - full width to prevent gaps, reasonable height for stability
+            // Use one-way collision so player can jump up through it
+            const hitboxWidth = plat.width // Full width
+            const hitboxHeight = 20 // 20px height (approx 30% of tile)
             body.setSize(hitboxWidth, hitboxHeight)
             // Align hitbox to TOP of platform sprite
-            body.setOffset((plat.width - hitboxWidth) / 2, 0)
+            body.setOffset(0, 0)
+            
+            // Configure one-way collision: only collide on top face
+            body.checkCollision.down = false
+            body.checkCollision.left = false
+            body.checkCollision.right = false
+            
             this.platforms.add(plat)
             
             // Mark cells as occupied
@@ -267,12 +274,18 @@ export class WorldGenerator {
             step.setOrigin(0.5, 0.5)
             this.scene.physics.add.existing(step, true)
             const body = step.body as Phaser.Physics.Arcade.StaticBody
-            // Staircase platform hitbox - minimal to allow player through gaps and horizontal movement
-            const hitboxWidth = step.width * 0.2  // 20% width - thin to avoid blocking horizontal movement
-            const hitboxHeight = step.height * 0.05  // 5% height - minimal surface
+            // Staircase platform hitbox - full width to prevent gaps, reasonable height for stability
+            // Use one-way collision so player can jump up through it
+            const hitboxWidth = step.width // Full width
+            const hitboxHeight = 20 // 20px height
             body.setSize(hitboxWidth, hitboxHeight)
             // Align hitbox to TOP of platform sprite
-            body.setOffset((step.width - hitboxWidth) / 2, 0)
+            body.setOffset(0, 0)
+            
+            // Configure one-way collision: only collide on top face
+            body.checkCollision.down = false
+            body.checkCollision.left = false
+            body.checkCollision.right = false
             this.platforms.add(step)
             
             // Mark cell as occupied
@@ -311,10 +324,11 @@ export class WorldGenerator {
             top.setOrigin(0.5, 0.5)
             this.scene.physics.add.existing(top, true)
             const bodyT = top.body as Phaser.Physics.Arcade.StaticBody
-            const hitboxWidth = top.width * 0.95
+            // Full width to prevent gaps
+            const hitboxWidth = top.width
             const hitboxHeight = top.height * 0.8
             bodyT.setSize(hitboxWidth, hitboxHeight)
-            bodyT.setOffset((top.width - hitboxWidth) / 2, (top.height - hitboxHeight) / 2)
+            bodyT.setOffset(0, (top.height - hitboxHeight) / 2)
             bodyT.updateFromGameObject()
             this.platforms.add(top)
             
