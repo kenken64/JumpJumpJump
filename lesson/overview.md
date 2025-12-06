@@ -5,6 +5,8 @@ JumpJumpJump is an *exciting web-based platformer game* where players **jump and
 
 ## Visual Overview
 
+![Project Infographic](infographic.png)
+
 ```mermaid
 flowchart TD
     A0["Phaser Scene System
