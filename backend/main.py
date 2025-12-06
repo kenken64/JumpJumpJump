@@ -315,6 +315,21 @@ def load_game(player_name: str, api_key: str = Security(verify_api_key)):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+@app.delete("/api/save_game/{player_name}")
+def delete_save_game(player_name: str, api_key: str = Security(verify_api_key)):
+    """Delete saved game progress"""
+    try:
+        conn = sqlite3.connect(DB_PATH)
+        cursor = conn.cursor()
+        
+        cursor.execute("DELETE FROM saved_games WHERE player_name = ?", (player_name,))
+        
+        conn.commit()
+        conn.close()
+        return {"message": "Save game deleted successfully"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
 @app.get("/api/scores/leaderboard", response_model=List[ScoreResponse])
 def get_leaderboard(limit: int = 10, game_mode: Optional[str] = None, api_key: str = Security(verify_api_key)):
     """Get top scores from the leaderboard"""

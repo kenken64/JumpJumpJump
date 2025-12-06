@@ -101,7 +101,9 @@ CREATE TABLE bosses (
 18. Plasma Destroyer (Level 95, 6000 HP)
 19. Void Enforcer (Level 100, 6500 HP)
 20. Tentacle Horror (Level 105, 7000 HP)
-21. Ancient Evil (Level 110, 8000 HP)
+21. Ancient Evil (Level 110, 8000 HP) - **FINAL BOSS**
+    - Defeating this boss allows entry to the final portal
+    - Triggers the game ending sequence
 
 ### Visual Design
 - Purple gradient background
