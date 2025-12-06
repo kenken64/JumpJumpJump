@@ -120,6 +120,12 @@ export class GameAPI {
     return this.fetchAPI(`/api/load_game/${encodeURIComponent(playerName)}`)
   }
 
+  static async deleteSave(playerName: string): Promise<{ message: string }> {
+    return this.fetchAPI(`/api/save_game/${encodeURIComponent(playerName)}`, {
+      method: 'DELETE',
+    })
+  }
+
   /**
    * Retrieve leaderboard scores
    * @param limit - Maximum number of scores to return (default: 10)

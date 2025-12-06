@@ -35,6 +35,7 @@ import { MLAIPlayer } from '../utils/MLAIPlayer'
 import { DQNAgent, DQNState, DQNAction } from '../utils/DQNAgent'
 import { OnlinePlayerManager } from '../utils/OnlinePlayerManager'
 import { OnlineCoopService, NetworkGameState, NetworkEnemyState, NetworkCoinState, NetworkPowerUpState } from '../services/OnlineCoopService'
+import { WEAPON_CONFIGS } from '../types/GameTypes'
 
 /**
  * Main gameplay scene containing all game logic
@@ -633,26 +634,31 @@ export default class GameScene extends Phaser.Scene {
       }
     }
     
-    // Initialize seeded random for online mode (for enemy spawning)
+    // Initialize seeded random for BOTH online and offline modes
+    // In offline mode, use the WorldGenerator's seed to ensure consistency
     if (this.isOnlineMode && this.onlineGameState) {
       this.onlineSeed = this.onlineGameState.seed
-      this.onlineRngState = this.onlineSeed + 1000000 // Offset to get different sequence from world gen
-      console.log('🎲 Online enemy seed initialized:', this.onlineSeed, 'RNG state:', this.onlineRngState)
-      
-      // Log first few random values to verify sync
-      const testState = this.onlineRngState
-      console.log('📊 RNG Verification - first 5 values:')
-      for (let i = 0; i < 5; i++) {
-        this.onlineRngState += 0x6D2B79F5
-        let t = this.onlineRngState
-        t = Math.imul(t ^ (t >>> 15), t | 1)
-        t ^= t + Math.imul(t ^ (t >>> 7), t | 61)
-        const val = ((t ^ (t >>> 14)) >>> 0) / 4294967296
-        console.log(`  Value ${i+1}: ${val.toFixed(6)}`)
-      }
-      // Reset to correct state
-      this.onlineRngState = testState
+    } else {
+      // For offline mode, use the seed from WorldGenerator (which is either random or fixed)
+      this.onlineSeed = this.worldGenerator.getSeed()
     }
+    
+    this.onlineRngState = this.onlineSeed + 1000000 // Offset to get different sequence from world gen
+    console.log('🎲 Entity RNG initialized with seed:', this.onlineSeed, 'RNG state:', this.onlineRngState)
+      
+    // Log first few random values to verify sync
+    const testState = this.onlineRngState
+    console.log('📊 RNG Verification - first 5 values:')
+    for (let i = 0; i < 5; i++) {
+      this.onlineRngState += 0x6D2B79F5
+      let t = this.onlineRngState
+      t = Math.imul(t ^ (t >>> 15), t | 1)
+      t ^= t + Math.imul(t ^ (t >>> 7), t | 61)
+      const val = ((t ^ (t >>> 14)) >>> 0) / 4294967296
+      console.log(`  Value ${i+1}: ${val.toFixed(6)}`)
+    }
+    // Reset to correct state
+    this.onlineRngState = testState
 
     console.log('Generating world...')
     this.worldGenerationX = this.worldGenerator.generateWorld()
@@ -1241,6 +1247,14 @@ export default class GameScene extends Phaser.Scene {
       if (this.gameMode === 'levels') {
         // Find next boss level (5, 10, 15, 20, etc.)
         const nextBossLevel = Math.floor(this.currentLevel / 5) * 5 + 5
+        
+        // Cap at level 110 (Final Boss)
+        if (nextBossLevel > 110) {
+          console.log('⚠️ F4: Cannot teleport beyond Level 110 (Final Boss)')
+          this.showTip('debug', 'Cannot teleport beyond Level 110 (Final Boss)')
+          return
+        }
+
         console.log(`🎮 F4: Teleporting to boss level ${nextBossLevel}...`)
         const bossData: any = { gameMode: 'levels', level: nextBossLevel }
         if (this.isCoopMode) {
@@ -1258,10 +1272,36 @@ export default class GameScene extends Phaser.Scene {
       if (this.debugMode) {
         localStorage.removeItem('defeatedBossLevels')
         this.defeatedBossLevels.clear()
-        console.log('🧹 F5: Cleared all defeated boss levels!')
+
+        // Also clear specific boss keys for current player
+        const playerName = localStorage.getItem('player_name') || 'Guest'
+        for (let i = 0; i < 24; i++) {
+          localStorage.removeItem(`${playerName}_boss_${i}`)
+        }
+
+        console.log('🧹 F5: Cleared all defeated boss levels and boss records!')
         console.log('💡 Bosses will respawn on levels 5, 10, 15, etc.')
       } else {
         console.log('⚠️ F5: Enable debug mode (F3) first to clear defeated bosses')
+      }
+    })
+
+    // F6: Kill final boss (Cheat)
+    const endingCheatKey = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.F6)
+    endingCheatKey.on('down', () => {
+      if (this.bossActive && this.boss) {
+         const bossIndex = this.boss.getData('bossIndex')
+         // Check if it's the last boss (Index 21 based on % 22)
+         if (bossIndex === 21) {
+            console.log('📜 F6: Killing final boss to trigger ending...')
+            this.boss.setData('health', 0)
+            this.defeatBoss()
+         } else {
+            console.log(`⚠️ F6: Current boss is ${bossIndex}. Only works on final boss (21).`)
+            this.showTip('debug', `F6 only works on Final Boss (Index 21). Current: ${bossIndex}`)
+         }
+      } else {
+         console.log('⚠️ F6: No active boss found.')
       }
     })
 
@@ -2589,17 +2629,15 @@ export default class GameScene extends Phaser.Scene {
     const numPowerUps = 10
 
     // Reset RNG for power-ups in online mode for deterministic spawning
-    if (this.isOnlineMode && this.onlineGameState) {
-      this.onlineRngState = this.onlineGameState.seed * 11 + 99999
-      console.log('🎁 Power-up RNG initialized, seed state:', this.onlineRngState)
-    }
+    // Use seeded RNG for BOTH online and offline modes
+    const seed = this.onlineSeed || 12345 // Fallback seed
+    this.onlineRngState = seed * 11 + 99999
+    console.log('🎁 Power-up RNG initialized, seed state:', this.onlineRngState)
 
     for (let i = 0; i < numPowerUps; i++) {
-      const x = this.isOnlineMode ? this.onlineSeededBetween(1000, 8000) : Phaser.Math.Between(1000, 8000)
+      const x = this.onlineSeededBetween(1000, 8000)
       const y = 500
-      const typeIndex = this.isOnlineMode 
-        ? this.onlineSeededBetween(0, powerUpTypes.length - 1)
-        : Math.floor(Math.random() * powerUpTypes.length)
+      const typeIndex = this.onlineSeededBetween(0, powerUpTypes.length - 1)
       const type = powerUpTypes[typeIndex]
 
       const powerUp = this.powerUps.create(x, y, type)
@@ -2927,29 +2965,23 @@ export default class GameScene extends Phaser.Scene {
     
     // Reset RNG for this chunk to ensure deterministic coin spawning in online mode
     // Use a unique formula to differentiate from enemy RNG
-    if (this.isOnlineMode && this.onlineGameState) {
-      const chunkIndex = Math.floor(startX / 800)
-      this.onlineRngState = this.onlineGameState.seed * 3 + chunkIndex * 54321
-      console.log(`🪙 Coin RNG reset for chunk ${chunkIndex}, seed state: ${this.onlineRngState}`)
-    }
+    // Use seeded RNG for BOTH online and offline modes
+    const chunkIndex = Math.floor(startX / 800)
+    const seed = this.onlineSeed || 12345 // Fallback seed if undefined
+    this.onlineRngState = seed * 3 + chunkIndex * 54321
+    console.log(`🪙 Coin RNG reset for chunk ${chunkIndex}, seed state: ${this.onlineRngState}`)
     
-    const numCoins = this.isOnlineMode 
-      ? this.onlineSeededBetween(2, 4)
-      : Phaser.Math.Between(2, 4)
+    const numCoins = this.onlineSeededBetween(2, 4)
     
     if (this.isOnlineMode) {
       console.log(`🪙 Spawning ${numCoins} coins in chunk ${Math.floor(startX / 800)}`)
     }
     
     for (let i = 0; i < numCoins; i++) {
-      // In online mode, use purely seeded positions without isOnSpikes check
+      // Use purely seeded positions without isOnSpikes check
       // This ensures both clients get exactly the same positions
-      const x = this.isOnlineMode 
-        ? this.onlineSeededBetween(startX + 100, endX - 100)
-        : Phaser.Math.Between(startX + 100, endX - 100)
-      const y = this.isOnlineMode 
-        ? this.onlineSeededBetween(300, 600)
-        : Phaser.Math.Between(300, 600)
+      const x = this.onlineSeededBetween(startX + 100, endX - 100)
+      const y = this.onlineSeededBetween(300, 600)
 
       // Only check spikes in offline mode - online mode needs deterministic positions
       if (!this.isOnlineMode) {
@@ -2957,8 +2989,8 @@ export default class GameScene extends Phaser.Scene {
         let currentX = x
         let currentY = y
         while (retries < 5 && this.isOnSpikes(currentX, currentY)) {
-          currentX = Phaser.Math.Between(startX + 100, endX - 100)
-          currentY = Phaser.Math.Between(300, 600)
+          currentX = this.onlineSeededBetween(startX + 100, endX - 100)
+          currentY = this.onlineSeededBetween(300, 600)
           retries++
         }
         if (this.isOnSpikes(currentX, currentY)) continue
@@ -3048,10 +3080,10 @@ export default class GameScene extends Phaser.Scene {
     
     // Reset RNG for this chunk to ensure deterministic enemy spawning in online mode
     // Use a unique multiplier (12345) different from coins
-    if (this.isOnlineMode && this.onlineGameState) {
-      this.onlineRngState = this.onlineGameState.seed * 7 + chunkIndex * 12345
-      console.log(`👾 Enemy RNG reset for chunk ${chunkIndex}, seed state: ${this.onlineRngState}`)
-    }
+    // Use seeded RNG for BOTH online and offline modes
+    const seed = this.onlineSeed || 12345 // Fallback seed
+    this.onlineRngState = seed * 7 + chunkIndex * 12345
+    console.log(`👾 Enemy RNG reset for chunk ${chunkIndex}, seed state: ${this.onlineRngState}`)
 
     // Scale difficulty based on level - use startX for consistent difficulty in online mode
     const difficultyMultiplier = this.gameMode === 'endless'
@@ -3060,21 +3092,15 @@ export default class GameScene extends Phaser.Scene {
 
     const baseEnemies = 2
     const maxEnemies = Math.min(5, baseEnemies + Math.floor(difficultyMultiplier))
-    const numEnemies = this.isOnlineMode 
-      ? this.onlineSeededBetween(baseEnemies, maxEnemies)
-      : Phaser.Math.Between(baseEnemies, maxEnemies)
+    const numEnemies = this.onlineSeededBetween(baseEnemies, maxEnemies)
 
     if (this.isOnlineMode) {
       console.log(`👾 Spawning ${numEnemies} enemies in chunk ${chunkIndex}`)
     }
 
     for (let i = 0; i < numEnemies; i++) {
-      const x = this.isOnlineMode 
-        ? this.onlineSeededBetween(startX + 100, endX - 100)
-        : Phaser.Math.Between(startX + 100, endX - 100)
-      const y = this.isOnlineMode 
-        ? this.onlineSeededBetween(200, 900)
-        : Phaser.Math.Between(200, 900)
+      const x = this.onlineSeededBetween(startX + 100, endX - 100)
+      const y = this.onlineSeededBetween(200, 900)
 
       this.spawnRandomEnemy(x, y, difficultyMultiplier, chunkIndex, i)
     }
@@ -3477,8 +3503,14 @@ export default class GameScene extends Phaser.Scene {
     // Destroy bullet
     bulletSprite.destroy()
 
-    // Damage boss (rockets do 3x damage: 30 instead of 10)
-    const damage = isRocket ? 30 : 10
+    // Damage boss
+    let damage = bulletSprite.getData('damage')
+    
+    // Fallback for legacy behavior if damage is not set
+    if (!damage) {
+        damage = isRocket ? 30 : 10
+    }
+
     let health = bossSprite.getData('health')
     health -= damage
     bossSprite.setData('health', health)
@@ -3600,6 +3632,13 @@ export default class GameScene extends Phaser.Scene {
 
     // Award huge score bonus for defeating boss
     this.updateScore(1000)
+
+    // Check for final boss (Index 21)
+    if (bossIndex === 21) {
+       console.log('🏆 FINAL BOSS DEFEATED! Portal will trigger ending sequence...')
+       // Do NOT trigger ending immediately. Wait for player to enter portal.
+       // The portal logic in checkLevelComplete will handle the transition.
+    }
 
     // Death animation
     this.tweens.add({
@@ -3913,6 +3952,14 @@ export default class GameScene extends Phaser.Scene {
       }
       
       this.levelCompleteShown = true
+
+      // Check if this is the final level (110)
+      if (this.currentLevel === 110) {
+        console.log('🏆 LEVEL 110 COMPLETE! Transitioning to Ending Scene...')
+        this.scene.start('EndingScene')
+        return
+      }
+
       this.showLevelComplete()
     }
   }
@@ -4882,6 +4929,29 @@ export default class GameScene extends Phaser.Scene {
 
     // Debug mode god mode - no damage
     if (this.debugMode) {
+      // Instantly kill enemy in debug mode
+      const coinReward = enemySprite.getData('coinReward') || 10
+      this.dropCoins(enemySprite.x, enemySprite.y, coinReward)
+      this.updateScore(100)
+      
+      // Create death effect
+      const enemyType = enemySprite.getData('enemyType') || 'alienGreen'
+      const deadTexture = `${enemyType}_dead`
+      if (this.textures.exists(deadTexture)) {
+        // Create a temporary sprite for the death animation since we're destroying the original
+        const deadSprite = this.physics.add.sprite(enemySprite.x, enemySprite.y, deadTexture)
+        deadSprite.setVelocity(0, -200)
+        deadSprite.setTint(0xff0000)
+        this.tweens.add({
+          targets: deadSprite,
+          alpha: 0,
+          y: deadSprite.y + 50,
+          duration: 500,
+          onComplete: () => deadSprite.destroy()
+        })
+      }
+      
+      enemySprite.destroy()
       return
     }
 
@@ -6002,11 +6072,20 @@ export default class GameScene extends Phaser.Scene {
         // Choose bullet texture based on weapon
         let bulletTexture = 'laserBlue'
         let isRocket = false
+        let damage = 1
+
         if (this.equippedWeapon === 'laserGun') {
           bulletTexture = 'laserGreen'
+          damage = WEAPON_CONFIGS.laserGun.damage
         } else if (this.equippedWeapon === 'bazooka') {
           bulletTexture = 'rocket'
           isRocket = true
+          damage = WEAPON_CONFIGS.bazooka.damage
+        } else if (this.equippedWeapon === 'lfg') {
+          bulletTexture = 'lfgProjectile'
+          damage = WEAPON_CONFIGS.lfg.damage
+        } else if (this.equippedWeapon === 'raygun') {
+          damage = WEAPON_CONFIGS.raygun.damage
         }
 
         // Create bullet at gun mouth
@@ -6019,6 +6098,7 @@ export default class GameScene extends Phaser.Scene {
           bullet.setRotation(gunAngle)
           bullet.setAlpha(1)
           bullet.setData('isRocket', isRocket)
+          bullet.setData('damage', damage)
 
           // Disable physics for this bullet - use data to track movement
           bullet.body!.setEnable(false)
@@ -6366,10 +6446,17 @@ export default class GameScene extends Phaser.Scene {
     bulletSprite.setActive(false)
     bulletSprite.setVisible(false)
 
-    // Damage enemy (rockets do 5x damage to 2-shot worms)
-    const damage = isRocket ? 5 : 1
+    // Damage enemy
     let health = enemySprite.getData('health')
-    health -= damage
+    const damage = bulletSprite.getData('damage') || 1
+    
+    if (isRocket) {
+      // Bazooka one-shots any non-boss enemy
+      health = 0
+    } else {
+      health -= damage
+    }
+    
     enemySprite.setData('health', health)
 
     // Flash red to show damage
@@ -6414,7 +6501,9 @@ export default class GameScene extends Phaser.Scene {
       this.updateScore(scoreReward)
 
       // Death animation
-      enemySprite.setVelocity(0, 0)
+      if (enemySprite.body) {
+        enemySprite.setVelocity(0, 0)
+      }
       const deadTexture = `${enemyType}_dead`
       if (this.textures.exists(deadTexture)) {
         enemySprite.setTexture(deadTexture)
@@ -6787,6 +6876,41 @@ export default class GameScene extends Phaser.Scene {
     rocketGraphics.lineTo(23, 4)
     rocketGraphics.closePath()
     rocketGraphics.fillPath()
+    rocketGraphics.generateTexture('rocket', 26, 16)
+    rocketGraphics.destroy()
+
+    // Create LFG Projectile (Large Red/Gold Beam)
+    const lfgProjGraphics = this.make.graphics({ x: 0, y: 0 })
+    // Core beam
+    lfgProjGraphics.fillStyle(0xff0000, 1)
+    lfgProjGraphics.fillRect(0, 4, 48, 8)
+    // Inner core
+    lfgProjGraphics.fillStyle(0xffffff, 1)
+    lfgProjGraphics.fillRect(0, 6, 48, 4)
+    // Energy aura
+    lfgProjGraphics.lineStyle(2, 0xFFD700, 0.8)
+    lfgProjGraphics.strokeRect(0, 4, 48, 8)
+    lfgProjGraphics.generateTexture('lfgProjectile', 48, 16)
+    lfgProjGraphics.destroy()
+
+    // Create LFG Weapon (Heavy Machine Gun - matching shop design)
+    const lfgGraphics = this.make.graphics({ x: 0, y: 0 })
+    // Heavy machine gun body
+    lfgGraphics.fillStyle(0x222222, 1)
+    lfgGraphics.fillRect(3, 11, 36, 15) // Main body
+    // Barrels (Minigun style)
+    lfgGraphics.fillStyle(0x444444, 1)
+    lfgGraphics.fillRect(39, 13, 9, 3)
+    lfgGraphics.fillRect(39, 17, 9, 3)
+    lfgGraphics.fillRect(39, 21, 9, 3)
+    // Ammo box
+    lfgGraphics.fillStyle(0x004400, 1)
+    lfgGraphics.fillRect(15, 26, 12, 9)
+    // Gold trim
+    lfgGraphics.lineStyle(1, 0xFFD700)
+    lfgGraphics.strokeRect(3, 11, 36, 15)
+    lfgGraphics.generateTexture('lfg', 48, 36)
+    lfgGraphics.destroy()
     rocketGraphics.beginPath()
     rocketGraphics.moveTo(20, 8)
     rocketGraphics.lineTo(26, 8)
@@ -7072,7 +7196,7 @@ export default class GameScene extends Phaser.Scene {
 
   private createDebugUI() {
     // Debug mode indicator
-    this.debugText = this.add.text(16, 16, 'DEBUG MODE [F3]', {
+    this.debugText = this.add.text(16, 120, 'DEBUG MODE [F3]', {
       fontSize: '20px',
       color: '#00ff00',
       backgroundColor: '#000000',
@@ -7083,7 +7207,7 @@ export default class GameScene extends Phaser.Scene {
     this.debugText.setVisible(false)
 
     // FPS counter
-    this.fpsText = this.add.text(16, 46, 'FPS: 60', {
+    this.fpsText = this.add.text(16, 150, 'FPS: 60', {
       fontSize: '16px',
       color: '#00ff00',
       backgroundColor: '#000000',
@@ -7094,7 +7218,7 @@ export default class GameScene extends Phaser.Scene {
     this.fpsText.setVisible(false)
 
     // Coordinates
-    this.coordText = this.add.text(16, 76, 'X: 0, Y: 0', {
+    this.coordText = this.add.text(16, 180, 'X: 0, Y: 0', {
       fontSize: '16px',
       color: '#00ff00',
       backgroundColor: '#000000',

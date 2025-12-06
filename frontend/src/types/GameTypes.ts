@@ -94,7 +94,7 @@ export interface BossData {
 
 // ==================== WEAPON TYPES ====================
 
-export type WeaponType = 'raygun' | 'laserGun' | 'sword' | 'bazooka'
+export type WeaponType = 'raygun' | 'laserGun' | 'sword' | 'bazooka' | 'lfg'
 
 export interface WeaponConfig {
   type: WeaponType
@@ -132,6 +132,13 @@ export const WEAPON_CONFIGS: Record<WeaponType, WeaponConfig> = {
     cooldown: 2000,
     projectileSpeed: 500,
     projectileKey: 'rocket'
+  },
+  lfg: {
+    type: 'lfg',
+    damage: 99999,
+    cooldown: 1000,
+    projectileSpeed: 1200,
+    projectileKey: 'lfgProjectile'
   }
 }
 
