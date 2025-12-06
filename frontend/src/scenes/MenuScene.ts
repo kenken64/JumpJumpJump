@@ -85,7 +85,7 @@ export default class MenuScene extends Phaser.Scene {
     nameText.setName('playerNameText') // Store reference for updates
 
     // Add game title
-    const title = this.add.text(640, 120, 'JUMP JUMP JUMP', {
+    const title = this.add.text(640, 85, 'JUMP JUMP JUMP', {
       fontSize: '72px',
       color: '#00ff00',
       fontStyle: 'bold',
@@ -95,7 +95,7 @@ export default class MenuScene extends Phaser.Scene {
     title.setOrigin(0.5)
 
     // Add subtitle
-    const subtitle = this.add.text(640, 200, 'A Sci-Fi Platformer Adventure', {
+    const subtitle = this.add.text(640, 145, 'A Sci-Fi Platformer Adventure', {
       fontSize: '24px',
       color: '#ffffff',
       fontStyle: 'italic'
@@ -355,7 +355,7 @@ export default class MenuScene extends Phaser.Scene {
     }).setOrigin(0, 0.5)
 
     // Add controls text (moved up)
-    const controls = this.add.text(640, 235, 'WASD/Arrows: Move | W/Up: Jump | Click: Shoot', {
+    const controls = this.add.text(640, 180, 'WASD/Arrows: Move | W/Up: Jump | Click: Shoot', {
       fontSize: '18px',
       color: '#aaaaaa'
     })
