@@ -51,6 +51,9 @@ export default class MenuScene extends Phaser.Scene {
     // Check API connection status
     this.checkAPIConnection()
 
+    // Check for saved game
+    this.checkSaveGame()
+
     // Set background to black with blackhole effect
     this.cameras.main.setBackgroundColor('#0a0a1a')
     this.createBlackholeBackground()
@@ -1649,6 +1652,52 @@ export default class MenuScene extends Phaser.Scene {
       saveText.setOrigin(0.5)
       saveText.setDepth(102)
     })
+  }
+
+  /**
+   * Check if a saved game exists for the current player
+   */
+  private async checkSaveGame() {
+    const playerName = localStorage.getItem('player_name') || 'Guest'
+    try {
+      const save = await GameAPI.loadGame(playerName)
+      if (save) {
+        this.createLoadGameButton(save)
+      }
+    } catch (e) {
+      // No save found or API error, ignore
+      console.log('No saved game found or API unavailable')
+    }
+  }
+
+  /**
+   * Create the "Load Game" button
+   */
+  private createLoadGameButton(save: any) {
+    // Create button above Level Mode
+    const loadButton = this.add.rectangle(640, 340, 300, 50, 0x00aa00)
+    loadButton.setInteractive({ useHandCursor: true })
+    loadButton.on('pointerover', () => loadButton.setFillStyle(0x00cc00))
+    loadButton.on('pointerout', () => loadButton.setFillStyle(0x00aa00))
+    loadButton.on('pointerdown', () => {
+      this.scene.start('GameScene', { 
+        gameMode: 'levels', 
+        level: save.level,
+        score: save.score,
+        lives: save.lives,
+        health: save.health,
+        coins: save.coins,
+        weapon: save.weapon,
+        isLoadedGame: true
+      })
+    })
+
+    const loadText = this.add.text(640, 340, `CONTINUE: LEVEL ${save.level}`, {
+      fontSize: '24px',
+      color: '#ffffff',
+      fontStyle: 'bold'
+    })
+    loadText.setOrigin(0.5)
   }
 }
 

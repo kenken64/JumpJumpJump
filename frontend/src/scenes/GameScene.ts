@@ -186,6 +186,9 @@ export default class GameScene extends Phaser.Scene {
   // Carry over data from previous level
   private initLives?: number
   private initScore?: number
+  private initHealth?: number
+  private initCoins?: number
+  private initWeapon?: string
 
   // In-game chat (online mode)
   private chatInputActive: boolean = false
@@ -235,6 +238,18 @@ export default class GameScene extends Phaser.Scene {
       this.currentLevel = data.level || 1
       console.log('🤖 DQN Training mode enabled!')
       // Agent will be initialized after scene is ready
+    }
+
+    // Handle loaded game
+    if (data && data.isLoadedGame) {
+      this.currentLevel = data.level
+      this.initScore = data.score
+      this.initLives = data.lives
+      this.initHealth = data.health
+      this.initCoins = data.coins
+      this.initWeapon = data.weapon
+      this.gameMode = data.gameMode || 'levels'
+      console.log(`💾 Loaded game at Level ${this.currentLevel}`)
     }
 
     // Carry over lives and score from previous level
@@ -434,11 +449,17 @@ export default class GameScene extends Phaser.Scene {
 
     // Reset all state variables
     this.playerIsDead = false
-    this.playerHealth = 100
+    this.playerHealth = this.initHealth !== undefined ? this.initHealth : 100
     // Use carried over lives from previous level, or default to 3
     this.playerLives = this.initLives !== undefined ? this.initLives : 3
     // Use carried over score from previous level, or start at 0
     this.score = this.initScore !== undefined ? this.initScore : 0
+    
+    // Set weapon if loaded
+    if (this.initWeapon) {
+      this.equippedWeapon = this.initWeapon
+    }
+
     this.debugMode = false  // Always reset debug mode on scene start/restart
     this.levelCompleteShown = false // Reset level complete flag
 
@@ -446,6 +467,8 @@ export default class GameScene extends Phaser.Scene {
     // In online mode, start fresh to show session coins only
     if (this.isOnlineMode) {
       this.coinCount = 0  // Online mode: show session coins only
+    } else if (this.initCoins !== undefined) {
+      this.coinCount = this.initCoins
     } else {
       const savedCoins = localStorage.getItem('playerCoins')
       this.coinCount = savedCoins ? parseInt(savedCoins) : 0
@@ -864,6 +887,13 @@ export default class GameScene extends Phaser.Scene {
     // Initialize Online multiplayer mode
     if (this.isOnlineMode && this.onlineGameState) {
       console.log('🌐 Initializing Online Co-op mode...')
+      
+      // Verify player number with service to ensure correctness
+      const servicePlayerNumber = OnlineCoopService.getInstance().playerNumber
+      if (this.onlinePlayerNumber !== servicePlayerNumber && servicePlayerNumber > 0) {
+        console.warn(`⚠️ Player number mismatch! Scene: ${this.onlinePlayerNumber}, Service: ${servicePlayerNumber}. Using Service value.`)
+        this.onlinePlayerNumber = servicePlayerNumber
+      }
       
       // Determine if this player is the host (player 1)
       this.isOnlineHost = this.onlinePlayerNumber === 1
@@ -1570,6 +1600,27 @@ export default class GameScene extends Phaser.Scene {
       strokeThickness: 2
     })
     this.highScoreText.setScrollFactor(0)
+
+    // Save Button (Single Player Levels Mode Only)
+    if (!this.isCoopMode && !this.isOnlineMode && this.gameMode === 'levels') {
+      const saveBtn = this.add.text(20, 95, '💾 SAVE & QUIT', {
+        fontSize: '16px',
+        color: '#ffffff',
+        backgroundColor: '#008800',
+        padding: { x: 8, y: 4 }
+      })
+      saveBtn.setScrollFactor(0)
+      saveBtn.setDepth(100)
+      saveBtn.setInteractive({ useHandCursor: true })
+      saveBtn.on('pointerover', () => saveBtn.setBackgroundColor('#00aa00'))
+      saveBtn.on('pointerout', () => saveBtn.setBackgroundColor('#008800'))
+      saveBtn.on('pointerdown', () => {
+        this.saveGame()
+        this.time.delayedCall(1500, () => {
+           this.scene.start('MenuScene')
+        })
+      })
+    }
 
     // Level display
     const levelDisplayText = this.gameMode === 'endless' ? 'ENDLESS MODE' : `LEVEL ${this.currentLevel}`
@@ -3030,6 +3081,12 @@ export default class GameScene extends Phaser.Scene {
   }
 
   private spawnRandomEnemy(x: number, y: number, difficultyMultiplier: number, chunkIndex?: number, enemyIndex?: number) {
+    // Safeguard: In online mode, if this is a respawn (enemyIndex undefined), ONLY host should spawn
+    if (this.isOnlineMode && enemyIndex === undefined && !this.isOnlineHost) {
+      console.warn('⚠️ Non-host tried to spawn random enemy (respawn)! Aborting to prevent desync.')
+      return
+    }
+
     // Randomly select enemy size with weighted probability (use seeded random for online mode)
     const rand = this.isOnlineMode ? this.onlineSeededRandom() : Math.random()
     let enemyType: string
@@ -3039,7 +3096,7 @@ export default class GameScene extends Phaser.Scene {
     let coinReward: number
 
     if (this.isOnlineMode) {
-      console.log(`👾 Enemy ${enemyIndex} at (${Math.floor(x)}, ${Math.floor(y)}), rand=${rand.toFixed(4)}`)
+      console.log(`👾 Enemy ${enemyIndex ?? 'RESPAWN'} at (${Math.floor(x)}, ${Math.floor(y)}), rand=${rand.toFixed(4)}`)
     }
 
     if (rand < 0.4) {
@@ -3069,7 +3126,7 @@ export default class GameScene extends Phaser.Scene {
     }
 
     if (this.isOnlineMode) {
-      console.log(`👾 Enemy ${enemyIndex}: type=${enemyType}`)
+      console.log(`👾 Enemy ${enemyIndex ?? 'RESPAWN'}: type=${enemyType}`)
     }
 
     const enemy = this.enemies.create(x, y, enemyType)
@@ -7573,6 +7630,10 @@ export default class GameScene extends Phaser.Scene {
       return
     }
     
+    // Ensure sprite is visible and active
+    enemySprite.setVisible(true)
+    enemySprite.setActive(true)
+    
     console.log(`👾 Enemy sprite created: ${eid}, visible=${enemySprite.visible}, active=${enemySprite.active}`)
     
     enemySprite.setScale(enemyScale)
@@ -8009,6 +8070,61 @@ export default class GameScene extends Phaser.Scene {
           console.log(`🪙 Removing stale coin (untracked): ${cid}`)
           sprite.destroy()
         }
+      })
+    }
+  }
+
+  private async saveGame() {
+    const playerName = localStorage.getItem('player_name') || 'Guest'
+    try {
+      await GameAPI.saveGame({
+        player_name: playerName,
+        level: this.currentLevel,
+        score: this.score,
+        lives: this.playerLives,
+        health: this.playerHealth,
+        coins: this.coinCount,
+        weapon: this.equippedWeapon
+      })
+      
+      // Show saved message
+      const savedText = this.add.text(this.cameras.main.centerX, this.cameras.main.centerY, 'GAME SAVED!', {
+        fontSize: '64px',
+        color: '#00ff00',
+        fontStyle: 'bold',
+        stroke: '#000000',
+        strokeThickness: 6
+      })
+      savedText.setOrigin(0.5)
+      savedText.setScrollFactor(0)
+      savedText.setDepth(200)
+      
+      this.tweens.add({
+        targets: savedText,
+        alpha: 0,
+        duration: 1500,
+        onComplete: () => savedText.destroy()
+      })
+      
+    } catch (e) {
+      console.error('Failed to save game:', e)
+      
+      const errText = this.add.text(this.cameras.main.centerX, this.cameras.main.centerY, 'SAVE FAILED', {
+        fontSize: '64px',
+        color: '#ff0000',
+        fontStyle: 'bold',
+        stroke: '#000000',
+        strokeThickness: 6
+      })
+      errText.setOrigin(0.5)
+      errText.setScrollFactor(0)
+      errText.setDepth(200)
+      
+      this.tweens.add({
+        targets: errText,
+        alpha: 0,
+        duration: 1500,
+        onComplete: () => errText.destroy()
       })
     }
   }

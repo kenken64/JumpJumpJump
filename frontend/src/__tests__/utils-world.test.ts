@@ -25,7 +25,8 @@ const createMockScene = () => {
   const mockStaticBody = {
     setSize: vi.fn().mockReturnThis(),
     setOffset: vi.fn().mockReturnThis(),
-    updateFromGameObject: vi.fn()
+    updateFromGameObject: vi.fn(),
+    checkCollision: { down: true, up: true, left: true, right: true }
   }
 
   const mockSpikeSprite = {

@@ -52,6 +52,16 @@ export interface Boss {
   frame_y: number
 }
 
+export interface SaveGameData {
+  player_name: string
+  level: number
+  score: number
+  lives: number
+  health: number
+  coins: number
+  weapon: string
+}
+
 /**
  * Static class for all game API operations
  * Provides methods for scores, leaderboards, player data, and boss information
@@ -97,6 +107,17 @@ export class GameAPI {
       method: 'POST',
       body: JSON.stringify(scoreData),
     })
+  }
+
+  static async saveGame(saveData: SaveGameData): Promise<{ message: string }> {
+    return this.fetchAPI('/api/save_game', {
+      method: 'POST',
+      body: JSON.stringify(saveData),
+    })
+  }
+
+  static async loadGame(playerName: string): Promise<SaveGameData> {
+    return this.fetchAPI(`/api/load_game/${encodeURIComponent(playerName)}`)
   }
 
   /**
