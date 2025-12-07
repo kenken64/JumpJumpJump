@@ -270,8 +270,8 @@ export default class ShopScene extends Phaser.Scene {
     }).setOrigin(0.5)
 
     // Coin display (top-right)
-    this.add.image(1150, 50, 'coin').setScale(0.5)
-    this.coinText = this.add.text(1200, 50, `${this.coinCount}`, {
+    this.add.image(1050, 50, 'coin').setScale(0.5)
+    this.coinText = this.add.text(1100, 50, `${this.coinCount}`, {
       fontSize: '32px',
       color: '#FFD700',
       fontStyle: 'bold'

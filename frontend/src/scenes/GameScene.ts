@@ -1711,6 +1711,9 @@ export default class GameScene extends Phaser.Scene {
       saveBtn.on('pointerover', () => saveBtn.setBackgroundColor('#00aa00'))
       saveBtn.on('pointerout', () => saveBtn.setBackgroundColor('#008800'))
       saveBtn.on('pointerdown', () => {
+        // Force save to localStorage before quitting
+        localStorage.setItem('playerCoins', this.coinCount.toString())
+        
         this.saveGame()
         this.submitScoreToBackend()
         this.time.delayedCall(1500, () => {
@@ -3547,6 +3550,7 @@ export default class GameScene extends Phaser.Scene {
   private handleBulletBossCollision(bullet: any, boss: any) {
     const bulletSprite = bullet as Phaser.Physics.Arcade.Sprite
     const bossSprite = boss as Phaser.Physics.Arcade.Sprite
+    const bulletTexture = bulletSprite.texture.key
 
     const isRocket = bulletSprite.getData('isRocket')
 
@@ -3562,6 +3566,14 @@ export default class GameScene extends Phaser.Scene {
 
     // Damage boss
     let damage = bulletSprite.getData('damage')
+    
+    // Dynamic damage for LFG: Always equal to current boss health (Instant Kill)
+    if (bulletTexture === 'lfgProjectile') {
+        damage = bossSprite.getData('health')
+        console.log('🔫 LFG Hit! Adjusting damage to match boss health:', damage)
+    }
+
+    console.log(`💥 Bullet hit boss! Damage: ${damage}, IsRocket: ${isRocket}`)
     
     // Fallback for legacy behavior if damage is not set
     if (!damage) {
@@ -8319,6 +8331,9 @@ export default class GameScene extends Phaser.Scene {
   }
 
   private async saveGame() {
+    // Ensure local storage is up to date
+    localStorage.setItem('playerCoins', this.coinCount.toString())
+
     const playerName = localStorage.getItem('player_name') || 'Guest'
     try {
       await GameAPI.saveGame({

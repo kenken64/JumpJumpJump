@@ -24,6 +24,8 @@ import { GameAPI } from '../services/api'
 export default class MenuScene extends Phaser.Scene {
   /** Current player's coin balance loaded from localStorage */
   private coinCount: number = 0
+  /** Text element displaying coin count */
+  private coinText?: Phaser.GameObjects.Text
   /** Text element displaying API connection status */
   private apiStatusText?: Phaser.GameObjects.Text
 
@@ -46,6 +48,7 @@ export default class MenuScene extends Phaser.Scene {
   async create() {
     // Load coin count from localStorage
     const savedCoins = localStorage.getItem('playerCoins')
+    console.log('💰 MenuScene loaded coins:', savedCoins)
     this.coinCount = savedCoins ? parseInt(savedCoins) : 0
 
     // Check API connection status
@@ -345,14 +348,16 @@ export default class MenuScene extends Phaser.Scene {
     }
 
     // Add coin display in top right
-    this.add.image(1150, 50, 'coin').setScale(0.5)
-    this.add.text(1200, 50, `${this.coinCount}`, {
+    // Move left to accommodate large numbers (e.g. 100,000+)
+    this.add.image(1050, 50, 'coin').setScale(0.5)
+    this.coinText = this.add.text(1100, 50, `${this.coinCount}`, {
       fontSize: '32px',
       color: '#FFD700',
       fontStyle: 'bold',
       stroke: '#000000',
       strokeThickness: 4
-    }).setOrigin(0, 0.5)
+    })
+    this.coinText.setOrigin(0, 0.5)
 
     // Add controls text (moved up)
     const controls = this.add.text(640, 180, 'WASD/Arrows: Move | W/Up: Jump | Click: Shoot', {
@@ -368,6 +373,15 @@ export default class MenuScene extends Phaser.Scene {
       fontStyle: 'italic'
     })
     kenney.setOrigin(0.5, 1)
+
+    // Refresh data when scene wakes up (returns from game)
+    this.events.on('wake', () => {
+      const savedCoins = localStorage.getItem('playerCoins')
+      this.coinCount = savedCoins ? parseInt(savedCoins) : 0
+      if (this.coinText) {
+        this.coinText.setText(`${this.coinCount}`)
+      }
+    })
   }
 
   /**
