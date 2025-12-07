@@ -122,7 +122,7 @@ export class GameAPI {
     })
   }
 
-  static async loadGame(playerName: string): Promise<SaveGameData> {
+  static async loadGame(playerName: string): Promise<SaveGameData | null> {
     return this.fetchAPI(`/api/load_game/${encodeURIComponent(playerName)}`)
   }
 
