@@ -93,26 +93,6 @@ if [ -f /tmp/jumpjump_backend.pid ]; then
     fi
     rm /tmp/jumpjump_backend.pid
 fi
-        echo -e "\033[0;37mNo Backend process found running on port 8000.\033[0m"
-    fi
-elif command -v fuser &> /dev/null; then
-    fuser -k 8000/tcp 2>/dev/null
-    if [ $? -eq 0 ]; then
-        echo -e "\033[0;32mBackend process on port 8000 stopped.\033[0m"
-    else
-        echo -e "\033[0;37mNo Backend process found running on port 8000.\033[0m"
-    fi
-fi
-
-# Check for PID file
-if [ -f /tmp/jumpjump_backend.pid ]; then
-    BACKEND_PID=$(cat /tmp/jumpjump_backend.pid)
-    if ps -p $BACKEND_PID > /dev/null 2>&1; then
-        kill -9 $BACKEND_PID 2>/dev/null
-        echo -e "\033[0;32mBackend process (PID: $BACKEND_PID) stopped.\033[0m"
-    fi
-    rm /tmp/jumpjump_backend.pid
-fi
 
 # Stop all uvicorn processes
 pkill -f "uvicorn" 2>/dev/null
