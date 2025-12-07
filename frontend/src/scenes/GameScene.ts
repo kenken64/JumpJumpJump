@@ -36,6 +36,7 @@ import { DQNAgent, DQNState, DQNAction } from '../utils/DQNAgent'
 import { OnlinePlayerManager } from '../utils/OnlinePlayerManager'
 import { OnlineCoopService, NetworkGameState, NetworkEnemyState, NetworkCoinState, NetworkPowerUpState } from '../services/OnlineCoopService'
 import { WEAPON_CONFIGS } from '../types/GameTypes'
+import { VirtualGamepad } from '../utils/VirtualGamepad'
 
 /**
  * Main gameplay scene containing all game logic
@@ -54,6 +55,7 @@ export default class GameScene extends Phaser.Scene {
     d: Phaser.Input.Keyboard.Key
   }
   private gamepad: Phaser.Input.Gamepad.Gamepad | null = null
+  private virtualGamepad?: VirtualGamepad
   // @ts-expect-error - assistKey is set but only used for reference
   private assistKey?: Phaser.Input.Keyboard.Key
   private platforms!: Phaser.Physics.Arcade.StaticGroup
@@ -1392,6 +1394,35 @@ export default class GameScene extends Phaser.Scene {
     this.time.delayedCall(8000, () => {
       this.showTip('shooting', 'Click to aim and shoot enemies. Different weapons have different speeds!')
     })
+
+    // Mobile detection and Virtual Gamepad
+    const isMobile = this.sys.game.device.os.android || this.sys.game.device.os.iOS || this.sys.game.device.os.iPad || this.sys.game.device.os.iPhone
+    
+    if (isMobile) {
+      console.log('📱 Mobile device detected - Enabling Virtual Gamepad')
+      
+      // Request fullscreen on first touch
+      this.input.once('pointerdown', () => {
+        if (!this.scale.isFullscreen) {
+          this.scale.startFullscreen()
+        }
+      })
+
+      // Lock orientation to portrait if supported
+      if (this.scale.orientation !== Phaser.Scale.Orientation.PORTRAIT) {
+        this.scale.lockOrientation('portrait')
+      }
+
+      // Initialize Virtual Gamepad
+      this.virtualGamepad = new VirtualGamepad(this)
+      
+      // Handle resize events to reposition controls
+      this.scale.on('resize', () => {
+        if (this.virtualGamepad) {
+          this.virtualGamepad.resize()
+        }
+      })
+    }
   }
 
   private createUI() {
@@ -4463,6 +4494,13 @@ export default class GameScene extends Phaser.Scene {
     let gamepadRight = false
     let gamepadJump = false
 
+    // Check Virtual Gamepad
+    if (this.virtualGamepad) {
+      if (this.virtualGamepad.getLeft()) gamepadLeft = true
+      if (this.virtualGamepad.getRight()) gamepadRight = true
+      if (this.virtualGamepad.getJump()) gamepadJump = true
+    }
+
     if (useGamepad && this.gamepad) {
       const mapping = controlSettings.gamepadMapping
 
@@ -5830,9 +5868,17 @@ export default class GameScene extends Phaser.Scene {
 
     // Check gamepad shoot button from mapping
     let gamepadShoot = false
+
+    // Check Virtual Gamepad
+    if (this.virtualGamepad && this.virtualGamepad.getShoot()) {
+      gamepadShoot = true
+    }
+
     if (useGamepad && this.gamepad) {
       const shootButton = controlSettings.gamepadMapping.shoot
-      gamepadShoot = this.gamepad.buttons[shootButton]?.pressed || false
+      if (this.gamepad.buttons[shootButton]?.pressed) {
+        gamepadShoot = true
+      }
     }
 
     // Right mouse button for special attack (sword blade throw) - keyboard only
