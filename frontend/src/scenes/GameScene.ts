@@ -1396,7 +1396,8 @@ export default class GameScene extends Phaser.Scene {
     })
 
     // Mobile detection and Virtual Gamepad
-    const isMobile = this.sys.game.device.os.android || this.sys.game.device.os.iOS || this.sys.game.device.os.iPad || this.sys.game.device.os.iPhone
+    // Ensure we don't enable this on desktop devices even if they have touch capabilities
+    const isMobile = !this.sys.game.device.os.desktop && (this.sys.game.device.os.android || this.sys.game.device.os.iOS || this.sys.game.device.os.iPad || this.sys.game.device.os.iPhone)
     
     if (isMobile) {
       console.log('📱 Mobile device detected - Enabling Virtual Gamepad')
@@ -5802,6 +5803,40 @@ export default class GameScene extends Phaser.Scene {
         aimY = this.player.y + rightStickY * 100 * aimSensitivity
       } else {
         // Default to aiming in player's facing direction
+        aimX = this.player.x + (this.player.flipX ? -100 : 100)
+        aimY = this.player.y
+      }
+    } 
+    // Mobile Auto-Aim (Virtual Gamepad)
+    else if (this.virtualGamepad) {
+      // Find nearest enemy
+      let nearestEnemy: Phaser.Physics.Arcade.Sprite | null = null
+      let minDistance = 800 // Max auto-aim range (screen width approx)
+
+      this.enemies.getChildren().forEach((enemy: any) => {
+        if (enemy.active) {
+          const dist = Phaser.Math.Distance.Between(this.player.x, this.player.y, enemy.x, enemy.y)
+          if (dist < minDistance) {
+            minDistance = dist
+            nearestEnemy = enemy
+          }
+        }
+      })
+      
+      // Also check for boss
+      if (this.bossActive && this.boss && this.boss.active) {
+         const dist = Phaser.Math.Distance.Between(this.player.x, this.player.y, this.boss.x, this.boss.y)
+         if (dist < minDistance) {
+            minDistance = dist
+            nearestEnemy = this.boss
+         }
+      }
+
+      if (nearestEnemy) {
+        aimX = (nearestEnemy as Phaser.Physics.Arcade.Sprite).x
+        aimY = (nearestEnemy as Phaser.Physics.Arcade.Sprite).y
+      } else {
+        // Default to facing direction
         aimX = this.player.x + (this.player.flipX ? -100 : 100)
         aimY = this.player.y
       }
