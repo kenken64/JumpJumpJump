@@ -35,7 +35,7 @@ jobs:
     - name: Run Playwright tests
       run: pnpm exec playwright test
       env:
-        BASE_URL: ${{ secrets.FRONTEND_URL }}
+        BASE_URL: ${{ secrets.FRONTEND_URL || 'https://frontend-production-ef3b.up.railway.app/' }}
 
     - uses: actions/upload-artifact@v4
       if: always()
