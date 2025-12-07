@@ -282,7 +282,7 @@ def save_game(save_data: SaveGame, api_key: str = Security(verify_api_key)):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-@app.get("/api/load_game/{player_name}", response_model=SaveGame)
+@app.get("/api/load_game/{player_name}", response_model=Optional[SaveGame])
 def load_game(player_name: str, api_key: str = Security(verify_api_key)):
     """Load game progress"""
     try:
@@ -299,7 +299,7 @@ def load_game(player_name: str, api_key: str = Security(verify_api_key)):
         conn.close()
         
         if not row:
-            raise HTTPException(status_code=404, detail="Save game not found")
+            return None
             
         return SaveGame(
             player_name=row[0],
