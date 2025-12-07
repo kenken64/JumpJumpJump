@@ -36,6 +36,7 @@ import { DQNAgent, DQNState, DQNAction } from '../utils/DQNAgent'
 import { OnlinePlayerManager } from '../utils/OnlinePlayerManager'
 import { OnlineCoopService, NetworkGameState, NetworkEnemyState, NetworkCoinState, NetworkPowerUpState } from '../services/OnlineCoopService'
 import { WEAPON_CONFIGS } from '../types/GameTypes'
+import { VirtualGamepad } from '../utils/VirtualGamepad'
 
 /**
  * Main gameplay scene containing all game logic
@@ -54,6 +55,7 @@ export default class GameScene extends Phaser.Scene {
     d: Phaser.Input.Keyboard.Key
   }
   private gamepad: Phaser.Input.Gamepad.Gamepad | null = null
+  private virtualGamepad?: VirtualGamepad
   // @ts-expect-error - assistKey is set but only used for reference
   private assistKey?: Phaser.Input.Keyboard.Key
   private platforms!: Phaser.Physics.Arcade.StaticGroup
@@ -1392,6 +1394,37 @@ export default class GameScene extends Phaser.Scene {
     this.time.delayedCall(8000, () => {
       this.showTip('shooting', 'Click to aim and shoot enemies. Different weapons have different speeds!')
     })
+
+    // Mobile detection and Virtual Gamepad
+    // Ensure we don't enable this on desktop devices even if they have touch capabilities
+    // We simply check if it's NOT a desktop device. This covers Android, iOS, iPad, iPhone, etc.
+    const isMobile = !this.sys.game.device.os.desktop
+    
+    if (isMobile) {
+      console.log('📱 Mobile device detected - Enabling Virtual Gamepad')
+      
+      // Request fullscreen on first touch
+      this.input.once('pointerdown', () => {
+        if (!this.scale.isFullscreen) {
+          this.scale.startFullscreen()
+        }
+      })
+
+      // Lock orientation to portrait if supported
+      if (this.scale.orientation !== Phaser.Scale.Orientation.PORTRAIT) {
+        this.scale.lockOrientation('portrait')
+      }
+
+      // Initialize Virtual Gamepad
+      this.virtualGamepad = new VirtualGamepad(this)
+      
+      // Handle resize events to reposition controls
+      this.scale.on('resize', () => {
+        if (this.virtualGamepad) {
+          this.virtualGamepad.resize()
+        }
+      })
+    }
   }
 
   private createUI() {
@@ -1665,6 +1698,7 @@ export default class GameScene extends Phaser.Scene {
       saveBtn.on('pointerout', () => saveBtn.setBackgroundColor('#008800'))
       saveBtn.on('pointerdown', () => {
         this.saveGame()
+        this.submitScoreToBackend()
         this.time.delayedCall(1500, () => {
            this.scene.start('MenuScene')
         })
@@ -4462,6 +4496,13 @@ export default class GameScene extends Phaser.Scene {
     let gamepadRight = false
     let gamepadJump = false
 
+    // Check Virtual Gamepad
+    if (this.virtualGamepad) {
+      if (this.virtualGamepad.getLeft()) gamepadLeft = true
+      if (this.virtualGamepad.getRight()) gamepadRight = true
+      if (this.virtualGamepad.getJump()) gamepadJump = true
+    }
+
     if (useGamepad && this.gamepad) {
       const mapping = controlSettings.gamepadMapping
 
@@ -5766,6 +5807,40 @@ export default class GameScene extends Phaser.Scene {
         aimX = this.player.x + (this.player.flipX ? -100 : 100)
         aimY = this.player.y
       }
+    } 
+    // Mobile Auto-Aim (Virtual Gamepad)
+    else if (this.virtualGamepad) {
+      // Find nearest enemy
+      let nearestEnemy: Phaser.Physics.Arcade.Sprite | null = null
+      let minDistance = 800 // Max auto-aim range (screen width approx)
+
+      this.enemies.getChildren().forEach((enemy: any) => {
+        if (enemy.active) {
+          const dist = Phaser.Math.Distance.Between(this.player.x, this.player.y, enemy.x, enemy.y)
+          if (dist < minDistance) {
+            minDistance = dist
+            nearestEnemy = enemy
+          }
+        }
+      })
+      
+      // Also check for boss
+      if (this.bossActive && this.boss && this.boss.active) {
+         const dist = Phaser.Math.Distance.Between(this.player.x, this.player.y, this.boss.x, this.boss.y)
+         if (dist < minDistance) {
+            minDistance = dist
+            nearestEnemy = this.boss
+         }
+      }
+
+      if (nearestEnemy) {
+        aimX = (nearestEnemy as Phaser.Physics.Arcade.Sprite).x
+        aimY = (nearestEnemy as Phaser.Physics.Arcade.Sprite).y
+      } else {
+        // Default to facing direction
+        aimX = this.player.x + (this.player.flipX ? -100 : 100)
+        aimY = this.player.y
+      }
     } else {
       // Mouse aiming (keyboard mode or when right stick aiming is disabled)
       const pointer = this.input.activePointer
@@ -5829,9 +5904,17 @@ export default class GameScene extends Phaser.Scene {
 
     // Check gamepad shoot button from mapping
     let gamepadShoot = false
+
+    // Check Virtual Gamepad
+    if (this.virtualGamepad && this.virtualGamepad.getShoot()) {
+      gamepadShoot = true
+    }
+
     if (useGamepad && this.gamepad) {
       const shootButton = controlSettings.gamepadMapping.shoot
-      gamepadShoot = this.gamepad.buttons[shootButton]?.pressed || false
+      if (this.gamepad.buttons[shootButton]?.pressed) {
+        gamepadShoot = true
+      }
     }
 
     // Right mouse button for special attack (sword blade throw) - keyboard only
