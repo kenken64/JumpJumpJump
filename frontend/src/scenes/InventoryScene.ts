@@ -145,6 +145,30 @@ export default class InventoryScene extends Phaser.Scene {
     bazookaGraphics.fillCircle(35, 22, 4)
     bazookaGraphics.generateTexture('weaponBazooka', 80, 80)
     bazookaGraphics.destroy()
+
+    // Create LFG icon
+    const lfgGraphics = this.make.graphics({ x: 0, y: 0 })
+    
+    // Heavy machine gun body
+    lfgGraphics.fillStyle(0x222222, 1)
+    lfgGraphics.fillRect(5, 25, 60, 25) // Main body
+    
+    // Barrels (Minigun style)
+    lfgGraphics.fillStyle(0x444444, 1)
+    lfgGraphics.fillRect(65, 28, 15, 5)
+    lfgGraphics.fillRect(65, 35, 15, 5)
+    lfgGraphics.fillRect(65, 42, 15, 5)
+    
+    // Ammo box
+    lfgGraphics.fillStyle(0x004400, 1)
+    lfgGraphics.fillRect(25, 50, 20, 15)
+    
+    // Gold trim
+    lfgGraphics.lineStyle(2, 0xFFD700)
+    lfgGraphics.strokeRect(5, 25, 60, 25)
+    
+    lfgGraphics.generateTexture('weaponLFG', 90, 80)
+    lfgGraphics.destroy()
   }
 
   create() {
@@ -206,10 +230,26 @@ export default class InventoryScene extends Phaser.Scene {
       { id: 'raygun', name: 'Raygun', icon: 'weaponRaygun', default: true },
       { id: 'laserGun', name: 'Laser Gun', icon: 'weaponLaserGun', default: false },
       { id: 'sword', name: 'Energy Sword', icon: 'weaponSword', default: false },
-      { id: 'bazooka', name: 'Bazooka', icon: 'weaponBazooka', default: false }
+      { id: 'bazooka', name: 'Bazooka', icon: 'weaponBazooka', default: false },
+      { id: 'lfg', name: 'LFG', icon: 'weaponLFG', default: false }
     ]
 
-    let y = 220
+    // Setup scrollable container
+    const startY = 220
+    const itemHeight = 120
+    const visibleHeight = 420
+    const maskY = 180
+    
+    const container = this.add.container(0, 0)
+    
+    // Create mask
+    const maskGraphics = this.make.graphics({})
+    maskGraphics.fillStyle(0xffffff)
+    maskGraphics.fillRect(30, maskY, 340, visibleHeight)
+    const mask = maskGraphics.createGeometryMask()
+    container.setMask(mask)
+
+    let y = startY
     weapons.forEach(weapon => {
       const owned = weapon.default || this.inventory.some(item => item.id === weapon.id)
       const equipped = this.equippedWeapon === weapon.id
@@ -218,6 +258,7 @@ export default class InventoryScene extends Phaser.Scene {
         // Background panel
         const panel = this.add.rectangle(200, y, 320, 100, equipped ? 0x00aa00 : 0x222222, 1)
         panel.setStrokeStyle(2, equipped ? 0x00ff00 : 0x666666)
+        container.add(panel)
         
         // Make all weapons interactive (including default raygun)
         if (!equipped) {
@@ -236,22 +277,40 @@ export default class InventoryScene extends Phaser.Scene {
         // Icon
         const icon = this.add.image(100, y, weapon.icon)
         icon.setScale(0.8)
+        container.add(icon)
 
         // Name
-        this.add.text(200, y - 20, weapon.name, {
+        const nameText = this.add.text(150, y - 20, weapon.name, {
           fontSize: '24px',
           color: '#ffffff',
           fontStyle: 'bold'
         }).setOrigin(0, 0.5)
+        container.add(nameText)
 
         // Status
         const status = equipped ? 'EQUIPPED' : (weapon.default ? 'DEFAULT' : 'OWNED')
-        this.add.text(200, y + 15, status, {
+        const statusText = this.add.text(150, y + 15, status, {
           fontSize: '16px',
           color: equipped ? '#00ff00' : '#aaaaaa'
         }).setOrigin(0, 0.5)
+        container.add(statusText)
 
-        y += 120
+        y += itemHeight
+      }
+    })
+
+    // Add scroll interaction via scene input to avoid blocking clicks
+    const contentHeight = y - startY
+    const maxScroll = Math.max(0, contentHeight - visibleHeight + 20) // +20 padding
+
+    this.input.on('wheel', (pointer: any, _gameObjects: any, _deltaX: number, deltaY: number, _deltaZ: number) => {
+      // Check if pointer is within the scroll area (x: 30-370, y: maskY to maskY + visibleHeight)
+      if (pointer.x >= 30 && pointer.x <= 370 && pointer.y >= maskY && pointer.y <= maskY + visibleHeight) {
+        container.y -= deltaY * 0.5
+        
+        // Clamp scroll
+        if (container.y > 0) container.y = 0
+        if (container.y < -maxScroll) container.y = -maxScroll
       }
     })
   }
@@ -366,6 +425,10 @@ export default class InventoryScene extends Phaser.Scene {
           type = 'weapon'
           icon = 'weaponBazooka'
           name = 'Bazooka'
+        } else if (id === 'lfg') {
+          type = 'weapon'
+          icon = 'weaponLFG'
+          name = 'LFG'
         } else if (id === 'skinBlue') {
           type = 'skin'
           icon = 'skinBlue'
