@@ -938,6 +938,12 @@ export default class GameScene extends Phaser.Scene {
         onPowerUpSpawned: (powerup) => this.handleRemotePowerUpSpawn(powerup),
         onEntitiesSync: (enemies, coins) => this.handleEntitiesSync(enemies, coins)
       })
+
+      // Setup game flow callbacks
+      this.onlinePlayerManager.onLevelComplete = () => {
+        console.log('🌐 Remote player triggered level completion')
+        this.enterPortal(true)
+      }
       
       // Get local player sprite for standard game mechanics
       const localSprite = this.onlinePlayerManager.getLocalSprite()
@@ -3901,9 +3907,14 @@ export default class GameScene extends Phaser.Scene {
     this.levelEndMarker = this.add.rectangle(endX, 600, 50, 400, 0xffff00, 0) // Invisible marker for reference
   }
 
-  private enterPortal() {
+  private enterPortal(isRemoteTrigger: boolean = false) {
     if (this.playerIsDead) return
     this.playerIsDead = true
+
+    // In online mode, notify other player if we are the one triggering it
+    if (this.isOnlineMode && !isRemoteTrigger) {
+      OnlineCoopService.getInstance().sendGameAction('level_complete', {})
+    }
 
     // Save coins before transitioning
     localStorage.setItem('playerCoins', this.coinCount.toString())
