@@ -427,6 +427,9 @@ export default class GameScene extends Phaser.Scene {
   }
 
   create() {
+    // Enable multi-touch support (up to 3 pointers for D-pad + Jump + Shoot)
+    this.input.addPointer(3)
+
     // Get game mode and level from scene data (passed from menu)
     const data = this.scene.settings.data as any
     this.gameMode = data?.gameMode || 'levels'
@@ -4592,7 +4595,9 @@ export default class GameScene extends Phaser.Scene {
 
     // Track gamepad jump button state for "just pressed" detection
     const wasGamepadJumpPressed = this.player.getData('wasGamepadJumpPressed') || false
-    const gamepadJustPressed = gamepadJump && !wasGamepadJumpPressed
+    // Check both standard edge detection AND the virtual gamepad's specific justPressed event
+    const virtualJumpJustPressed = this.virtualGamepad ? this.virtualGamepad.getJumpJustPressed() : false
+    const gamepadJustPressed = (gamepadJump && !wasGamepadJumpPressed) || virtualJumpJustPressed
     this.player.setData('wasGamepadJumpPressed', gamepadJump)
 
     // Track AI jump button state for "just pressed" detection
