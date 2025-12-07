@@ -1316,6 +1316,20 @@ export default class GameScene extends Phaser.Scene {
       }
     })
 
+    // F7: Add 100,000 Gold (Cheat)
+    const goldCheatKey = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.F7)
+    goldCheatKey.on('down', () => {
+      this.coinCount += 100000
+      if (this.coinText) {
+        this.coinText.setText(this.coinCount.toString())
+      }
+      this.showTip('cheat', '💰 CHEAT: Added 100,000 Gold!')
+      console.log('💰 CHEAT: Added 100,000 Gold! New total:', this.coinCount)
+      
+      // Save immediately to ensure it persists
+      localStorage.setItem('playerCoins', this.coinCount.toString())
+    })
+
     // ESC key to quit game and return to menu
     const escKey = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.ESC)
     escKey.on('down', () => {
