@@ -219,7 +219,7 @@ export default class ShopScene extends Phaser.Scene {
       },
       {
         id: 'lfg',
-        name: 'LFG (Large Fxxk Gun)',
+        name: 'LFG (Large Freaking Gun)',
         type: 'weapon',
         price: 99999,
         icon: 'lfg',
