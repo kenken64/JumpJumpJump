@@ -1665,6 +1665,7 @@ export default class GameScene extends Phaser.Scene {
       saveBtn.on('pointerout', () => saveBtn.setBackgroundColor('#008800'))
       saveBtn.on('pointerdown', () => {
         this.saveGame()
+        this.submitScoreToBackend()
         this.time.delayedCall(1500, () => {
            this.scene.start('MenuScene')
         })
