@@ -1397,7 +1397,8 @@ export default class GameScene extends Phaser.Scene {
 
     // Mobile detection and Virtual Gamepad
     // Ensure we don't enable this on desktop devices even if they have touch capabilities
-    const isMobile = !this.sys.game.device.os.desktop && (this.sys.game.device.os.android || this.sys.game.device.os.iOS || this.sys.game.device.os.iPad || this.sys.game.device.os.iPhone)
+    // We simply check if it's NOT a desktop device. This covers Android, iOS, iPad, iPhone, etc.
+    const isMobile = !this.sys.game.device.os.desktop
     
     if (isMobile) {
       console.log('📱 Mobile device detected - Enabling Virtual Gamepad')
