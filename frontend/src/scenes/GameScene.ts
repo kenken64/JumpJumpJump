@@ -2997,12 +2997,12 @@ export default class GameScene extends Phaser.Scene {
         let retries = 0
         let currentX = x
         let currentY = y
-        while (retries < 5 && this.isOnSpikes(currentX, currentY)) {
+        while (retries < 5 && (this.isOnSpikes(currentX, currentY) || this.isOnPlatform(currentX, currentY))) {
           currentX = this.onlineSeededBetween(startX + 100, endX - 100)
           currentY = this.onlineSeededBetween(300, 600)
           retries++
         }
-        if (this.isOnSpikes(currentX, currentY)) continue
+        if (this.isOnSpikes(currentX, currentY) || this.isOnPlatform(currentX, currentY)) continue
         // Use the retry-adjusted position
         this.createCoinAt(currentX, currentY, startX, i)
       } else {
@@ -6136,6 +6136,18 @@ export default class GameScene extends Phaser.Scene {
         }
       }
     }
+  }
+
+  private isOnPlatform(x: number, y: number): boolean {
+    const platforms = this.platforms.getChildren() as Phaser.Physics.Arcade.Sprite[]
+    for (const platform of platforms) {
+      const bounds = platform.getBounds()
+      // Check if point is inside bounds
+      if (x >= bounds.left && x <= bounds.right && y >= bounds.top && y <= bounds.bottom) {
+        return true
+      }
+    }
+    return false
   }
 
   private isOnSpikes(x: number, y: number): boolean {
