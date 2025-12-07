@@ -78,6 +78,9 @@ export class OnlinePlayerManager {
   private onPowerUpSpawnedCallback?: (powerup: NetworkPowerUpState) => void
   private onEntitiesSyncCallback?: (enemies: NetworkEnemyState[], coins: NetworkCoinState[]) => void
   
+  // Game flow callbacks
+  public onLevelComplete?: () => void
+  
   constructor(scene: Phaser.Scene, platforms: Phaser.Physics.Arcade.StaticGroup) {
     this.scene = scene
     this.platforms = platforms
@@ -536,6 +539,11 @@ export class OnlinePlayerManager {
         break
       case 'respawn':
         this.handleRemotePlayerRespawn(data)
+        break
+      case 'level_complete':
+        if (this.onLevelComplete) {
+          this.onLevelComplete()
+        }
         break
       case 'assist': {
         // Remote player attempted to assist someone (usually host-initiated)

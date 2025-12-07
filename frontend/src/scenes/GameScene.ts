@@ -427,6 +427,9 @@ export default class GameScene extends Phaser.Scene {
   }
 
   create() {
+    // Enable multi-touch support (up to 3 pointers for D-pad + Jump + Shoot)
+    this.input.addPointer(3)
+
     // Get game mode and level from scene data (passed from menu)
     const data = this.scene.settings.data as any
     this.gameMode = data?.gameMode || 'levels'
@@ -935,6 +938,12 @@ export default class GameScene extends Phaser.Scene {
         onPowerUpSpawned: (powerup) => this.handleRemotePowerUpSpawn(powerup),
         onEntitiesSync: (enemies, coins) => this.handleEntitiesSync(enemies, coins)
       })
+
+      // Setup game flow callbacks
+      this.onlinePlayerManager.onLevelComplete = () => {
+        console.log('🌐 Remote player triggered level completion')
+        this.enterPortal(true)
+      }
       
       // Get local player sprite for standard game mechanics
       const localSprite = this.onlinePlayerManager.getLocalSprite()
@@ -3898,9 +3907,14 @@ export default class GameScene extends Phaser.Scene {
     this.levelEndMarker = this.add.rectangle(endX, 600, 50, 400, 0xffff00, 0) // Invisible marker for reference
   }
 
-  private enterPortal() {
+  private enterPortal(isRemoteTrigger: boolean = false) {
     if (this.playerIsDead) return
     this.playerIsDead = true
+
+    // In online mode, notify other player if we are the one triggering it
+    if (this.isOnlineMode && !isRemoteTrigger) {
+      OnlineCoopService.getInstance().sendGameAction('level_complete', {})
+    }
 
     // Save coins before transitioning
     localStorage.setItem('playerCoins', this.coinCount.toString())
@@ -4592,7 +4606,9 @@ export default class GameScene extends Phaser.Scene {
 
     // Track gamepad jump button state for "just pressed" detection
     const wasGamepadJumpPressed = this.player.getData('wasGamepadJumpPressed') || false
-    const gamepadJustPressed = gamepadJump && !wasGamepadJumpPressed
+    // Check both standard edge detection AND the virtual gamepad's specific justPressed event
+    const virtualJumpJustPressed = this.virtualGamepad ? this.virtualGamepad.getJumpJustPressed() : false
+    const gamepadJustPressed = (gamepadJump && !wasGamepadJumpPressed) || virtualJumpJustPressed
     this.player.setData('wasGamepadJumpPressed', gamepadJump)
 
     // Track AI jump button state for "just pressed" detection
