@@ -73,6 +73,11 @@ function App() {
       }
 
       phaserGameRef.current = new Phaser.Game(config)
+      
+      // Expose game instance for testing
+      if (window) {
+        (window as any).game = phaserGameRef.current
+      }
     }
 
     return () => {
