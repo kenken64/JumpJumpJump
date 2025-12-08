@@ -320,17 +320,28 @@ export class UIManager {
       saveBtn.setInteractive({ useHandCursor: true });
       saveBtn.on('pointerover', () => saveBtn.setBackgroundColor('#00aa00'));
       saveBtn.on('pointerout', () => saveBtn.setBackgroundColor('#008800'));
-      saveBtn.on('pointerdown', () => {
+      saveBtn.on('pointerdown', async () => {
+        // Disable button to prevent double-clicks
+        saveBtn.disableInteractive();
+        saveBtn.setText('💾 SAVING...');
+        
         // Force save to localStorage before quitting
         localStorage.setItem('playerCoins', this.scene.coinCount.toString());
         
-        // We need to call saveGame on scene, but it's private.
-        // Assuming we can access it or replicate it.
-        // For now, let's assume we can call it via type casting or just replicate logic.
-        // Replicating logic:
-        (this.scene as any).saveGame();
+        // Save game to localStorage and backend
+        try {
+          await (this.scene as any).saveGame();
+          saveBtn.setText('✅ SAVED!');
+        } catch (error) {
+          console.error('Save error:', error);
+          saveBtn.setText('⚠️ SAVED LOCALLY');
+        }
+        
+        // Submit score to backend (don't wait for it)
         (this.scene as any).submitScoreToBackend();
-        this.scene.time.delayedCall(1500, () => {
+        
+        // Navigate to menu after a short delay
+        this.scene.time.delayedCall(1000, () => {
            this.scene.scene.start('MenuScene');
         });
       });
