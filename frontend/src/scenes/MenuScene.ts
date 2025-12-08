@@ -51,6 +51,16 @@ export default class MenuScene extends Phaser.Scene {
     console.log('💰 MenuScene loaded coins:', savedCoins)
     this.coinCount = savedCoins ? parseInt(savedCoins) : 0
 
+    // Mobile detection - Auto fullscreen on touch
+    const isMobile = !this.sys.game.device.os.desktop
+    if (isMobile) {
+      this.input.once('pointerdown', () => {
+        if (!this.scale.isFullscreen) {
+          this.scale.startFullscreen()
+        }
+      })
+    }
+
     // Check API connection status
     this.checkAPIConnection()
 
