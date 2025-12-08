@@ -6362,9 +6362,9 @@ export default class GameScene extends Phaser.Scene {
   }
 
   /**
-   * Save game state to localStorage
+   * Save game state to localStorage and backend
    */
-  public saveGame() {
+  public async saveGame() {
     console.log('💾 Saving game state...')
     
     // Save coins
@@ -6378,12 +6378,30 @@ export default class GameScene extends Phaser.Scene {
     localStorage.setItem('savedScore', this.score.toString())
     localStorage.setItem('savedGameMode', this.gameMode)
     
-    console.log('✅ Game saved!')
+    console.log('✅ Game saved to localStorage!')
     console.log('  - Coins:', this.coinCount)
     console.log('  - Level:', this.currentLevel)
     console.log('  - Score:', this.score)
     console.log('  - Game Mode:', this.gameMode)
     console.log('  - Defeated Bosses:', Array.from(this.defeatedBossLevels))
+    
+    // Also save to backend API for cross-device persistence
+    try {
+      const playerName = localStorage.getItem('player_name') || 'Player'
+      await GameAPI.saveGame({
+        player_name: playerName,
+        level: this.currentLevel,
+        score: this.score,
+        lives: this.playerLives,
+        health: this.playerHealth,
+        coins: this.coinCount,
+        weapon: this.equippedWeapon
+      })
+      console.log('✅ Game saved to backend!')
+    } catch (error) {
+      console.error('❌ Failed to save to backend:', error)
+      console.log('Game was saved locally in localStorage')
+    }
   }
 
   /**
