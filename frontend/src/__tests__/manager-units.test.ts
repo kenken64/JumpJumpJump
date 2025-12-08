@@ -191,6 +191,9 @@ function createMockScene() {
         setSize: vi.fn().mockReturnThis(),
         setOrigin: vi.fn().mockReturnThis(),
         setAlpha: vi.fn().mockReturnThis(),
+        setVisible: vi.fn().mockReturnThis(),
+        setInteractive: vi.fn().mockReturnThis(),
+        on: vi.fn().mockReturnThis(),
         destroy: vi.fn(),
         width: 100,
         x: 0,
@@ -204,6 +207,9 @@ function createMockScene() {
         setFontSize: vi.fn().mockReturnThis(),
         setColor: vi.fn().mockReturnThis(),
         setAlpha: vi.fn().mockReturnThis(),
+        setVisible: vi.fn().mockReturnThis(),
+        setInteractive: vi.fn().mockReturnThis(),
+        on: vi.fn().mockReturnThis(),
         destroy: vi.fn(),
         text: '',
         x: 0,
@@ -214,11 +220,30 @@ function createMockScene() {
         setDepth: vi.fn().mockReturnThis(),
         setScale: vi.fn().mockReturnThis(),
         setAlpha: vi.fn().mockReturnThis(),
+        setVisible: vi.fn().mockReturnThis(),
         destroy: vi.fn()
       })),
       circle: vi.fn(() => ({
         setDepth: vi.fn().mockReturnThis(),
         setAlpha: vi.fn().mockReturnThis(),
+        setScrollFactor: vi.fn().mockReturnThis(),
+        setStrokeStyle: vi.fn().mockReturnThis(),
+        setFillStyle: vi.fn().mockReturnThis(),
+        setScale: vi.fn().mockReturnThis(),
+        setVisible: vi.fn().mockReturnThis(),
+        setInteractive: vi.fn().mockReturnThis(),
+        on: vi.fn().mockReturnThis(),
+        destroy: vi.fn()
+      })),
+      graphics: vi.fn(() => ({
+        clear: vi.fn().mockReturnThis(),
+        fillStyle: vi.fn().mockReturnThis(),
+        fillRect: vi.fn().mockReturnThis(),
+        lineStyle: vi.fn().mockReturnThis(),
+        strokeRect: vi.fn().mockReturnThis(),
+        setScrollFactor: vi.fn().mockReturnThis(),
+        setDepth: vi.fn().mockReturnThis(),
+        setVisible: vi.fn().mockReturnThis(),
         destroy: vi.fn()
       })),
       particles: vi.fn(() => ({
@@ -641,31 +666,36 @@ describe('UIManager', () => {
 
   beforeEach(() => {
     scene = createMockScene()
-    uiManager = new UIManager(scene, { screenWidth: 1280, screenHeight: 720, isCoopMode: false })
+    // Setup scene properties required by UIManager
+    scene.cameras = { main: { width: 1280, height: 720, fadeIn: vi.fn() } }
+    scene.isCoopMode = false
+    scene.isOnlineMode = false
+    scene.gameMode = 'levels'
+    scene.playerLives = 3
+    scene.score = 0
+    scene.coinCount = 0
+    scene.currentLevel = 1
+    
+    uiManager = new UIManager(scene)
   })
 
   describe('constructor', () => {
     it('should create with default config', () => {
-      const manager = new UIManager(scene)
-      expect(manager).toBeDefined()
-    })
-
-    it('should accept custom config', () => {
-      const manager = new UIManager(scene, { isCoopMode: true })
-      expect(manager).toBeDefined()
+      expect(uiManager).toBeDefined()
     })
   })
 
-  describe('create()', () => {
+  describe('createUI()', () => {
     it('should initialize UI elements', () => {
-      uiManager.create(1, 'levels')
+      uiManager.createUI()
       
       expect(scene.add.rectangle).toHaveBeenCalled()
       expect(scene.add.text).toHaveBeenCalled()
     })
 
     it('should work with endless mode', () => {
-      uiManager.create(1, 'endless')
+      scene.gameMode = 'endless'
+      uiManager.createUI()
       
       expect(scene.add.text).toHaveBeenCalled()
     })
@@ -695,25 +725,31 @@ describe('UIManager', () => {
 
   describe('showTip()', () => {
     it('should create tip banner', () => {
-      uiManager.showTip('Test tip message')
+      uiManager.showTip('tip1', 'Test tip message')
       
       expect(scene.add.text).toHaveBeenCalled()
     })
 
     it('should animate tip', () => {
-      uiManager.showTip('Test tip message')
+      uiManager.showTip('tip2', 'Test tip message')
       
       expect(scene.tweens.add).toHaveBeenCalled()
     })
   })
 
-  describe('createBossHealthBar()', () => {
-    it('should create boss health bar elements', () => {
-      const result = uiManager.createBossHealthBar('MEGA BOSS', 500)
+  describe('Boss UI', () => {
+    it('should show boss name', () => {
+      uiManager.createUI() // Initialize first
+      uiManager.showBossName('MEGA BOSS')
       
-      expect(result).toBeDefined()
-      expect(scene.add.rectangle).toHaveBeenCalled()
       expect(scene.add.text).toHaveBeenCalled()
+    })
+    
+    it('should update boss health bar', () => {
+      uiManager.createUI() // Initialize first
+      uiManager.updateBossHealthBar(500, 1000)
+      
+      expect(scene.add.graphics).toHaveBeenCalled()
     })
   })
 })

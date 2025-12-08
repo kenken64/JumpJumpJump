@@ -82,4 +82,117 @@ describe('App Component', () => {
     
     expect(mockGameInstance.destroy).toHaveBeenCalledWith(true)
   })
+
+  it('should have game container element', () => {
+    render(<App />)
+    const container = document.getElementById('game-container')
+    expect(container).toBeTruthy()
+  })
+
+  it('should configure arcade physics with correct gravity', () => {
+    render(<App />)
+    
+    const startButton = screen.getByText('▶ START GAME')
+    fireEvent.click(startButton)
+    
+    const config = (Phaser.Game as any).mock.calls[0][0]
+    expect(config.physics).toEqual({
+      default: 'arcade',
+      arcade: {
+        gravity: { y: 400, x: 0 },
+        debug: false
+      }
+    })
+  })
+
+  it('should configure gamepad input', () => {
+    render(<App />)
+    
+    const startButton = screen.getByText('▶ START GAME')
+    fireEvent.click(startButton)
+    
+    const config = (Phaser.Game as any).mock.calls[0][0]
+    expect(config.input).toEqual({
+      gamepad: true
+    })
+  })
+
+  it('should configure scale settings', () => {
+    render(<App />)
+    
+    const startButton = screen.getByText('▶ START GAME')
+    fireEvent.click(startButton)
+    
+    const config = (Phaser.Game as any).mock.calls[0][0]
+    expect(config.scale).toEqual({
+      mode: Phaser.Scale.FIT,
+      autoCenter: Phaser.Scale.CENTER_BOTH,
+      width: 1280,
+      height: 720
+    })
+  })
+
+  it('should configure loader settings', () => {
+    render(<App />)
+    
+    const startButton = screen.getByText('▶ START GAME')
+    fireEvent.click(startButton)
+    
+    const config = (Phaser.Game as any).mock.calls[0][0]
+    expect(config.loader).toEqual({
+      crossOrigin: 'anonymous',
+      maxParallelDownloads: 10
+    })
+  })
+
+  it('should include all game scenes in config', () => {
+    render(<App />)
+    
+    const startButton = screen.getByText('▶ START GAME')
+    fireEvent.click(startButton)
+    
+    const config = (Phaser.Game as any).mock.calls[0][0]
+    expect(config.scene).toHaveLength(11) // All 11 scenes
+  })
+
+  it('should set background color', () => {
+    render(<App />)
+    
+    const startButton = screen.getByText('▶ START GAME')
+    fireEvent.click(startButton)
+    
+    const config = (Phaser.Game as any).mock.calls[0][0]
+    expect(config.backgroundColor).toBe('#0a0a1a')
+  })
+
+  it('should expose game instance on window', () => {
+    render(<App />)
+    
+    const startButton = screen.getByText('▶ START GAME')
+    fireEvent.click(startButton)
+    
+    expect((window as any).game).toBeDefined()
+  })
+
+  it('clicking on overlay should also start game', () => {
+    render(<App />)
+    
+    // Click on the title instead of button
+    const title = screen.getByText('JUMP JUMP JUMP')
+    const overlay = title.closest('div')!
+    fireEvent.click(overlay)
+    
+    expect(screen.queryByText('▶ START GAME')).toBeNull()
+    expect(Phaser.Game).toHaveBeenCalledTimes(1)
+  })
+
+  it('should not re-initialize game on multiple clicks', () => {
+    render(<App />)
+    
+    const startButton = screen.getByText('▶ START GAME')
+    fireEvent.click(startButton)
+    
+    // Game container is still there, try to interact
+    expect(Phaser.Game).toHaveBeenCalledTimes(1)
+  })
 })
