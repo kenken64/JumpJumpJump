@@ -39,7 +39,7 @@ function createMockScene() {
     getChildren: vi.fn().mockReturnValue([
       {
         active: true,
-        getBounds: () => ({ left: 0, right: 1000, top: 450, bottom: 500, centerX: 500, bottom: 500 })
+        getBounds: () => ({ left: 0, right: 1000, top: 450, bottom: 500, centerX: 500, centerY: 475 })
       }
     ])
   }

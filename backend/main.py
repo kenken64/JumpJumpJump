@@ -44,14 +44,20 @@ async def verify_api_key(api_key: str = Security(api_key_header)):
 # Get allowed origins from environment variable or use defaults
 ALLOWED_ORIGINS = os.getenv("ALLOWED_ORIGINS", "http://localhost:3000,http://localhost:5173").split(",")
 
-# Allow all Railway domains for easier deployment
-if any(".railway.app" in origin for origin in ALLOWED_ORIGINS):
-    ALLOWED_ORIGINS.append("https://*.railway.app")
+# Check if we're in production (Railway) - allow all origins for Railway deployments
+# The wildcard pattern doesn't work with CORS, so we use "*" for Railway
+IS_RAILWAY = os.getenv("RAILWAY_ENVIRONMENT") is not None or os.getenv("RAILWAY_PUBLIC_DOMAIN") is not None
+
+# For Railway deployments, allow all origins since frontend domain can vary
+if IS_RAILWAY or os.getenv("ALLOW_ALL_ORIGINS") == "true":
+    CORS_ORIGINS = ["*"]
+else:
+    CORS_ORIGINS = ALLOWED_ORIGINS
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"] if os.getenv("ALLOW_ALL_ORIGINS") == "true" else ALLOWED_ORIGINS,
-    allow_credentials=True,
+    allow_origins=CORS_ORIGINS,
+    allow_credentials=True if CORS_ORIGINS != ["*"] else False,  # credentials not allowed with "*"
     allow_methods=["*"],
     allow_headers=["*"],
 )

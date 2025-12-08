@@ -37,13 +37,14 @@ import { OnlinePlayerManager } from '../utils/OnlinePlayerManager'
 import { OnlineCoopService, NetworkGameState, NetworkEnemyState, NetworkCoinState, NetworkPowerUpState } from '../services/OnlineCoopService'
 import { WEAPON_CONFIGS } from '../types/GameTypes'
 import { VirtualGamepad } from '../utils/VirtualGamepad'
+import { UIManager } from '../managers/UIManager';
 
 /**
  * Main gameplay scene containing all game logic
  * @extends Phaser.Scene
  */
 export default class GameScene extends Phaser.Scene {
-  private player!: Phaser.Physics.Arcade.Sprite
+  public player!: Phaser.Physics.Arcade.Sprite
   private gun!: Phaser.GameObjects.Image
   private bullets!: Phaser.Physics.Arcade.Group
   private lastShotTime: number = 0
@@ -56,6 +57,7 @@ export default class GameScene extends Phaser.Scene {
   }
   private gamepad: Phaser.Input.Gamepad.Gamepad | null = null
   private virtualGamepad?: VirtualGamepad
+  public uiManager!: UIManager
   // @ts-expect-error - assistKey is set but only used for reference
   private assistKey?: Phaser.Input.Keyboard.Key
   private platforms!: Phaser.Physics.Arcade.StaticGroup
@@ -68,24 +70,16 @@ export default class GameScene extends Phaser.Scene {
   private playerIsDead: boolean = false
   private playerHealth: number = 100
   private maxHealth: number = 100
-  private playerLives: number = 3
+  public playerLives: number = 3
   private playerSpawnX: number = 400
   private playerSpawnY: number = 550
-  private healthBarBackground!: Phaser.GameObjects.Rectangle
-  private healthBarFill!: Phaser.GameObjects.Rectangle
-  private livesText!: Phaser.GameObjects.Text
-  private reloadBarBackground!: Phaser.GameObjects.Rectangle
-  private reloadBarFill!: Phaser.GameObjects.Rectangle
+
   private coins!: Phaser.Physics.Arcade.Group
-  private coinCount: number = 0
-  private coinText!: Phaser.GameObjects.Text
-  private coinIcon!: Phaser.GameObjects.Image
-  private score: number = 0
-  private highScore: number = 0
-  private scoreText!: Phaser.GameObjects.Text
-  private highScoreText!: Phaser.GameObjects.Text
-  private levelText!: Phaser.GameObjects.Text
-  private enemiesDefeated: number = 0
+  public coinCount: number = 0
+
+  public score: number = 0
+
+  public enemiesDefeated: number = 0
   private jumpParticles!: Phaser.GameObjects.Particles.ParticleEmitter
   private landParticles!: Phaser.GameObjects.Particles.ParticleEmitter
   private coinParticles!: Phaser.GameObjects.Particles.ParticleEmitter
@@ -98,8 +92,8 @@ export default class GameScene extends Phaser.Scene {
   private lastCheckpointX: number = 0
   private currentCheckpoint: number = 0
   private checkpointInterval: number = 2000 // 20 meters = 2000 pixels
-  private currentLevel: number = 1
-  private gameMode: 'levels' | 'endless' = 'levels'
+  public currentLevel: number = 1
+  public gameMode: 'levels' | 'endless' = 'levels'
   private levelLength: number = 10000 // 100 meters per level
   private levelEndMarker!: Phaser.GameObjects.Rectangle | null
   private portal!: Phaser.Physics.Arcade.Sprite | null
@@ -107,9 +101,8 @@ export default class GameScene extends Phaser.Scene {
   private boss!: Phaser.Physics.Arcade.Sprite | null
   private bossActive: boolean = false
   private defeatedBossLevels: Set<number> = new Set() // Track which boss levels have been defeated
-  private bossHealthBar!: Phaser.GameObjects.Rectangle | null
-  private bossHealthBarBg!: Phaser.GameObjects.Rectangle | null
-  private bossNameText!: Phaser.GameObjects.Text | null
+
+
   private equippedSkin: string = 'alienBeige'
   private equippedWeapon: string = 'raygun'
   private powerUps!: Phaser.Physics.Arcade.Group
@@ -123,15 +116,13 @@ export default class GameScene extends Phaser.Scene {
   private musicManager!: MusicManager
 
   // Debug mode
-  private debugMode: boolean = false
-  private debugText: Phaser.GameObjects.Text | null = null
-  private fpsText: Phaser.GameObjects.Text | null = null
-  private coordText: Phaser.GameObjects.Text | null = null
+  public debugMode: boolean = false
+
 
   // AI Player
   private aiPlayer!: AIPlayer
   private aiEnabled: boolean = false
-  private aiStatusText: Phaser.GameObjects.Text | null = null
+
 
   // ML AI Player
   private mlAIPlayer!: MLAIPlayer
@@ -145,13 +136,13 @@ export default class GameScene extends Phaser.Scene {
   // Recording removed - use DQN training instead
 
   // Co-op multiplayer
-  private isCoopMode: boolean = false
-  private player2!: Phaser.Physics.Arcade.Sprite
+  public isCoopMode: boolean = false
+  public player2!: Phaser.Physics.Arcade.Sprite
   private gun2!: Phaser.GameObjects.Image
   private bullets2!: Phaser.Physics.Arcade.Group
 
   // Online multiplayer
-  private isOnlineMode: boolean = false
+  public isOnlineMode: boolean = false
   private onlinePlayerManager?: OnlinePlayerManager
   private onlineGameState?: NetworkGameState
   private onlinePlayerId?: string
@@ -193,10 +184,7 @@ export default class GameScene extends Phaser.Scene {
   private initCoins?: number
   private initWeapon?: string
 
-  // In-game chat (online mode)
-  private chatInputActive: boolean = false
-  private chatInputElement: HTMLInputElement | null = null
-  private chatContainer: HTMLDivElement | null = null
+
 
   // Player Recording for DQN Learning
   private isRecordingForDQN: boolean = false
@@ -427,6 +415,9 @@ export default class GameScene extends Phaser.Scene {
   }
 
   create() {
+    // Initialize UI Manager
+    this.uiManager = new UIManager(this)
+
     // Enable multi-touch support (up to 3 pointers for D-pad + Jump + Shoot)
     this.input.addPointer(3)
 
@@ -583,9 +574,6 @@ export default class GameScene extends Phaser.Scene {
     // Initialize boss variables
     this.boss = null
     this.bossActive = false
-    this.bossHealthBar = null
-    this.bossHealthBarBg = null
-    this.bossNameText = null
 
     // Load defeated boss levels from localStorage
     const savedDefeatedLevels = localStorage.getItem('defeatedBossLevels')
@@ -1234,7 +1222,7 @@ export default class GameScene extends Phaser.Scene {
       this.input.gamepad.on('connected', (pad: Phaser.Input.Gamepad.Gamepad) => {
         this.gamepad = pad
         console.log('Gamepad connected:', pad.id)
-        this.showTip('gamepad', 'Gamepad connected! Left stick/D-pad: Move, A: Jump, RT: Shoot')
+        this.uiManager.showTip('gamepad', 'Gamepad connected! Left stick/D-pad: Move, A: Jump, RT: Shoot')
       })
 
       // Listen for gamepad disconnections
@@ -1250,7 +1238,7 @@ export default class GameScene extends Phaser.Scene {
     const debugKey = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.F3)
     debugKey.on('down', () => {
       console.log('F3 pressed!')
-      this.toggleDebugMode()
+      this.uiManager.toggleDebugMode()
     })
 
     // Test key to trigger game over (F8)
@@ -1258,7 +1246,7 @@ export default class GameScene extends Phaser.Scene {
     gameOverTestKey.on('down', () => {
       console.log('🧪 F8 TEST: Forcing game over...')
       this.playerLives = 0
-      this.showGameOver()
+      this.uiManager.showGameOver(this.score, this.coinCount, this.enemiesDefeated, Math.floor(this.player.x / 70))
     })
 
     // Boss teleport key (F4) - cycles through boss levels
@@ -1271,7 +1259,7 @@ export default class GameScene extends Phaser.Scene {
         // Cap at level 110 (Final Boss)
         if (nextBossLevel > 110) {
           console.log('⚠️ F4: Cannot teleport beyond Level 110 (Final Boss)')
-          this.showTip('debug', 'Cannot teleport beyond Level 110 (Final Boss)')
+          this.uiManager.showTip('debug', 'Cannot teleport beyond Level 110 (Final Boss)')
           return
         }
 
@@ -1318,7 +1306,7 @@ export default class GameScene extends Phaser.Scene {
             this.defeatBoss()
          } else {
             console.log(`⚠️ F6: Current boss is ${bossIndex}. Only works on final boss (21).`)
-            this.showTip('debug', `F6 only works on Final Boss (Index 21). Current: ${bossIndex}`)
+            this.uiManager.showTip('debug', `F6 only works on Final Boss (Index 21). Current: ${bossIndex}`)
          }
       } else {
          console.log('⚠️ F6: No active boss found.')
@@ -1329,10 +1317,8 @@ export default class GameScene extends Phaser.Scene {
     const goldCheatKey = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.F7)
     goldCheatKey.on('down', () => {
       this.coinCount += 100000
-      if (this.coinText) {
-        this.coinText.setText(this.coinCount.toString())
-      }
-      this.showTip('cheat', '💰 CHEAT: Added 100,000 Gold!')
+      this.uiManager.updateCoins(this.coinCount)
+      this.uiManager.showTip('cheat', '💰 CHEAT: Added 100,000 Gold!')
       console.log('💰 CHEAT: Added 100,000 Gold! New total:', this.coinCount)
       
       // Save immediately to ensure it persists
@@ -1342,7 +1328,7 @@ export default class GameScene extends Phaser.Scene {
     // ESC key to quit game and return to menu
     const escKey = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.ESC)
     escKey.on('down', () => {
-      this.showQuitConfirmation()
+      this.uiManager.showQuitConfirmation()
     })
 
     // P key to toggle AI player
@@ -1368,7 +1354,7 @@ export default class GameScene extends Phaser.Scene {
     this.input.keyboard!.on('keydown-D', () => {
       if (shiftKey.isDown) {
         console.log('Shift+D pressed!')
-        this.toggleDebugMode()
+        this.uiManager.toggleDebugMode()
       }
     })
     
@@ -1376,7 +1362,7 @@ export default class GameScene extends Phaser.Scene {
     if (this.isOnlineMode) {
       const chatKey = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.T)
       chatKey.on('down', () => {
-        this.openInGameChat()
+        this.uiManager.openInGameChat()
       })
     }
 
@@ -1396,10 +1382,17 @@ export default class GameScene extends Phaser.Scene {
     }
 
     // Create UI elements
-    this.createUI()
+    this.uiManager.createUI()
 
-    // Create debug UI (hidden by default)
-    this.createDebugUI()
+    // Create particle emitters
+    this.createParticleEmitters()
+
+    // Initialize DQN agent if in training mode
+    if (this.dqnTraining) {
+      this.initializeDQNAgent()
+    }
+
+
 
     // Resume recording if it was active in previous level
     if (this.isRecordingForDQN) {
@@ -1411,11 +1404,11 @@ export default class GameScene extends Phaser.Scene {
 
     // Show tutorial tips after a delay
     this.time.delayedCall(2000, () => {
-      this.showTip('welcome', 'Use WASD or Arrow Keys to move. Press W/Up to jump!')
+      this.uiManager.showTip('welcome', 'Use WASD or Arrow Keys to move. Press W/Up to jump!')
     })
 
     this.time.delayedCall(8000, () => {
-      this.showTip('shooting', 'Click to aim and shoot enemies. Different weapons have different speeds!')
+      this.uiManager.showTip('shooting', 'Click to aim and shoot enemies. Different weapons have different speeds!')
     })
 
     // Mobile detection and Virtual Gamepad
@@ -1450,349 +1443,8 @@ export default class GameScene extends Phaser.Scene {
     }
   }
 
-  private createUI() {
-    if (this.isCoopMode) {
-      // Co-op mode: Show two separate health bars at top-right
-      const rightX = this.cameras.main.width - 20
-      const topY = 20
 
-      // Player 1 (Green) - Top Right
-      const p1Label = this.add.text(rightX - 310, topY, 'P1', {
-        fontSize: '28px',
-        color: '#00ff00',
-        fontStyle: 'bold',
-        stroke: '#000000',
-        strokeThickness: 4
-      })
-      p1Label.setScrollFactor(0)
-      p1Label.setDepth(100)
-
-      const p1HealthBarBg = this.add.rectangle(rightX - 260, topY + 14, 200, 20, 0x333333)
-      p1HealthBarBg.setOrigin(0, 0.5)
-      p1HealthBarBg.setScrollFactor(0)
-      p1HealthBarBg.setDepth(100)
-
-      this.healthBarFill = this.add.rectangle(rightX - 260, topY + 14, 200, 20, 0x00ff00)
-      this.healthBarFill.setOrigin(0, 0.5)
-      this.healthBarFill.setScrollFactor(0)
-      this.healthBarFill.setDepth(101)
-
-      this.livesText = this.add.text(rightX - 50, topY + 14, `x${this.playerLives}`, {
-        fontSize: '24px',
-        color: '#ffffff',
-        fontStyle: 'bold',
-        stroke: '#000000',
-        strokeThickness: 4
-      })
-      this.livesText.setOrigin(0, 0.5)
-      this.livesText.setScrollFactor(0)
-      this.livesText.setDepth(100)
-
-      // Player 2 (Cyan) - Below Player 1
-      const p2Y = topY + 45
-      const p2Label = this.add.text(rightX - 310, p2Y, 'P2', {
-        fontSize: '28px',
-        color: '#00ffff',
-        fontStyle: 'bold',
-        stroke: '#000000',
-        strokeThickness: 4
-      })
-      p2Label.setScrollFactor(0)
-      p2Label.setDepth(100)
-
-      const p2HealthBarBg = this.add.rectangle(rightX - 260, p2Y + 14, 200, 20, 0x333333)
-      p2HealthBarBg.setOrigin(0, 0.5)
-      p2HealthBarBg.setScrollFactor(0)
-      p2HealthBarBg.setDepth(100)
-      p2HealthBarBg.setName('p2HealthBarBg')
-
-      const p2HealthBarFill = this.add.rectangle(rightX - 260, p2Y + 14, 200, 20, 0x00ffff)
-      p2HealthBarFill.setOrigin(0, 0.5)
-      p2HealthBarFill.setScrollFactor(0)
-      p2HealthBarFill.setDepth(101)
-      p2HealthBarFill.setName('p2HealthBarFill')
-
-      const p2LivesText = this.add.text(rightX - 50, p2Y + 14, `x${this.playerLives}`, {
-        fontSize: '24px',
-        color: '#ffffff',
-        fontStyle: 'bold',
-        stroke: '#000000',
-        strokeThickness: 4
-      })
-      p2LivesText.setOrigin(0, 0.5)
-      p2LivesText.setScrollFactor(0)
-      p2LivesText.setDepth(100)
-      p2LivesText.setName('p2LivesText')
-
-      // Store references for player 2
-      this.player2.setData('healthBarFill', p2HealthBarFill)
-      this.player2.setData('livesText', p2LivesText)
-      this.player2.setData('health', 100)
-      this.player2.setData('lives', 3)
-      this.player2.setData('coins', 0)
-      this.player2.setData('score', 0)
-
-      this.healthBarBackground = p1HealthBarBg
-
-      // Add separate score/coin displays for co-op mode below health bars
-      const scoreY = p2Y + 50
-
-      // Player 1 Score/Coins
-      const p1ScoreText = this.add.text(rightX - 310, scoreY, 'Score: 0', {
-        fontSize: '18px',
-        color: '#00ff00',
-        fontStyle: 'bold',
-        stroke: '#000000',
-        strokeThickness: 3
-      })
-      p1ScoreText.setScrollFactor(0)
-      p1ScoreText.setDepth(100)
-      p1ScoreText.setName('p1ScoreText')
-
-      const p1CoinIcon = this.add.text(rightX - 180, scoreY, '🪙', {
-        fontSize: '18px'
-      })
-      p1CoinIcon.setScrollFactor(0)
-      p1CoinIcon.setDepth(100)
-
-      const p1CoinText = this.add.text(rightX - 160, scoreY, '0', {
-        fontSize: '18px',
-        color: '#ffff00',
-        fontStyle: 'bold',
-        stroke: '#000000',
-        strokeThickness: 3
-      })
-      p1CoinText.setScrollFactor(0)
-      p1CoinText.setDepth(100)
-      p1CoinText.setName('p1CoinText')
-
-      // Player 2 Score/Coins
-      const p2ScoreTextObj = this.add.text(rightX - 310, scoreY + 25, 'Score: 0', {
-        fontSize: '18px',
-        color: '#00ffff',
-        fontStyle: 'bold',
-        stroke: '#000000',
-        strokeThickness: 3
-      })
-      p2ScoreTextObj.setScrollFactor(0)
-      p2ScoreTextObj.setDepth(100)
-      p2ScoreTextObj.setName('p2ScoreText')
-
-      const p2CoinIcon = this.add.text(rightX - 180, scoreY + 25, '🪙', {
-        fontSize: '18px'
-      })
-      p2CoinIcon.setScrollFactor(0)
-      p2CoinIcon.setDepth(100)
-
-      const p2CoinText = this.add.text(rightX - 160, scoreY + 25, '0', {
-        fontSize: '18px',
-        color: '#ffff00',
-        fontStyle: 'bold',
-        stroke: '#000000',
-        strokeThickness: 3
-      })
-      p2CoinText.setScrollFactor(0)
-      p2CoinText.setDepth(100)
-      p2CoinText.setName('p2CoinText')
-    } else {
-      // Single player mode: Original UI at top-right
-      const startX = this.cameras.main.width - 20
-      const startY = 20
-
-      // Top-right: Lives and Health - show player name in online mode
-      this.livesText = this.add.text(startX, startY, this.getLivesText(), {
-        fontSize: '24px',
-        color: '#ffffff',
-        fontStyle: 'bold',
-        stroke: '#000000',
-        strokeThickness: 4
-      })
-      this.livesText.setOrigin(1, 0)
-      this.livesText.setScrollFactor(0)
-
-      // Create health bar (below lives)
-      const healthBarWidth = 200
-      const healthBarHeight = 20
-      const healthBarY = startY + 35
-
-      // Background (empty state)
-      this.healthBarBackground = this.add.rectangle(
-        startX - healthBarWidth,
-        healthBarY,
-        healthBarWidth,
-        healthBarHeight,
-        0x333333
-      )
-      this.healthBarBackground.setOrigin(0, 0)
-      this.healthBarBackground.setScrollFactor(0)
-
-      // Fill (shows current health)
-      this.healthBarFill = this.add.rectangle(
-        startX - healthBarWidth,
-        healthBarY,
-        healthBarWidth,
-        healthBarHeight,
-        0x00ff00
-      )
-      this.healthBarFill.setOrigin(0, 0)
-      this.healthBarFill.setScrollFactor(0)
-
-      // Create reload bar below health bar (single player only)
-      const reloadBarY = healthBarY + healthBarHeight + 10
-      const reloadBarWidth = 60
-      const reloadBarHeight = 12
-
-      this.reloadBarBackground = this.add.rectangle(
-        startX - reloadBarWidth,
-        reloadBarY,
-        reloadBarWidth,
-        reloadBarHeight,
-        0x333333
-      )
-      this.reloadBarBackground.setScrollFactor(0)
-      this.reloadBarBackground.setOrigin(0, 0)
-
-      this.reloadBarFill = this.add.rectangle(
-        startX - reloadBarWidth,
-        reloadBarY,
-        0,
-        reloadBarHeight,
-        0x00aaff
-      )
-      this.reloadBarFill.setScrollFactor(0)
-      this.reloadBarFill.setOrigin(0, 0)
-    }
-
-    // Reload bars for co-op mode (optional - can be added later if needed)
-    if (this.isCoopMode) {
-      // For now, skip reload bars in co-op to keep UI clean
-      this.reloadBarBackground = this.add.rectangle(0, 0, 0, 0, 0x000000)
-      this.reloadBarBackground.setVisible(false)
-      this.reloadBarFill = this.add.rectangle(0, 0, 0, 0, 0x000000)
-      this.reloadBarFill.setVisible(false)
-    }
-
-    // Top-left: Coins and Score (compact)
-    this.coinIcon = this.add.image(25, 20, 'coin')
-    this.coinIcon.setScrollFactor(0)
-    this.coinIcon.setScale(0.35)
-
-    this.coinText = this.add.text(50, 12, `${this.coinCount}`, {
-      fontSize: '24px',
-      color: '#FFD700',
-      fontStyle: 'bold',
-      stroke: '#000000',
-      strokeThickness: 3
-    })
-    this.coinText.setScrollFactor(0)
-
-    this.scoreText = this.add.text(20, 40, `Score: ${this.score}`, {
-      fontSize: '22px',
-      color: '#00ff00',
-      fontStyle: 'bold',
-      stroke: '#000000',
-      strokeThickness: 3
-    })
-    this.scoreText.setScrollFactor(0)
-
-    // High score (compact, below score)
-    this.highScore = parseInt(localStorage.getItem('jumpjump_highscore') || '0')
-    this.highScoreText = this.add.text(20, 65, `Best: ${this.highScore}`, {
-      fontSize: '18px',
-      color: '#ffaa00',
-      fontStyle: 'bold',
-      stroke: '#000000',
-      strokeThickness: 2
-    })
-    this.highScoreText.setScrollFactor(0)
-
-    // Save Button (Single Player Levels Mode Only)
-    if (!this.isCoopMode && !this.isOnlineMode && this.gameMode === 'levels') {
-      const saveBtn = this.add.text(20, 95, '💾 SAVE & QUIT', {
-        fontSize: '16px',
-        color: '#ffffff',
-        backgroundColor: '#008800',
-        padding: { x: 8, y: 4 }
-      })
-      saveBtn.setScrollFactor(0)
-      saveBtn.setDepth(100)
-      saveBtn.setInteractive({ useHandCursor: true })
-      saveBtn.on('pointerover', () => saveBtn.setBackgroundColor('#00aa00'))
-      saveBtn.on('pointerout', () => saveBtn.setBackgroundColor('#008800'))
-      saveBtn.on('pointerdown', () => {
-        // Force save to localStorage before quitting
-        localStorage.setItem('playerCoins', this.coinCount.toString())
-        
-        this.saveGame()
-        this.submitScoreToBackend()
-        this.time.delayedCall(1500, () => {
-           this.scene.start('MenuScene')
-        })
-      })
-    }
-
-    // Level display
-    const levelDisplayText = this.gameMode === 'endless' ? 'ENDLESS MODE' : `LEVEL ${this.currentLevel}`
-    this.levelText = this.add.text(640, 20, levelDisplayText, {
-      fontSize: '28px',
-      color: '#00ffff',
-      fontStyle: 'bold',
-      stroke: '#000000',
-      strokeThickness: 4
-    })
-    this.levelText.setOrigin(0.5, 0)
-    this.levelText.setScrollFactor(0)
-    this.levelText.setDepth(100)
-
-    // AI status indicator (top center, below level)
-    this.aiStatusText = this.add.text(640, 55, '', {
-      fontSize: '18px',
-      color: '#ff00ff',
-      fontStyle: 'bold',
-      stroke: '#000000',
-      strokeThickness: 3
-    })
-    this.aiStatusText.setOrigin(0.5, 0)
-    this.aiStatusText.setScrollFactor(0)
-    this.aiStatusText.setDepth(100)
-    this.aiStatusText.setVisible(false)
-
-    // Create home button (bottom-left corner) - prominent red circle
-    const homeButtonX = 60
-    const homeButtonY = 660
-
-    // Create a red circle button (always use circle, ignore icon)
-    const homeButton = this.add.circle(homeButtonX, homeButtonY, 35, 0xff0000, 0.8)
-    homeButton.setStrokeStyle(3, 0xffffff)
-    homeButton.setDepth(1000) // High depth to be visible
-    homeButton.setScrollFactor(0)
-    homeButton.setInteractive({ useHandCursor: true })
-
-    // Add HOME text inside circle
-    const homeText = this.add.text(homeButtonX, homeButtonY, 'HOME', {
-      fontSize: '16px',
-      color: '#ffffff',
-      fontStyle: 'bold'
-    })
-    homeText.setOrigin(0.5)
-    homeText.setScrollFactor(0)
-    homeText.setDepth(1001)
-
-    homeButton.on('pointerover', () => {
-      homeButton.setFillStyle(0xff3333, 1)
-      homeButton.setScale(1.1)
-      homeText.setScale(1.1)
-    })
-    homeButton.on('pointerout', () => {
-      homeButton.setFillStyle(0xff0000, 0.8)
-      homeButton.setScale(1)
-      homeText.setScale(1)
-    })
-    homeButton.on('pointerdown', () => {
-      this.showQuitConfirmation()
-    })
-
-    // Create particle emitters
+  private createParticleEmitters() {
     this.jumpParticles = this.add.particles(0, 0, 'particle', {
       speed: { min: 50, max: 150 },
       angle: { min: 60, max: 120 },
@@ -1825,11 +1477,6 @@ export default class GameScene extends Phaser.Scene {
       tint: 0xFFD700
     })
     this.coinParticles.stop()
-
-    // Initialize DQN agent if in training mode
-    if (this.dqnTraining) {
-      this.initializeDQNAgent()
-    }
   }
 
   private spawnCoins() {
@@ -2434,7 +2081,7 @@ export default class GameScene extends Phaser.Scene {
           try {
             localStorage.setItem('dqn-demonstrations', JSON.stringify(compressedDemos))
             console.log(`💾 Saved ${demosToSave.length} demonstrations to localStorage`)
-            this.showTip('recording_saved', `✅ Saved ${demosToSave.length} demonstrations! Press I to import into DQN.`)
+            this.uiManager.showTip('recording_saved', `✅ Saved ${demosToSave.length} demonstrations! Press I to import into DQN.`)
           } catch (e) {
             console.warn('localStorage quota exceeded, importing directly to DQN...')
             // Direct import instead of saving
@@ -2587,7 +2234,7 @@ export default class GameScene extends Phaser.Scene {
     const savedData = localStorage.getItem('dqn-demonstrations')
     if (!savedData) {
       console.log('❌ No saved demonstrations found. Press T to record gameplay first.')
-      this.showTip('no_demos', '❌ No saved demonstrations! Press T to record your gameplay first.')
+      this.uiManager.showTip('no_demos', '❌ No saved demonstrations! Press T to record your gameplay first.')
       return
     }
     
@@ -2606,7 +2253,7 @@ export default class GameScene extends Phaser.Scene {
       
       const importedCount = await this.dqnAgent.importDemonstrations(demonstrations)
       
-      this.showTip('demos_imported', `✅ Imported ${importedCount} demonstrations! DQN is learning from your gameplay.`)
+      this.uiManager.showTip('demos_imported', `✅ Imported ${importedCount} demonstrations! DQN is learning from your gameplay.`)
       
       // Optionally save the model
       await this.dqnAgent.saveModel()
@@ -2614,7 +2261,7 @@ export default class GameScene extends Phaser.Scene {
       
     } catch (error) {
       console.error('❌ Error importing demonstrations:', error)
-      this.showTip('import_error', '❌ Error importing demonstrations. Check console for details.')
+      this.uiManager.showTip('import_error', '❌ Error importing demonstrations. Check console for details.')
     }
   }
 
@@ -2642,23 +2289,15 @@ export default class GameScene extends Phaser.Scene {
       _player.setData('coins', p2Coins)
       _player.setData('score', p2Score)
 
-      // Update Player 2's UI (if exists)
-      const p2CoinText = this.children.getByName('p2CoinText') as Phaser.GameObjects.Text
-      const p2ScoreText = this.children.getByName('p2ScoreText') as Phaser.GameObjects.Text
-      if (p2CoinText) p2CoinText.setText(p2Coins.toString())
-      if (p2ScoreText) p2ScoreText.setText(`Score: ${p2Score}`)
+      // Update Player 2's UI
+      this.uiManager.updatePlayer2Coins(p2Coins)
+      this.uiManager.updatePlayer2Score(p2Score)
     } else {
       // Local player collected coin (single player, online mode, or player 1 in local co-op)
       this.coinCount++
-      this.updateScore(10)
-
-      // Update coin text (handle both single player and co-op)
-      if (this.isCoopMode) {
-        const p1CoinText = this.children.getByName('p1CoinText') as Phaser.GameObjects.Text
-        if (p1CoinText) p1CoinText.setText(this.coinCount.toString())
-      } else if (this.coinText) {
-        this.coinText.setText(this.coinCount.toString())
-      }
+      this.score += 10
+      this.uiManager.updateScore(this.score)
+      this.uiManager.updateCoins(this.coinCount)
     }
 
     // Save total coins to localStorage (combined for shop access)
@@ -2667,7 +2306,7 @@ export default class GameScene extends Phaser.Scene {
 
     // Show shop tip when player reaches 50 coins for the first time
     if (this.coinCount === 50) {
-      this.showTip('shop', 'You have 50 coins! Visit the Shop from the menu to buy weapons and skins!')
+      this.uiManager.showTip('shop', 'You have 50 coins! Visit the Shop from the menu to buy weapons and skins!')
     }
 
     // Play coin sound
@@ -2675,15 +2314,6 @@ export default class GameScene extends Phaser.Scene {
 
     // Play collection particle effect
     this.coinParticles.emitParticleAt(coin.x, coin.y)
-
-    // Scale animation on coin icon
-    this.tweens.add({
-      targets: this.coinIcon,
-      scale: 0.6,
-      duration: 100,
-      yoyo: true,
-      ease: 'Cubic.easeOut'
-    })
   }
 
   private spawnPowerUps() {
@@ -2765,7 +2395,7 @@ export default class GameScene extends Phaser.Scene {
 
     // Show tip on first power-up
     if (this.shownTips.size < 5) {
-      this.showTip('powerups', 'Power-ups: Yellow=Speed, Blue=Shield, Green=Life, Heart=Health')
+      this.uiManager.showTip('powerups', 'Power-ups: Yellow=Speed, Blue=Shield, Green=Life, Heart=Health')
     }
 
     // Apply power-up effect
@@ -2838,15 +2468,9 @@ export default class GameScene extends Phaser.Scene {
       this.playerHealth = Math.min(100, this.playerHealth + healthRestored)
 
       // Update health bar width
-      const healthPercent = this.playerHealth / 100
-      const maxWidth = 200
-      this.healthBarFill.width = maxWidth * healthPercent
+      this.uiManager.updateHealthBar(this.playerHealth, 100)
 
-      // Flash health bar white then back to green
-      this.healthBarFill.setFillStyle(0xffffff)
-      this.time.delayedCall(100, () => {
-        this.healthBarFill.setFillStyle(0x00ff00)
-      })
+
 
       // Show notification
       const text = this.add.text(this.player.x, this.player.y - 50, `+${healthRestored} HEALTH!`, {
@@ -2867,7 +2491,7 @@ export default class GameScene extends Phaser.Scene {
       this.playerLives++
 
       // Update lives display
-      this.livesText.setText(this.getLivesText())
+      this.uiManager.updateLives()
 
       // Sync lives with online player manager
       if (this.isOnlineMode && this.onlinePlayerManager) {
@@ -2891,64 +2515,7 @@ export default class GameScene extends Phaser.Scene {
     }
   }
 
-  private showTip(tipId: string, message: string) {
-    // Only show each tip once
-    if (this.shownTips.has(tipId)) return
-    this.shownTips.add(tipId)
 
-    // Create tip banner at top of screen
-    const banner = this.add.rectangle(640, 100, 700, 80, 0x000000, 0.8)
-    banner.setScrollFactor(0)
-    banner.setDepth(200)
-    banner.setStrokeStyle(2, 0xffff00)
-
-    const tipText = this.add.text(640, 85, '💡 TIP', {
-      fontSize: '18px',
-      color: '#ffff00',
-      fontStyle: 'bold'
-    })
-    tipText.setOrigin(0.5)
-    tipText.setScrollFactor(0)
-    tipText.setDepth(201)
-
-    const messageText = this.add.text(640, 115, message, {
-      fontSize: '16px',
-      color: '#ffffff',
-      align: 'center',
-      wordWrap: { width: 650 }
-    })
-    messageText.setOrigin(0.5)
-    messageText.setScrollFactor(0)
-    messageText.setDepth(201)
-
-    // Slide in animation
-    banner.setY(50)
-    tipText.setY(35)
-    messageText.setY(65)
-
-    this.tweens.add({
-      targets: [banner, tipText, messageText],
-      y: '+=50',
-      duration: 300,
-      ease: 'Back.easeOut'
-    })
-
-    // Auto-dismiss after 5 seconds
-    this.time.delayedCall(5000, () => {
-      this.tweens.add({
-        targets: [banner, tipText, messageText],
-        y: '-=50',
-        alpha: 0,
-        duration: 300,
-        ease: 'Cubic.easeIn',
-        onComplete: () => {
-          banner.destroy()
-          tipText.destroy()
-          messageText.destroy()
-        }
-      })
-    })
-  }
 
   private dropCoins(x: number, y: number, count: number) {
     // In online mode, only host spawns dropped coins - non-host receives via network
@@ -3321,7 +2888,7 @@ export default class GameScene extends Phaser.Scene {
     const bossY = 350 // Higher position to hover above ground
 
     // Show boss warning tip
-    this.showTip('boss', '⚠️ BOSS FIGHT! Shoot the boss to defeat it and earn 100 coins!')
+    this.uiManager.showTip('boss', '⚠️ BOSS FIGHT! Shoot the boss to defeat it and earn 100 coins!')
 
     // Play boss spawn sound
     this.audioManager.playBossSound()
@@ -3376,26 +2943,10 @@ export default class GameScene extends Phaser.Scene {
     this.boss.setData('phase', 1)
     this.boss.setData('bossIndex', bossIndex) // Store boss index for defeat tracking
 
-    // Create boss health bar (moved down to avoid level text overlap)
-    this.bossHealthBarBg = this.add.rectangle(640, 80, 500, 30, 0x000000, 0.7)
-    this.bossHealthBarBg.setScrollFactor(0)
-    this.bossHealthBarBg.setDepth(999)
 
-    this.bossHealthBar = this.add.rectangle(640, 80, 500, 30, 0xff0000, 1)
-    this.bossHealthBar.setScrollFactor(0)
-    this.bossHealthBar.setDepth(1000)
 
     // Display boss name from backend
-    this.bossNameText = this.add.text(640, 80, bossName, {
-      fontSize: '20px',
-      color: '#ffffff',
-      fontStyle: 'bold',
-      stroke: '#000000',
-      strokeThickness: 3
-    })
-    this.bossNameText.setOrigin(0.5)
-    this.bossNameText.setScrollFactor(0)
-    this.bossNameText.setDepth(1001)
+    this.uiManager.showBossName(bossName)
 
     // Add collision with player bullets
     this.physics.add.overlap(this.bullets, this.boss, this.handleBulletBossCollision as any, undefined, this)
@@ -3415,14 +2966,7 @@ export default class GameScene extends Phaser.Scene {
     const bossMaxHealth = this.boss.getData('maxHealth')
 
     // Update health bar
-    if (this.bossHealthBar) {
-      const healthPercent = bossHealth / bossMaxHealth
-      const newWidth = 500 * healthPercent
-      this.bossHealthBar.setSize(newWidth, 30)
-      // Adjust position to keep it left-aligned
-      this.bossHealthBar.x = 640 - (500 - newWidth) / 2
-      console.log('Boss health updated:', bossHealth, '/', bossMaxHealth, 'Bar width:', newWidth)
-    }
+    this.uiManager.updateBossHealthBar(bossHealth, bossMaxHealth)
 
     // Boss AI - hovers and follows player horizontally
     const lastAttack = this.boss.getData('lastAttack')
@@ -3677,7 +3221,7 @@ export default class GameScene extends Phaser.Scene {
           let scoreReward = 50
           if (enemySize === 'medium') scoreReward = 100
           if (enemySize === 'large') scoreReward = 200
-          this.updateScore(scoreReward)
+          this.uiManager.updateScore(scoreReward)
           this.enemiesDefeated++
           enemySprite.destroy()
         }
@@ -3709,7 +3253,7 @@ export default class GameScene extends Phaser.Scene {
     this.dropCoins(this.boss.x, this.boss.y, coinReward)
 
     // Award huge score bonus for defeating boss
-    this.updateScore(1000)
+    this.uiManager.updateScore(1000)
 
     // Check for final boss (Index 21)
     if (bossIndex === 21) {
@@ -3733,18 +3277,7 @@ export default class GameScene extends Phaser.Scene {
     })
 
     // Remove health bar
-    if (this.bossHealthBar) {
-      this.bossHealthBar.destroy()
-      this.bossHealthBar = null
-    }
-    if (this.bossHealthBarBg) {
-      this.bossHealthBarBg.destroy()
-      this.bossHealthBarBg = null
-    }
-    if (this.bossNameText) {
-      this.bossNameText.destroy()
-      this.bossNameText = null
-    }
+    this.uiManager.hideBossHealthBar()
 
     // Victory message
     const victoryText = this.add.text(640, 300, 'BOSS DEFEATED!\\n+100 Coins', {
@@ -3964,19 +3497,19 @@ export default class GameScene extends Phaser.Scene {
     if (this.isOnlineMode && this.onlinePlayerManager) {
       // Only host can issue authoritative assists
       if (!this.isOnlineHost) {
-        this.showTip('assist_denied', 'Only the host can assist a remote partner')
+        this.uiManager.showTip('assist_denied', 'Only the host can assist a remote partner')
         return
       }
 
       const remote = this.onlinePlayerManager.getRemotePlayer()
       if (!remote || !remote.sprite) {
-        this.showTip('assist_no_partner', 'No partner to assist')
+        this.uiManager.showTip('assist_no_partner', 'No partner to assist')
         return
       }
 
       const gap = this.player.x - remote.sprite.x
       if (gap < 180) {
-        this.showTip('assist_unnecessary', 'Partner is not far behind')
+        this.uiManager.showTip('assist_unnecessary', 'Partner is not far behind')
         return
       }
 
@@ -3993,7 +3526,7 @@ export default class GameScene extends Phaser.Scene {
 
       // Apply local visual nudge so host feels immediate effect
       remote.sprite.setPosition(newX, newY)
-      this.showTip('assist_done', 'Partner pulled forward!')
+      this.uiManager.showTip('assist_done', 'Partner pulled forward!')
       return
     }
 
@@ -4001,7 +3534,7 @@ export default class GameScene extends Phaser.Scene {
     if (this.player2 && this.isCoopMode) {
       const gap = this.player.x - this.player2.x
       if (gap < 120) {
-        this.showTip('assist_unnecessary', 'Partner is not far behind')
+        this.uiManager.showTip('assist_unnecessary', 'Partner is not far behind')
         return
       }
 
@@ -4011,7 +3544,7 @@ export default class GameScene extends Phaser.Scene {
       const body = this.player2.body as Phaser.Physics.Arcade.Body
       if (body) body.setVelocity(120, -120)
 
-      this.showTip('assist_done', 'Partner pulled forward!')
+      this.uiManager.showTip('assist_done', 'Partner pulled forward!')
     }
   }
 
@@ -4044,174 +3577,11 @@ export default class GameScene extends Phaser.Scene {
         return
       }
 
-      this.showLevelComplete()
+      this.uiManager.showLevelComplete(this.currentLevel, this.score, this.coinCount)
     }
   }
 
-  private showLevelComplete() {
-    this.playerIsDead = true // Stop player movement
 
-    // Stop both players
-    this.player.setVelocity(0, 0)
-    if (this.isCoopMode && this.player2) {
-      this.player2.setVelocity(0, 0)
-    }
-
-    // Create completion screen
-    const bg = this.add.rectangle(640, 360, 1280, 720, 0x000000, 0.8)
-    bg.setScrollFactor(0)
-    bg.setDepth(1000)
-
-    const title = this.add.text(640, 200, 'LEVEL COMPLETE!', {
-      fontSize: '72px',
-      color: '#ffff00',
-      fontStyle: 'bold',
-      stroke: '#000000',
-      strokeThickness: 8
-    })
-    title.setOrigin(0.5)
-    title.setScrollFactor(0)
-    title.setDepth(1001)
-
-    const stats = this.add.text(640, 320,
-      `Coins Collected: ${this.coinCount}\nLives Remaining: ${this.playerLives}\n\nNext Level: ${this.currentLevel + 1}`, {
-      fontSize: '32px',
-      color: '#ffffff',
-      fontStyle: 'bold',
-      stroke: '#000000',
-      strokeThickness: 4,
-      align: 'center'
-    })
-    stats.setOrigin(0.5)
-    stats.setScrollFactor(0)
-    stats.setDepth(1001)
-
-    const nextText = this.add.text(640, 520, 'Press SPACE for Next Level\nPress E for Endless Mode', {
-      fontSize: '24px',
-      color: '#00ff00',
-      stroke: '#000000',
-      strokeThickness: 4,
-      align: 'center'
-    })
-    nextText.setOrigin(0.5)
-    nextText.setScrollFactor(0)
-    nextText.setDepth(1001)
-
-    // Blinking animation
-    this.tweens.add({
-      targets: nextText,
-      alpha: 0.3,
-      duration: 800,
-      yoyo: true,
-      repeat: -1
-    })
-
-    // Home button
-    const homeButton = this.add.text(640, 600, 'HOME', {
-      fontSize: '32px',
-      color: '#ffffff',
-      backgroundColor: '#0066cc',
-      padding: { x: 30, y: 15 },
-      stroke: '#000000',
-      strokeThickness: 4
-    })
-    homeButton.setOrigin(0.5)
-    homeButton.setScrollFactor(0)
-    homeButton.setDepth(1001)
-    homeButton.setInteractive({ useHandCursor: true })
-
-    homeButton.on('pointerover', () => {
-      homeButton.setStyle({ backgroundColor: '#0088ff' })
-    })
-
-    homeButton.on('pointerout', () => {
-      homeButton.setStyle({ backgroundColor: '#0066cc' })
-    })
-
-    homeButton.on('pointerdown', () => {
-      this.tweens.killAll()
-      this.scene.start('MenuScene')
-    })
-
-    // Auto-progress for DQN training mode
-    if (this.dqnTraining) {
-      this.time.delayedCall(500, () => {
-        this.tweens.killAll()
-        const nextLevelData: any = { 
-          gameMode: 'levels', 
-          level: this.currentLevel + 1,
-          lives: this.playerLives,
-          score: this.score,
-          dqnTraining: true
-        }
-        this.scene.restart(nextLevelData)
-      })
-      return // Skip manual input handlers for DQN mode
-    }
-
-    // Input handlers
-    this.input.keyboard!.once('keydown-SPACE', () => {
-      this.tweens.killAll()
-      const nextLevelData: any = { 
-        gameMode: 'levels', 
-        level: this.currentLevel + 1,
-        lives: this.playerLives,
-        score: this.score,
-        isRecording: this.isRecordingForDQN
-      }
-      if (this.isCoopMode) {
-        nextLevelData.mode = 'coop'
-      }
-      if (this.dqnTraining) {
-        nextLevelData.dqnTraining = true
-      }
-      this.scene.restart(nextLevelData)
-    })
-
-    this.input.keyboard!.once('keydown-E', () => {
-      this.tweens.killAll()
-      const endlessData: any = { gameMode: 'endless', level: 1 }
-      if (this.isCoopMode) {
-        endlessData.mode = 'coop'
-      }
-      this.scene.restart(endlessData)
-    })
-
-    this.input.keyboard!.once('keydown-M', () => {
-      this.tweens.killAll()
-      this.scene.start('MenuScene')
-    })
-
-    // Gamepad support for level progression (co-op mode)
-    if (this.isCoopMode) {
-      const checkGamepadProgress = () => {
-        const gamepads = this.input.gamepad?.gamepads || []
-        for (const gamepad of gamepads) {
-          if (gamepad.A) {
-            this.tweens.killAll()
-            const nextLevelData: any = { 
-              gameMode: 'levels', 
-              level: this.currentLevel + 1, 
-              mode: 'coop',
-              lives: this.playerLives,
-              score: this.score,
-              isRecording: this.isRecordingForDQN
-            }
-            if (this.dqnTraining) {
-              nextLevelData.dqnTraining = true
-            }
-            this.scene.restart(nextLevelData)
-            return
-          }
-        }
-        // Check again next frame if level complete screen is still showing
-        if (this.levelCompleteShown) {
-          this.time.delayedCall(100, checkGamepadProgress)
-        }
-      }
-      this.time.delayedCall(100, checkGamepadProgress)
-    }
-  }
 
   update() {
     // DQN Training: Handle keyboard controls and training loop
@@ -4233,7 +3603,7 @@ export default class GameScene extends Phaser.Scene {
       // Check if both players are out of lives (game over condition)
       if (this.onlinePlayerManager.areBothPlayersOutOfLives() && !this.playerIsDead) {
         this.playerIsDead = true // Prevent multiple triggers
-        this.showOnlineGameOver()
+        this.uiManager.showOnlineGameOver(this.score, this.coinCount, this.enemiesDefeated, Math.floor(this.player.x / 70))
         return
       }
     }
@@ -4383,97 +3753,57 @@ export default class GameScene extends Phaser.Scene {
     }
 
     // Update UI
-    this.updateUI()
-
-    // Update debug UI
-    if (this.debugMode) {
-      this.updateDebugUI()
-    }
-  }
-
-  private updateUI() {
-    // Award 1 point per meter traveled (throttled to avoid spam)
+    // Score based on distance
     const currentMeter = Math.floor(this.player.x / 100)
     const lastMeter = Math.floor((this.player.x - (this.player.body as Phaser.Physics.Arcade.Body).velocity.x * 0.016) / 100)
     if (currentMeter > lastMeter) {
-      this.updateScore(1) // 1 point per meter
+      this.uiManager.updateScore(1)
     }
 
-    // Update Player 1 health bar
-    const healthPercent = this.playerHealth / this.maxHealth
-    const healthBarMaxWidth = 200
-    this.healthBarFill.width = healthBarMaxWidth * healthPercent
-
-    // Change color based on health
-    if (healthPercent > 0.6) {
-      this.healthBarFill.setFillStyle(0x00ff00) // Green
-    } else if (healthPercent > 0.3) {
-      this.healthBarFill.setFillStyle(0xffaa00) // Orange
-    } else {
-      this.healthBarFill.setFillStyle(0xff0000) // Red
-    }
-
-    // Update lives text
-    if (this.isCoopMode) {
-      this.livesText.setText(`x${this.playerLives}`)
-    } else {
-      this.livesText.setText(this.getLivesText())
-    }
-
-    // Update Player 2 health bar in co-op mode
+    // Health & Lives
+    this.uiManager.updateHealthBar(this.playerHealth, this.maxHealth)
+    this.uiManager.updateLives()
+    
     if (this.isCoopMode && this.player2) {
       const p2Health = this.player2.getData('health') || 100
-      const p2HealthPercent = p2Health / 100
-      const p2HealthBarFill = this.player2.getData('healthBarFill') as Phaser.GameObjects.Rectangle
-      const p2LivesText = this.player2.getData('livesText') as Phaser.GameObjects.Text
-
-      if (p2HealthBarFill) {
-        p2HealthBarFill.width = healthBarMaxWidth * p2HealthPercent
-
-        // Change color based on health
-        if (p2HealthPercent > 0.6) {
-          p2HealthBarFill.setFillStyle(0x00ffff) // Cyan
-        } else if (p2HealthPercent > 0.3) {
-          p2HealthBarFill.setFillStyle(0xffaa00) // Orange
-        } else {
-          p2HealthBarFill.setFillStyle(0xff0000) // Red
-        }
-      }
-
-      if (p2LivesText) {
-        const p2Lives = this.player2.getData('lives') || 3
-        p2LivesText.setText(`x${p2Lives}`)
-      }
+      this.uiManager.updatePlayer2Health(p2Health, 100)
+      
+      const p2Lives = this.player2.getData('lives') || 3
+      this.uiManager.updatePlayer2Lives(p2Lives)
     }
 
-    // Update reload bar
+    // Boss Health
+    if (this.bossActive && this.boss && this.boss.active) {
+      this.uiManager.updateBossHealthBar(this.boss.getData('health'), this.boss.getData('maxHealth'))
+    } else {
+      this.uiManager.hideBossHealthBar()
+    }
+
+    // Reload Bar
     const currentTime = this.time.now
     const timeSinceLastShot = currentTime - this.lastShotTime
-
-    // Get weapon-specific cooldown
-    let shootCooldown = 1000 // Default raygun
-    if (this.equippedWeapon === 'laserGun') {
-      shootCooldown = 300
-    } else if (this.equippedWeapon === 'sword') {
-      shootCooldown = 500
-    } else if (this.equippedWeapon === 'bazooka') {
-      shootCooldown = 2000 // Slow but powerful
-    }
-
-    // Calculate reload progress (0 to 1)
+    let shootCooldown = 1000
+    if (this.equippedWeapon === 'laserGun') shootCooldown = 300
+    else if (this.equippedWeapon === 'sword') shootCooldown = 500
+    else if (this.equippedWeapon === 'bazooka') shootCooldown = 2000
+    
     const reloadProgress = Math.min(timeSinceLastShot / shootCooldown, 1)
+    this.uiManager.updateReloadBar(reloadProgress)
 
-    // Update reload bar width
-    const reloadBarMaxWidth = 60
-    this.reloadBarFill.width = reloadBarMaxWidth * reloadProgress
+    // Update debug UI
+    if (this.debugMode) {
+      this.uiManager.updateDebugUI()
+    }
   }
+
+
 
   private handlePlayerMovement() {
     // Skip if player is dead
     if (this.playerIsDead) return
     
     // Skip if chat input is active (online mode)
-    if (this.chatInputActive) return
+    if (this.uiManager.chatInputActive) return
 
     let speed = 200
     const jumpVelocity = -500 // Higher jump due to microgravity
@@ -5025,7 +4355,7 @@ export default class GameScene extends Phaser.Scene {
       // Instantly kill enemy in debug mode
       const coinReward = enemySprite.getData('coinReward') || 10
       this.dropCoins(enemySprite.x, enemySprite.y, coinReward)
-      this.updateScore(100)
+      this.uiManager.updateScore(100)
       
       // Create death effect
       const enemyType = enemySprite.getData('enemyType') || 'alienGreen'
@@ -5322,7 +4652,7 @@ export default class GameScene extends Phaser.Scene {
               // Check if both players are out
               if (this.onlinePlayerManager.areBothPlayersOutOfLives()) {
                 // Both players dead - game over
-                this.showOnlineGameOver()
+                this.uiManager.showOnlineGameOver(this.score, this.coinCount, this.enemiesDefeated, Math.floor(this.player.x / 70))
               } else {
                 // Partner still alive - switch to spectator mode
                 this.enterSpectatorMode()
@@ -5336,7 +4666,7 @@ export default class GameScene extends Phaser.Scene {
 
           if (this.playerLives <= 0) {
             // Game Over
-            this.showGameOver()
+            this.uiManager.showGameOver(this.score, this.coinCount, this.enemiesDefeated, Math.floor(this.player.x / 70))
           } else {
             // Respawn with full health
             this.respawnPlayer()
@@ -5436,7 +4766,7 @@ export default class GameScene extends Phaser.Scene {
     })
 
     // Update lives display
-    this.livesText.setText(this.getLivesText())
+    this.uiManager.updateLives()
 
     // Flash camera white
     this.cameras.main.flash(500, 255, 255, 255)
@@ -5452,153 +4782,7 @@ export default class GameScene extends Phaser.Scene {
     }
   }
 
-  private showGameOver() {
-    console.log('🎮🎮🎮 GAME OVER TRIGGERED 🎮🎮🎮')
-    console.log('Current Score:', this.score)
-    console.log('Current Coins:', this.coinCount)
-    console.log('Enemies Defeated:', this.enemiesDefeated)
 
-    this.physics.pause()
-
-    // Fade camera back in from black
-    this.cameras.main.fadeIn(500, 0, 0, 0)
-
-    // Submit score to backend (non-blocking)
-    this.submitScoreToBackend().catch(err => {
-      console.log('Score submission failed (backend may be offline):', err)
-    })
-
-    // Dark overlay background
-    const overlay = this.add.rectangle(640, 360, 1280, 720, 0x000000, 0.85)
-    overlay.setScrollFactor(0)
-    overlay.setDepth(2000)
-
-    // Game over panel
-    const panelWidth = 600
-    const panelHeight = 500
-    const panel = this.add.rectangle(640, 360, panelWidth, panelHeight, 0x1a1a2e)
-    panel.setStrokeStyle(4, 0xff0000)
-    panel.setScrollFactor(0)
-    panel.setDepth(2001)
-
-    // Game over title
-    const gameOverText = this.add.text(640, 150, 'GAME OVER', {
-      fontSize: '64px',
-      color: '#ff0000',
-      fontStyle: 'bold',
-      stroke: '#000000',
-      strokeThickness: 8
-    })
-    gameOverText.setOrigin(0.5)
-    gameOverText.setScrollFactor(0)
-    gameOverText.setDepth(2002)
-
-    // Stats
-    const statsText = this.add.text(640, 300,
-      `Level: ${this.currentLevel}\nScore: ${this.score}\nCoins: ${this.coinCount}\nEnemies: ${this.enemiesDefeated}\nDistance: ${Math.floor(this.player.x / 70)}m`, {
-      fontSize: '28px',
-      color: '#ffffff',
-      fontStyle: 'bold',
-      stroke: '#000000',
-      strokeThickness: 4,
-      align: 'center',
-      lineSpacing: 10
-    })
-    statsText.setOrigin(0.5)
-    statsText.setScrollFactor(0)
-    statsText.setDepth(2002)
-
-    // Restart Button
-    const restartBtn = this.add.rectangle(540, 480, 200, 60, 0x00aa00)
-    restartBtn.setStrokeStyle(3, 0x00ff00)
-    restartBtn.setScrollFactor(0)
-    restartBtn.setDepth(2002)
-    restartBtn.setInteractive({ useHandCursor: true })
-
-    const restartText = this.add.text(540, 480, 'RESTART', {
-      fontSize: '28px',
-      color: '#ffffff',
-      fontStyle: 'bold'
-    })
-    restartText.setOrigin(0.5)
-    restartText.setScrollFactor(0)
-    restartText.setDepth(2003)
-
-    // Home Button
-    const homeBtn = this.add.rectangle(740, 480, 200, 60, 0x0066cc)
-    homeBtn.setStrokeStyle(3, 0x0099ff)
-    homeBtn.setScrollFactor(0)
-    homeBtn.setDepth(2002)
-    homeBtn.setInteractive({ useHandCursor: true })
-
-    const homeText = this.add.text(740, 480, 'MENU', {
-      fontSize: '28px',
-      color: '#ffffff',
-      fontStyle: 'bold'
-    })
-    homeText.setOrigin(0.5)
-    homeText.setScrollFactor(0)
-    homeText.setDepth(2003)
-
-    // Button hover effects
-    restartBtn.on('pointerover', () => {
-      restartBtn.setFillStyle(0x00ff00)
-      restartBtn.setScale(1.05)
-    })
-    restartBtn.on('pointerout', () => {
-      restartBtn.setFillStyle(0x00aa00)
-      restartBtn.setScale(1)
-    })
-
-    homeBtn.on('pointerover', () => {
-      homeBtn.setFillStyle(0x0099ff)
-      homeBtn.setScale(1.05)
-    })
-    homeBtn.on('pointerout', () => {
-      homeBtn.setFillStyle(0x0066cc)
-      homeBtn.setScale(1)
-    })
-
-    // Button click handlers
-    restartBtn.on('pointerdown', () => {
-      this.tweens.killAll()
-      const restartData: any = { gameMode: this.gameMode, level: this.currentLevel }
-      if (this.isCoopMode) {
-        restartData.mode = 'coop'
-      }
-      this.scene.restart(restartData)
-    })
-
-    homeBtn.on('pointerdown', () => {
-      this.tweens.killAll()
-      this.scene.start('MenuScene')
-    })
-
-    // Keyboard shortcuts
-    this.input.keyboard!.once('keydown-SPACE', () => {
-      this.tweens.killAll()
-      const restartData: any = { gameMode: this.gameMode, level: this.currentLevel }
-      if (this.isCoopMode) {
-        restartData.mode = 'coop'
-      }
-      this.scene.restart(restartData)
-    })
-
-    this.input.keyboard!.once('keydown-M', () => {
-      this.tweens.killAll()
-      this.scene.start('MenuScene')
-    })
-
-    // Pulsing animation on title
-    this.tweens.add({
-      targets: gameOverText,
-      scale: 1.1,
-      duration: 1000,
-      yoyo: true,
-      repeat: -1,
-      ease: 'Sine.easeInOut'
-    })
-  }
 
   /**
    * Enter spectator mode when local player is out of lives but partner is still alive
@@ -5626,130 +4810,7 @@ export default class GameScene extends Phaser.Scene {
   /**
    * Show game over screen for online mode - only return to menu option
    */
-  private showOnlineGameOver(): void {
-    console.log('🎮🎮🎮 ONLINE GAME OVER - Both players out! 🎮🎮🎮')
-    
-    // Clean up online connection
-    if (this.onlinePlayerManager) {
-      this.onlinePlayerManager.removeSpectatingMessage()
-    }
-    
-    // Disconnect from online service
-    OnlineCoopService.getInstance().disconnect()
-    
-    this.physics.pause()
 
-    // Fade camera back in from black
-    this.cameras.main.fadeIn(500, 0, 0, 0)
-
-    // Submit score to backend (non-blocking)
-    this.submitScoreToBackend().catch(err => {
-      console.log('Score submission failed (backend may be offline):', err)
-    })
-
-    // Dark overlay background
-    const overlay = this.add.rectangle(640, 360, 1280, 720, 0x000000, 0.85)
-    overlay.setScrollFactor(0)
-    overlay.setDepth(2000)
-
-    // Game over panel
-    const panelWidth = 600
-    const panelHeight = 450
-    const panel = this.add.rectangle(640, 360, panelWidth, panelHeight, 0x1a1a2e)
-    panel.setStrokeStyle(4, 0xff0000)
-    panel.setScrollFactor(0)
-    panel.setDepth(2001)
-
-    // Game over title
-    const gameOverText = this.add.text(640, 150, 'GAME OVER', {
-      fontSize: '64px',
-      color: '#ff0000',
-      fontStyle: 'bold',
-      stroke: '#000000',
-      strokeThickness: 8
-    })
-    gameOverText.setOrigin(0.5)
-    gameOverText.setScrollFactor(0)
-    gameOverText.setDepth(2002)
-
-    // Online mode subtitle
-    const onlineText = this.add.text(640, 210, '🌐 Online Co-op', {
-      fontSize: '24px',
-      color: '#9900ff',
-      fontStyle: 'bold'
-    })
-    onlineText.setOrigin(0.5)
-    onlineText.setScrollFactor(0)
-    onlineText.setDepth(2002)
-
-    // Stats
-    const statsText = this.add.text(640, 320,
-      `Level: ${this.currentLevel}\nScore: ${this.score}\nCoins: ${this.coinCount}\nEnemies: ${this.enemiesDefeated}\nDistance: ${Math.floor(this.farthestPlayerX / 70)}m`, {
-      fontSize: '28px',
-      color: '#ffffff',
-      fontStyle: 'bold',
-      stroke: '#000000',
-      strokeThickness: 4,
-      align: 'center',
-      lineSpacing: 10
-    })
-    statsText.setOrigin(0.5)
-    statsText.setScrollFactor(0)
-    statsText.setDepth(2002)
-
-    // Menu Button (centered, only option for online mode)
-    const menuBtn = this.add.rectangle(640, 500, 250, 60, 0x0066cc)
-    menuBtn.setStrokeStyle(3, 0x0099ff)
-    menuBtn.setScrollFactor(0)
-    menuBtn.setDepth(2002)
-    menuBtn.setInteractive({ useHandCursor: true })
-
-    const menuText = this.add.text(640, 500, 'BACK TO MENU', {
-      fontSize: '28px',
-      color: '#ffffff',
-      fontStyle: 'bold'
-    })
-    menuText.setOrigin(0.5)
-    menuText.setScrollFactor(0)
-    menuText.setDepth(2003)
-
-    // Button hover effects
-    menuBtn.on('pointerover', () => {
-      menuBtn.setFillStyle(0x0099ff)
-      menuBtn.setScale(1.05)
-    })
-    menuBtn.on('pointerout', () => {
-      menuBtn.setFillStyle(0x0066cc)
-      menuBtn.setScale(1)
-    })
-
-    // Button click handler
-    menuBtn.on('pointerdown', () => {
-      this.tweens.killAll()
-      this.scene.start('MenuScene')
-    })
-
-    // Keyboard shortcut
-    this.input.keyboard!.once('keydown-M', () => {
-      this.tweens.killAll()
-      this.scene.start('MenuScene')
-    })
-    
-    this.input.keyboard!.once('keydown-SPACE', () => {
-      this.tweens.killAll()
-      this.scene.start('MenuScene')
-    })
-
-    // Pulsing animation on title
-    this.tweens.add({
-      targets: gameOverText,
-      scale: 1.1,
-      duration: 1000,
-      yoyo: true,
-      repeat: -1,
-      ease: 'Sine.easeInOut'
-    })
-  }
 
   private handlePlayer2Movement() {
     // Get gamepad 2
@@ -6101,7 +5162,7 @@ export default class GameScene extends Phaser.Scene {
               let scoreReward = 50 // small
               if (enemySize === 'medium') scoreReward = 100
               if (enemySize === 'large') scoreReward = 200
-              this.updateScore(scoreReward)
+              this.uiManager.updateScore(scoreReward)
 
             // If we're in online mode, report the kill to the server and avoid spawning local coins
             const enemyId = enemySprite.getData('enemyId')
@@ -6645,7 +5706,7 @@ export default class GameScene extends Phaser.Scene {
       let scoreReward = 50 // small
       if (enemySize === 'medium') scoreReward = 100
       if (enemySize === 'large') scoreReward = 200
-      this.updateScore(scoreReward)
+      this.uiManager.updateScore(scoreReward)
 
       // Death animation
       if (enemySprite.body) {
@@ -7250,7 +6311,7 @@ export default class GameScene extends Phaser.Scene {
     wormPinkG.destroy()
   }
 
-  private async submitScoreToBackend() {
+  public async submitScoreToBackend() {
     console.log('\n========================================')
     console.log('🎯 STARTING SCORE SUBMISSION')
     console.log('========================================')
@@ -7301,102 +6362,54 @@ export default class GameScene extends Phaser.Scene {
   }
 
   /**
+   * Save game state to localStorage and backend
+   */
+  public async saveGame() {
+    console.log('💾 Saving game state...')
+    
+    // Save coins
+    localStorage.setItem('playerCoins', this.coinCount.toString())
+    
+    // Save defeated boss levels
+    localStorage.setItem('defeatedBossLevels', JSON.stringify(Array.from(this.defeatedBossLevels)))
+    
+    // Save current level and score for potential resume
+    localStorage.setItem('savedLevel', this.currentLevel.toString())
+    localStorage.setItem('savedScore', this.score.toString())
+    localStorage.setItem('savedGameMode', this.gameMode)
+    
+    console.log('✅ Game saved to localStorage!')
+    console.log('  - Coins:', this.coinCount)
+    console.log('  - Level:', this.currentLevel)
+    console.log('  - Score:', this.score)
+    console.log('  - Game Mode:', this.gameMode)
+    console.log('  - Defeated Bosses:', Array.from(this.defeatedBossLevels))
+    
+    // Also save to backend API for cross-device persistence
+    try {
+      const playerName = localStorage.getItem('player_name') || 'Player'
+      await GameAPI.saveGame({
+        player_name: playerName,
+        level: this.currentLevel,
+        score: this.score,
+        lives: this.playerLives,
+        health: this.playerHealth,
+        coins: this.coinCount,
+        weapon: this.equippedWeapon
+      })
+      console.log('✅ Game saved to backend!')
+    } catch (error) {
+      console.error('❌ Failed to save to backend:', error)
+      console.log('Game was saved locally in localStorage')
+    }
+  }
+
+  /**
    * Get formatted lives text - includes player name in online mode
    */
-  private getLivesText(): string {
-    if (this.isOnlineMode) {
-      const onlineService = OnlineCoopService.getInstance()
-      const playerName = onlineService.playerName || 'Player'
-      return `${playerName} - Lives: ${this.playerLives}`
-    }
-    return `Lives: ${this.playerLives}`
-  }
 
-  private updateScore(points: number) {
-    this.score += points
 
-    // Update score text (handle both single player and co-op)
-    if (this.isCoopMode) {
-      const p1ScoreText = this.children.getByName('p1ScoreText') as Phaser.GameObjects.Text
-      if (p1ScoreText) p1ScoreText.setText(`Score: ${this.score}`)
-    } else {
-      this.scoreText.setText(`Score: ${this.score}`)
-    }
 
-    // Update high score
-    if (this.score > this.highScore) {
-      this.highScore = this.score
-      if (!this.isCoopMode && this.highScoreText) {
-        this.highScoreText.setText(`Best: ${this.highScore}`)
-      }
-      localStorage.setItem('jumpjump_highscore', this.highScore.toString())
-
-      // Flash effect when breaking high score
-      this.tweens.add({
-        targets: this.highScoreText,
-        scale: 1.15,
-        duration: 200,
-        yoyo: true,
-        ease: 'Quad.easeOut'
-      })
-    }
-  }
-
-  private createDebugUI() {
-    // Debug mode indicator
-    this.debugText = this.add.text(16, 120, 'DEBUG MODE [F3]', {
-      fontSize: '20px',
-      color: '#00ff00',
-      backgroundColor: '#000000',
-      padding: { x: 8, y: 4 }
-    })
-    this.debugText.setScrollFactor(0)
-    this.debugText.setDepth(10000)
-    this.debugText.setVisible(false)
-
-    // FPS counter
-    this.fpsText = this.add.text(16, 150, 'FPS: 60', {
-      fontSize: '16px',
-      color: '#00ff00',
-      backgroundColor: '#000000',
-      padding: { x: 8, y: 4 }
-    })
-    this.fpsText.setScrollFactor(0)
-    this.fpsText.setDepth(10000)
-    this.fpsText.setVisible(false)
-
-    // Coordinates
-    this.coordText = this.add.text(16, 180, 'X: 0, Y: 0', {
-      fontSize: '16px',
-      color: '#00ff00',
-      backgroundColor: '#000000',
-      padding: { x: 8, y: 4 }
-    })
-    this.coordText.setScrollFactor(0)
-    this.coordText.setDepth(10000)
-    this.coordText.setVisible(false)
-  }
-
-  private toggleDebugMode() {
-    this.debugMode = !this.debugMode
-    console.log('Debug mode toggled:', this.debugMode)
-
-    // Toggle debug graphics and text
-    if (this.debugMode) {
-      this.physics.world.createDebugGraphic()
-      this.debugText?.setVisible(true)
-      this.fpsText?.setVisible(true)
-      this.coordText?.setVisible(true)
-      console.log('Debug mode enabled - showing physics bodies and debug info')
-    } else {
-      this.physics.world.debugGraphic?.clear()
-      this.physics.world.debugGraphic?.destroy()
-      this.debugText?.setVisible(false)
-      this.fpsText?.setVisible(false)
-      this.coordText?.setVisible(false)
-      console.log('Debug mode disabled')
-    }
-  }
 
   private toggleAI() {
     this.aiEnabled = !this.aiEnabled
@@ -7404,12 +6417,11 @@ export default class GameScene extends Phaser.Scene {
     console.log('AI Player toggled:', this.aiEnabled ? 'ENABLED' : 'DISABLED')
 
     if (this.aiEnabled) {
-      this.aiStatusText?.setText('🤖 RULE-BASED AI (Press P to disable)')
-      this.aiStatusText?.setVisible(true)
-      this.showTip('ai', 'Rule-based AI is controlling the player! Press P to take back control.')
+      this.uiManager.updateAIStatus(true, 'rule')
+      this.uiManager.showTip('ai', 'Rule-based AI is controlling the player! Press P to take back control.')
     } else {
-      this.aiStatusText?.setVisible(false)
-      this.showTip('ai_off', 'You are now in control! Press P for AI, R to record, O for ML AI.')
+      this.uiManager.updateAIStatus(false)
+      this.uiManager.showTip('ai_off', 'You are now in control! Press P for AI, R to record, O for ML AI.')
     }
   }
 
@@ -7421,7 +6433,7 @@ export default class GameScene extends Phaser.Scene {
       console.log('📊 ML AI Status:', modelInfo)
 
       if (!this.mlAIPlayer.isModelTrained()) {
-        this.showTip('ml_no_model', '⚠️ No ML model! Press R to record gameplay, then train from menu.')
+        this.uiManager.showTip('ml_no_model', '⚠️ No ML model! Press R to record gameplay, then train from menu.')
         console.log('⚠️ Train ML model first! Record gameplay (R key) then train from menu.')
         console.log('Model status:', modelInfo)
         return
@@ -7429,7 +6441,7 @@ export default class GameScene extends Phaser.Scene {
 
       // Check if model was trained with enough data
       if (modelInfo.dataFrames < 100) {
-        this.showTip('ml_insufficient_data', `⚠️ Only ${modelInfo.dataFrames} frames! Need 100+ for reliable AI. Record more and retrain.`)
+        this.uiManager.showTip('ml_insufficient_data', `⚠️ Only ${modelInfo.dataFrames} frames! Need 100+ for reliable AI. Record more and retrain.`)
         console.log('⚠️ Insufficient training data:', modelInfo)
         return
       }
@@ -7449,16 +6461,15 @@ export default class GameScene extends Phaser.Scene {
       }
     } catch (error) {
       console.error('❌ Error toggling ML AI:', error)
-      this.showTip('ml_error', '❌ ML AI error - check console for details')
+      this.uiManager.showTip('ml_error', '❌ ML AI error - check console for details')
       return
     }
 
     if (this.mlAIEnabled) {
-      this.aiStatusText?.setText('🧠 ML AI PLAYING (Press O to disable)')
-      this.aiStatusText?.setVisible(true)
-      this.showTip('ml_ai', 'ML AI learned from YOUR gameplay! Press O to take back control.')
+      this.uiManager.updateAIStatus(true, 'ml')
+      this.uiManager.showTip('ml_ai', 'ML AI learned from YOUR gameplay! Press O to take back control.')
     } else {
-      this.aiStatusText?.setVisible(false)
+      this.uiManager.updateAIStatus(false)
     }
   }
 
@@ -7470,209 +6481,9 @@ export default class GameScene extends Phaser.Scene {
   }
 
   // In-game chat for online mode
-  private openInGameChat() {
-    if (!this.isOnlineMode || this.chatInputActive) return
-    
-    this.chatInputActive = true
-    
-    // Pause player controls while typing
-    // Create chat input container
-    const gameCanvas = this.game.canvas
-    const canvasRect = gameCanvas.getBoundingClientRect()
-    
-    this.chatContainer = document.createElement('div')
-    this.chatContainer.style.position = 'absolute'
-    this.chatContainer.style.left = `${canvasRect.left + 10}px`
-    this.chatContainer.style.bottom = `${window.innerHeight - canvasRect.bottom + 10}px`
-    this.chatContainer.style.zIndex = '1000'
-    this.chatContainer.style.display = 'flex'
-    this.chatContainer.style.alignItems = 'center'
-    this.chatContainer.style.gap = '8px'
-    
-    const label = document.createElement('span')
-    label.textContent = 'Chat:'
-    label.style.color = '#ffffff'
-    label.style.fontSize = '14px'
-    label.style.fontFamily = 'Arial, sans-serif'
-    label.style.textShadow = '1px 1px 2px #000'
-    
-    this.chatInputElement = document.createElement('input')
-    this.chatInputElement.type = 'text'
-    this.chatInputElement.placeholder = 'Type message...'
-    this.chatInputElement.maxLength = 100
-    this.chatInputElement.style.width = '250px'
-    this.chatInputElement.style.padding = '6px 10px'
-    this.chatInputElement.style.fontSize = '14px'
-    this.chatInputElement.style.fontFamily = 'Arial, sans-serif'
-    this.chatInputElement.style.border = '2px solid #4488ff'
-    this.chatInputElement.style.borderRadius = '4px'
-    this.chatInputElement.style.backgroundColor = 'rgba(0, 0, 0, 0.7)'
-    this.chatInputElement.style.color = '#ffffff'
-    this.chatInputElement.style.outline = 'none'
-    
-    this.chatContainer.appendChild(label)
-    this.chatContainer.appendChild(this.chatInputElement)
-    document.body.appendChild(this.chatContainer)
-    
-    // Focus the input
-    this.chatInputElement.focus()
-    
-    // Handle Enter to send, Escape to cancel
-    this.chatInputElement.addEventListener('keydown', (e: KeyboardEvent) => {
-      e.stopPropagation() // Prevent game from receiving key events
-      
-      if (e.key === 'Enter') {
-        const message = this.chatInputElement?.value.trim()
-        if (message && this.onlinePlayerManager) {
-          // Send chat message via online service
-          const onlineService = OnlineCoopService.getInstance()
-          onlineService.sendChat(message)
-        }
-        this.closeInGameChat()
-      } else if (e.key === 'Escape') {
-        this.closeInGameChat()
-      }
-    })
-    
-    // Close on blur (clicking outside)
-    this.chatInputElement.addEventListener('blur', () => {
-      // Small delay to allow Enter key to be processed first
-      setTimeout(() => {
-        if (this.chatInputActive) {
-          this.closeInGameChat()
-        }
-      }, 100)
-    })
-  }
-  
-  private closeInGameChat() {
-    this.chatInputActive = false
-    
-    if (this.chatContainer && this.chatContainer.parentNode) {
-      this.chatContainer.parentNode.removeChild(this.chatContainer)
-    }
-    this.chatContainer = null
-    this.chatInputElement = null
-    
-    // Return focus to game canvas
-    this.game.canvas.focus()
-  }
 
-  private updateDebugUI() {
-    if (!this.debugMode) return
 
-    // Update FPS
-    const fps = Math.round(this.game.loop.actualFps)
-    this.fpsText?.setText(`FPS: ${fps}`)
 
-    // Update coordinates
-    const x = Math.round(this.player.x)
-    const y = Math.round(this.player.y)
-    this.coordText?.setText(`X: ${x}, Y: ${y}`)
-  }
-
-  private showQuitConfirmation() {
-    // Pause game physics
-    this.physics.pause()
-
-    // Create overlay
-    const overlay = this.add.rectangle(640, 360, 1280, 720, 0x000000, 0.7)
-    overlay.setScrollFactor(0)
-    overlay.setDepth(10000)
-
-    // Create dialog box
-    const dialog = this.add.rectangle(640, 360, 600, 300, 0x222222, 1)
-    dialog.setScrollFactor(0)
-    dialog.setDepth(10001)
-    dialog.setStrokeStyle(4, 0xff0000)
-
-    // Warning title
-    const title = this.add.text(640, 260, '⚠️ WARNING ⚠️', {
-      fontSize: '36px',
-      color: '#ff0000',
-      fontStyle: 'bold'
-    })
-    title.setOrigin(0.5)
-    title.setScrollFactor(0)
-    title.setDepth(10002)
-
-    // Warning message
-    const message = this.add.text(640, 330,
-      this.gameMode === 'endless'
-        ? 'Your endless run progress will be lost!\nAre you sure you want to quit?'
-        : `You will have to restart Level ${this.currentLevel}!\nAre you sure you want to quit?`,
-      {
-        fontSize: '20px',
-        color: '#ffffff',
-        align: 'center',
-        lineSpacing: 8
-      }
-    )
-    message.setOrigin(0.5)
-    message.setScrollFactor(0)
-    message.setDepth(10002)
-
-    // Yes button (quit)
-    const yesButton = this.add.rectangle(540, 440, 150, 50, 0xff0000)
-    yesButton.setScrollFactor(0)
-    yesButton.setDepth(10002)
-    yesButton.setInteractive({ useHandCursor: true })
-    yesButton.on('pointerover', () => yesButton.setFillStyle(0xff3333))
-    yesButton.on('pointerout', () => yesButton.setFillStyle(0xff0000))
-    yesButton.on('pointerdown', () => {
-      // Save coins before returning to menu
-      localStorage.setItem('playerCoins', this.coinCount.toString())
-
-      // Submit score to backend before quitting
-      console.log('🚪 Player quitting - submitting score...')
-      this.submitScoreToBackend().then(() => {
-        console.log('✅ Score submitted on quit')
-      }).catch(err => {
-        console.log('⚠️ Score submission failed on quit:', err)
-      }).finally(() => {
-        this.physics.resume()
-        this.scene.start('MenuScene')
-      })
-    })
-
-    const yesText = this.add.text(540, 440, 'YES, QUIT', {
-      fontSize: '20px',
-      color: '#ffffff',
-      fontStyle: 'bold'
-    })
-    yesText.setOrigin(0.5)
-    yesText.setScrollFactor(0)
-    yesText.setDepth(10003)
-
-    // No button (continue)
-    const noButton = this.add.rectangle(740, 440, 150, 50, 0x00aa00)
-    noButton.setScrollFactor(0)
-    noButton.setDepth(10002)
-    noButton.setInteractive({ useHandCursor: true })
-    noButton.on('pointerover', () => noButton.setFillStyle(0x00ff00))
-    noButton.on('pointerout', () => noButton.setFillStyle(0x00aa00))
-    noButton.on('pointerdown', () => {
-      // Resume game
-      this.physics.resume()
-      overlay.destroy()
-      dialog.destroy()
-      title.destroy()
-      message.destroy()
-      yesButton.destroy()
-      yesText.destroy()
-      noButton.destroy()
-      noText.destroy()
-    })
-
-    const noText = this.add.text(740, 440, 'NO, CONTINUE', {
-      fontSize: '20px',
-      color: '#ffffff',
-      fontStyle: 'bold'
-    })
-    noText.setOrigin(0.5)
-    noText.setScrollFactor(0)
-    noText.setDepth(10003)
-  }
 
   private throwSwordBlade() {
     // Create spinning purple blade projectile
@@ -7740,7 +6551,7 @@ export default class GameScene extends Phaser.Scene {
         let scoreReward = 50
         if (enemySize === 'medium') scoreReward = 100
         if (enemySize === 'large') scoreReward = 200
-        this.updateScore(scoreReward)
+        this.uiManager.updateScore(scoreReward)
 
         enemySprite.setVelocity(0, 0)
         enemySprite.setTint(0xff00ff)
@@ -7833,12 +6644,7 @@ export default class GameScene extends Phaser.Scene {
     }
     
     // Clean up in-game chat input if open
-    if (this.chatContainer && this.chatContainer.parentNode) {
-      this.chatContainer.parentNode.removeChild(this.chatContainer)
-    }
-    this.chatContainer = null
-    this.chatInputElement = null
-    this.chatInputActive = false
+    this.uiManager.closeInGameChat()
   }
 
   // =====================================
@@ -7993,7 +6799,7 @@ export default class GameScene extends Phaser.Scene {
     let scoreReward = 50
     if (enemySize === 'medium') scoreReward = 100
     if (enemySize === 'large') scoreReward = 200
-    this.updateScore(scoreReward)
+    this.uiManager.updateScore(scoreReward)
 
     // Death animation
     enemySprite.setVelocity(0, 0)
@@ -8346,61 +7152,7 @@ export default class GameScene extends Phaser.Scene {
     }
   }
 
-  private async saveGame() {
-    // Ensure local storage is up to date
-    localStorage.setItem('playerCoins', this.coinCount.toString())
 
-    const playerName = localStorage.getItem('player_name') || 'Guest'
-    try {
-      await GameAPI.saveGame({
-        player_name: playerName,
-        level: this.currentLevel,
-        score: this.score,
-        lives: this.playerLives,
-        health: this.playerHealth,
-        coins: this.coinCount,
-        weapon: this.equippedWeapon
-      })
-      
-      // Show saved message
-      const savedText = this.add.text(this.cameras.main.centerX, this.cameras.main.centerY, 'GAME SAVED!', {
-        fontSize: '64px',
-        color: '#00ff00',
-        fontStyle: 'bold',
-        stroke: '#000000',
-        strokeThickness: 6
-      })
-      savedText.setOrigin(0.5)
-      savedText.setScrollFactor(0)
-      savedText.setDepth(200)
-      
-      this.tweens.add({
-        targets: savedText,
-        alpha: 0,
-        duration: 1500,
-        onComplete: () => savedText.destroy()
-      })
-      
-    } catch (e) {
-      console.error('Failed to save game:', e)
-      
-      const errText = this.add.text(this.cameras.main.centerX, this.cameras.main.centerY, 'SAVE FAILED', {
-        fontSize: '64px',
-        color: '#ff0000',
-        fontStyle: 'bold',
-        stroke: '#000000',
-        strokeThickness: 6
-      })
-      errText.setOrigin(0.5)
-      errText.setScrollFactor(0)
-      errText.setDepth(200)
-      
-      this.tweens.add({
-        targets: errText,
-        alpha: 0,
-        duration: 1500,
-        onComplete: () => errText.destroy()
-      })
-    }
-  }
 }
+
+
