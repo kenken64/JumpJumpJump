@@ -413,7 +413,7 @@ export class UIManager {
     // Boss Health Bar (initially hidden)
     this.bossHealthBar = this.scene.add.graphics();
     this.bossHealthBar.setScrollFactor(0);
-    this.bossHealthBar.setDepth(100);
+    this.bossHealthBar.setDepth(1000); // High depth to be visible above all game elements
     this.bossHealthBar.setVisible(false);
   }
 
@@ -488,7 +488,9 @@ export class UIManager {
       return;
     }
 
+    // Make sure the health bar is visible and has high depth
     this.bossHealthBar.setVisible(true);
+    this.bossHealthBar.setDepth(1000); // Match boss name depth
     this.bossHealthBar.clear();
 
     // Background
