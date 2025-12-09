@@ -1212,8 +1212,20 @@ export default class GameScene extends Phaser.Scene {
 
     // Initialize gamepad support
     if (this.input.gamepad) {
-      // Check for already connected gamepads
-      if (this.input.gamepad.total > 0) {
+      // Check for already connected gamepads using native API (Safari fix)
+      const nativeGamepads = navigator.getGamepads ? navigator.getGamepads() : []
+      const activeNativeGamepad = Array.from(nativeGamepads).find(gp => gp !== null && gp?.connected)
+      
+      if (activeNativeGamepad) {
+        // Native API shows a gamepad - use Phaser's pad
+        if (this.input.gamepad.total > 0) {
+          this.gamepad = this.input.gamepad.getPad(0)
+          console.log('Gamepad already connected:', this.gamepad?.id)
+        } else {
+          // Safari edge case: native shows gamepad but Phaser doesn't have it yet
+          console.log('🎮 Native gamepad detected but Phaser not synced yet, waiting...')
+        }
+      } else if (this.input.gamepad.total > 0) {
         this.gamepad = this.input.gamepad.getPad(0)
         console.log('Gamepad already connected:', this.gamepad?.id)
       }
@@ -1230,6 +1242,17 @@ export default class GameScene extends Phaser.Scene {
         if (this.gamepad === pad) {
           this.gamepad = null
           console.log('Gamepad disconnected:', pad.id)
+        }
+      })
+
+      // Safari fix: Also listen to native gamepadconnected event
+      window.addEventListener('gamepadconnected', (e: GamepadEvent) => {
+        console.log('🎮 [Native] Gamepad connected in GameScene:', e.gamepad.id)
+        // Try to sync with Phaser
+        if (!this.gamepad && this.input.gamepad && this.input.gamepad.total > 0) {
+          this.gamepad = this.input.gamepad.getPad(0)
+          console.log('🎮 Synced gamepad from native event:', this.gamepad?.id)
+          this.uiManager.showTip('gamepad', 'Gamepad connected! Left stick/D-pad: Move, A: Jump, RT: Shoot')
         }
       })
     }
@@ -1264,7 +1287,16 @@ export default class GameScene extends Phaser.Scene {
         }
 
         console.log(`🎮 F4: Teleporting to boss level ${nextBossLevel}...`)
-        const bossData: any = { gameMode: 'levels', level: nextBossLevel }
+        console.log(`   Preserving: lives=${this.playerLives}, score=${this.score}, coins=${this.coinCount}`)
+        
+        // Preserve current player state when teleporting
+        const bossData: any = { 
+          gameMode: 'levels', 
+          level: nextBossLevel,
+          lives: this.playerLives,
+          score: this.score,
+          coins: this.coinCount
+        }
         if (this.isCoopMode) {
           bossData.mode = 'coop'
         }
@@ -3229,6 +3261,87 @@ export default class GameScene extends Phaser.Scene {
     })
   }
 
+  /**
+   * Create electric discharge effect for LFG projectile
+   */
+  private createElectricDischarge(x: number, y: number) {
+    const dischargeRadius = 50
+
+    // Central flash (cyan/white)
+    const flash = this.add.circle(x, y, dischargeRadius, 0x00ffff, 0.8)
+    flash.setDepth(1000)
+
+    // Electric arcs shooting outward
+    for (let i = 0; i < 8; i++) {
+      const angle = (Math.PI * 2 / 8) * i + Math.random() * 0.3
+      const arcLength = dischargeRadius * (1.5 + Math.random() * 0.5)
+      
+      // Create jagged lightning bolt
+      const bolt = this.add.graphics()
+      bolt.setDepth(1000)
+      bolt.lineStyle(3, 0x88ffff, 1)
+      bolt.beginPath()
+      bolt.moveTo(x, y)
+      
+      // Create 3-4 segments for jagged effect
+      let currentX = x
+      let currentY = y
+      const segments = 3 + Math.floor(Math.random() * 2)
+      for (let j = 1; j <= segments; j++) {
+        const segmentLength = arcLength / segments
+        const jitter = (Math.random() - 0.5) * 20
+        currentX += Math.cos(angle + jitter * 0.1) * segmentLength
+        currentY += Math.sin(angle + jitter * 0.1) * segmentLength + jitter
+        bolt.lineTo(currentX, currentY)
+      }
+      bolt.strokePath()
+
+      // Fade out the bolt
+      this.tweens.add({
+        targets: bolt,
+        alpha: 0,
+        duration: 200 + Math.random() * 100,
+        ease: 'Power2',
+        onComplete: () => bolt.destroy()
+      })
+    }
+
+    // Small electric particles
+    for (let i = 0; i < 6; i++) {
+      const angle = Math.random() * Math.PI * 2
+      const dist = Math.random() * dischargeRadius
+      const particle = this.add.circle(
+        x + Math.cos(angle) * dist,
+        y + Math.sin(angle) * dist,
+        4,
+        0xffffff,
+        1
+      )
+      particle.setDepth(1000)
+
+      this.tweens.add({
+        targets: particle,
+        x: x + Math.cos(angle) * dischargeRadius * 2,
+        y: y + Math.sin(angle) * dischargeRadius * 2,
+        alpha: 0,
+        scale: 0,
+        duration: 250,
+        ease: 'Power2',
+        onComplete: () => particle.destroy()
+      })
+    }
+
+    // Flash animation
+    this.tweens.add({
+      targets: flash,
+      scale: 2,
+      alpha: 0,
+      duration: 200,
+      ease: 'Power2',
+      onComplete: () => flash.destroy()
+    })
+  }
+
   private defeatBoss() {
     if (!this.boss) return
 
@@ -4905,6 +5018,17 @@ export default class GameScene extends Phaser.Scene {
         const aimSensitivity = 0.3 // Reduced for more precise aiming
         aimX = this.player.x + rightStickX * 100 * aimSensitivity
         aimY = this.player.y + rightStickY * 100 * aimSensitivity
+      } else if (this.gameMode === 'levels') {
+        // Auto-aim for gamepad in levels mode when right stick is not active
+        const autoAimTarget = this.findNearestAutoAimTarget()
+        if (autoAimTarget) {
+          aimX = autoAimTarget.x
+          aimY = autoAimTarget.y
+        } else {
+          // Default to aiming in player's facing direction
+          aimX = this.player.x + (this.player.flipX ? -100 : 100)
+          aimY = this.player.y
+        }
       } else {
         // Default to aiming in player's facing direction
         aimX = this.player.x + (this.player.flipX ? -100 : 100)
@@ -4981,6 +5105,40 @@ export default class GameScene extends Phaser.Scene {
 
     // Apply rotation directly without any clamping
     this.gun.setRotation(gunAngle)
+  }
+
+  /**
+   * Find the nearest enemy or boss for auto-aim targeting
+   * Used by gamepad users in levels mode
+   */
+  private findNearestAutoAimTarget(): { x: number; y: number } | null {
+    let nearestTarget: Phaser.Physics.Arcade.Sprite | null = null
+    let minDistance = 600 // Max auto-aim range
+
+    // Check regular enemies
+    this.enemies.getChildren().forEach((enemy: any) => {
+      if (enemy.active && enemy.getData('health') > 0) {
+        const dist = Phaser.Math.Distance.Between(this.player.x, this.player.y, enemy.x, enemy.y)
+        if (dist < minDistance) {
+          minDistance = dist
+          nearestTarget = enemy
+        }
+      }
+    })
+
+    // Also check for boss (higher priority if in range)
+    if (this.bossActive && this.boss && this.boss.active) {
+      const dist = Phaser.Math.Distance.Between(this.player.x, this.player.y, this.boss.x, this.boss.y)
+      if (dist < minDistance * 1.5) { // Boss gets 50% extra range for priority targeting
+        nearestTarget = this.boss
+      }
+    }
+
+    if (nearestTarget) {
+      return { x: nearestTarget.x, y: nearestTarget.y }
+    }
+
+    return null
   }
 
   private handleShooting() {
@@ -5290,10 +5448,20 @@ export default class GameScene extends Phaser.Scene {
         if (bullet) {
           bullet.setActive(true)
           bullet.setVisible(true)
-          bullet.setScale(0.5, 0.5)
-          bullet.setRotation(gunAngle)
+          
+          // LFG uses larger scale for the electric sphere
+          const isLFG = this.equippedWeapon === 'lfg'
+          if (isLFG) {
+            bullet.setScale(1.0, 1.0) // Full size - enemy sized sphere
+            bullet.setRotation(0) // Sphere doesn't need rotation
+          } else {
+            bullet.setScale(0.5, 0.5)
+            bullet.setRotation(gunAngle)
+          }
+          
           bullet.setAlpha(1)
           bullet.setData('isRocket', isRocket)
+          bullet.setData('isLFG', isLFG)
           bullet.setData('damage', damage)
 
           // Disable physics for this bullet - use data to track movement
@@ -5521,9 +5689,30 @@ export default class GameScene extends Phaser.Scene {
       sprite.x += velX * delta
       sprite.y += velY * delta
 
-      // Keep rotation locked to firing angle (no slanting)
-      const lockedAngle = sprite.getData('angle')
-      sprite.setRotation(lockedAngle)
+      // LFG electric sphere effect - pulsing and rotation
+      const isLFG = sprite.getData('isLFG')
+      if (isLFG) {
+        // Pulsing scale effect
+        const pulseScale = 1.0 + Math.sin(currentTime * 0.015) * 0.15
+        sprite.setScale(pulseScale)
+        
+        // Spinning effect for the electric sphere
+        sprite.setRotation(sprite.rotation + 0.1)
+        
+        // Tint variation for electric crackle effect
+        const tintPhase = Math.sin(currentTime * 0.02)
+        if (tintPhase > 0.7) {
+          sprite.setTint(0xffffff) // Bright flash
+        } else if (tintPhase > 0.3) {
+          sprite.setTint(0x88ffff) // Cyan
+        } else {
+          sprite.setTint(0x00ffff) // Electric blue
+        }
+      } else {
+        // Keep rotation locked to firing angle (no slanting) for regular bullets
+        const lockedAngle = sprite.getData('angle')
+        sprite.setRotation(lockedAngle)
+      }
 
       // Manual collision detection with enemies
       this.enemies.children.entries.forEach((enemy: any) => {
@@ -5531,7 +5720,9 @@ export default class GameScene extends Phaser.Scene {
         const enemySprite = enemy as Phaser.Physics.Arcade.Sprite
         const distance = Phaser.Math.Distance.Between(sprite.x, sprite.y, enemySprite.x, enemySprite.y)
 
-        if (distance < 30) { // Collision threshold
+        // LFG has larger collision radius (matches sphere size)
+        const collisionThreshold = isLFG ? 50 : 30
+        if (distance < collisionThreshold) {
           this.handleBulletEnemyCollision(sprite, enemySprite)
         }
       })
@@ -5540,7 +5731,9 @@ export default class GameScene extends Phaser.Scene {
       if (this.boss && this.boss.active && this.bossActive) {
         const distance = Phaser.Math.Distance.Between(sprite.x, sprite.y, this.boss.x, this.boss.y)
 
-        if (distance < 100) { // Boss is bigger, larger collision threshold
+        // LFG has larger collision radius
+        const bossCollisionThreshold = isLFG ? 120 : 100
+        if (distance < bossCollisionThreshold) {
           this.handleBulletBossCollision(sprite, this.boss)
         }
       }
@@ -5549,7 +5742,14 @@ export default class GameScene extends Phaser.Scene {
       if (age >= fadeStartTime) {
         const fadeProgress = (age - fadeStartTime) / (bulletLifetime - fadeStartTime)
         sprite.setAlpha(1 - fadeProgress)
-        sprite.setScale(sprite.getData('initialScaleX') * (1 - fadeProgress * 0.7), 0.5)
+        
+        // LFG keeps uniform scale while shrinking, regular bullets use different x/y scale
+        if (isLFG) {
+          const shrinkScale = 1.0 * (1 - fadeProgress * 0.7)
+          sprite.setScale(shrinkScale)
+        } else {
+          sprite.setScale(sprite.getData('initialScaleX') * (1 - fadeProgress * 0.7), 0.5)
+        }
       }
 
       // Destroy after lifetime
@@ -5558,6 +5758,11 @@ export default class GameScene extends Phaser.Scene {
         const isRocket = sprite.getData('isRocket')
         if (isRocket) {
           this.createExplosion(sprite.x, sprite.y)
+        }
+        
+        // LFG creates electric discharge effect at end of lifetime
+        if (isLFG) {
+          this.createElectricDischarge(sprite.x, sprite.y)
         }
 
         sprite.setActive(false)
@@ -6096,18 +6301,53 @@ export default class GameScene extends Phaser.Scene {
     rocketGraphics.generateTexture('rocket', 28, 16)
     rocketGraphics.destroy()
 
-    // Create LFG Projectile (Large Red/Gold Beam)
+    // Create LFG Projectile (Large Electric Sphere - enemy-sized)
     const lfgProjGraphics = this.make.graphics({ x: 0, y: 0 })
-    // Core beam
-    lfgProjGraphics.fillStyle(0xff0000, 1)
-    lfgProjGraphics.fillRect(0, 4, 48, 8)
-    // Inner core
+    const sphereRadius = 32 // 64px diameter - size of an enemy
+    const centerX = sphereRadius
+    const centerY = sphereRadius
+    
+    // Outer electric glow (cyan/blue)
+    lfgProjGraphics.fillStyle(0x00ffff, 0.3)
+    lfgProjGraphics.fillCircle(centerX, centerY, sphereRadius)
+    
+    // Middle electric ring (electric blue)
+    lfgProjGraphics.fillStyle(0x4488ff, 0.5)
+    lfgProjGraphics.fillCircle(centerX, centerY, sphereRadius * 0.75)
+    
+    // Inner core (bright white/cyan)
+    lfgProjGraphics.fillStyle(0x88ffff, 0.8)
+    lfgProjGraphics.fillCircle(centerX, centerY, sphereRadius * 0.5)
+    
+    // Hot center (white)
     lfgProjGraphics.fillStyle(0xffffff, 1)
-    lfgProjGraphics.fillRect(0, 6, 48, 4)
-    // Energy aura
-    lfgProjGraphics.lineStyle(2, 0xFFD700, 0.8)
-    lfgProjGraphics.strokeRect(0, 4, 48, 8)
-    lfgProjGraphics.generateTexture('lfgProjectile', 48, 16)
+    lfgProjGraphics.fillCircle(centerX, centerY, sphereRadius * 0.25)
+    
+    // Electric arcs around the sphere
+    lfgProjGraphics.lineStyle(2, 0x00ffff, 0.9)
+    for (let i = 0; i < 6; i++) {
+      const angle = (Math.PI * 2 / 6) * i
+      const innerRadius = sphereRadius * 0.4
+      const outerRadius = sphereRadius * 0.95
+      lfgProjGraphics.beginPath()
+      lfgProjGraphics.moveTo(
+        centerX + Math.cos(angle) * innerRadius,
+        centerY + Math.sin(angle) * innerRadius
+      )
+      // Jagged electric arc
+      const midAngle = angle + 0.2
+      lfgProjGraphics.lineTo(
+        centerX + Math.cos(midAngle) * (innerRadius + outerRadius) / 2,
+        centerY + Math.sin(midAngle) * (innerRadius + outerRadius) / 2
+      )
+      lfgProjGraphics.lineTo(
+        centerX + Math.cos(angle) * outerRadius,
+        centerY + Math.sin(angle) * outerRadius
+      )
+      lfgProjGraphics.strokePath()
+    }
+    
+    lfgProjGraphics.generateTexture('lfgProjectile', 64, 64)
     lfgProjGraphics.destroy()
 
     // Create LFG Weapon (Heavy Machine Gun - matching shop design)

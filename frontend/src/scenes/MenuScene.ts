@@ -28,6 +28,10 @@ export default class MenuScene extends Phaser.Scene {
   private coinText?: Phaser.GameObjects.Text
   /** Text element displaying API connection status */
   private apiStatusText?: Phaser.GameObjects.Text
+  /** Interval ID for background gamepad polling (Safari fix) */
+  private gamepadPollIntervalId?: number
+  /** Last detected gamepad count for change detection */
+  private lastDetectedGamepadCount: number = 0
 
   constructor() {
     super('MenuScene')
@@ -391,6 +395,62 @@ export default class MenuScene extends Phaser.Scene {
       if (this.coinText) {
         this.coinText.setText(`${this.coinCount}`)
       }
+    })
+
+    // Start background gamepad polling (Safari fix)
+    // Safari requires continuous polling AND user button press to expose gamepads
+    this.startBackgroundGamepadPolling()
+  }
+
+  /**
+   * Starts background polling for gamepad detection.
+   * Safari/WebKit doesn't fire gamepadconnected until user presses a button,
+   * AND requires active polling to detect the press. This runs in background
+   * to ensure gamepads are detected before opening settings.
+   * @private
+   */
+  private startBackgroundGamepadPolling() {
+    // Clear any existing poll
+    if (this.gamepadPollIntervalId) {
+      clearInterval(this.gamepadPollIntervalId)
+    }
+
+    // Detect if Safari/WebKit
+    const isSafari = /^((?!chrome|android).)*safari/i.test(navigator.userAgent) ||
+                     /AppleWebKit/.test(navigator.userAgent) && !/Chrome/.test(navigator.userAgent)
+    
+    // Poll more frequently on Safari
+    const pollInterval = isSafari ? 100 : 500
+
+    let logCounter = 0
+    this.gamepadPollIntervalId = window.setInterval(() => {
+      const gamepads = navigator.getGamepads ? navigator.getGamepads() : []
+      const connectedCount = Array.from(gamepads).filter(gp => gp !== null && gp?.connected).length
+
+      // Log periodically on Safari for debugging
+      if (isSafari && logCounter % 50 === 0 && connectedCount === 0) {
+        console.log('🎮 [Safari] Background gamepad poll - waiting for button press...')
+      }
+      logCounter++
+
+      if (connectedCount !== this.lastDetectedGamepadCount) {
+        console.log(`🎮 Background poll: gamepad count changed ${this.lastDetectedGamepadCount} -> ${connectedCount}`)
+        this.lastDetectedGamepadCount = connectedCount
+        
+        // Emit custom event for any listeners
+        window.dispatchEvent(new CustomEvent('gamepadCountChanged', { detail: { count: connectedCount } }))
+      }
+    }, pollInterval)
+
+    // Also register for native events
+    window.addEventListener('gamepadconnected', (e: GamepadEvent) => {
+      console.log('🎮 [Background] Gamepad connected:', e.gamepad.id)
+      this.lastDetectedGamepadCount = Array.from(navigator.getGamepads()).filter(gp => gp !== null && gp?.connected).length
+    })
+
+    window.addEventListener('gamepaddisconnected', (e: GamepadEvent) => {
+      console.log('🎮 [Background] Gamepad disconnected:', e.gamepad.id)
+      this.lastDetectedGamepadCount = Array.from(navigator.getGamepads()).filter(gp => gp !== null && gp?.connected).length
     })
   }
 
@@ -1473,8 +1533,16 @@ export default class MenuScene extends Phaser.Scene {
         mappingContainer.push(statusText)
 
         if (gamepadCount === 0) {
+          // Detect Safari/WebKit for specific messaging
+          const isSafari = /^((?!chrome|android).)*safari/i.test(navigator.userAgent) ||
+                           /AppleWebKit/.test(navigator.userAgent) && !/Chrome/.test(navigator.userAgent)
+          
+          const helpMessage = isSafari 
+            ? 'Safari: Press a button on your gamepad\nto enable detection (browser security)'
+            : 'Press any button on your gamepad to detect it'
+
           const helpText = this.add.text(640, startY + lineHeight + 20,
-            'Press any button on your gamepad to detect it', {
+            helpMessage, {
             fontSize: '18px',
             color: '#ffaa00',
             align: 'center',
@@ -1483,6 +1551,19 @@ export default class MenuScene extends Phaser.Scene {
           helpText.setOrigin(0.5)
           helpText.setDepth(102)
           mappingContainer.push(helpText)
+
+          // Safari-specific additional help
+          if (isSafari) {
+            const safariNote = this.add.text(640, startY + lineHeight + 70,
+              '💡 Keep this panel open and press any button', {
+              fontSize: '16px',
+              color: '#88aaff',
+              align: 'center'
+            })
+            safariNote.setOrigin(0.5)
+            safariNote.setDepth(102)
+            mappingContainer.push(safariNote)
+          }
           return
         }
 
@@ -1722,6 +1803,17 @@ export default class MenuScene extends Phaser.Scene {
       fontStyle: 'bold'
     })
     loadText.setOrigin(0.5)
+  }
+
+  /**
+   * Cleanup when scene is destroyed
+   */
+  shutdown() {
+    // Clear the background gamepad polling interval
+    if (this.gamepadPollIntervalId) {
+      clearInterval(this.gamepadPollIntervalId)
+      this.gamepadPollIntervalId = undefined
+    }
   }
 }
 
