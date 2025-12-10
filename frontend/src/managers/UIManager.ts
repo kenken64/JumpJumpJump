@@ -722,6 +722,15 @@ export class UIManager {
     btnText.setScrollFactor(0);
     btnText.setDepth(2003);
 
+    // Hint text for controls
+    const hintText = this.scene.add.text(640, 530, 'Press SPACE or any Gamepad button', {
+      fontSize: '16px',
+      color: '#aaaaaa'
+    });
+    hintText.setOrigin(0.5);
+    hintText.setScrollFactor(0);
+    hintText.setDepth(2002);
+
     // Button interactions
     btn.on('pointerover', () => btn.setFillStyle(0x00ff00));
     btn.on('pointerout', () => btn.setFillStyle(0x00aa00));
@@ -748,6 +757,45 @@ export class UIManager {
         gameMode: this.scene.gameMode
       });
     });
+
+    // Gamepad button detection - poll for any button press
+    let gamepadCheckActive = true;
+    const checkGamepad = () => {
+      if (!gamepadCheckActive) return;
+      
+      const gamepads = navigator.getGamepads();
+      for (const gamepad of gamepads) {
+        if (gamepad) {
+          // Check if any button is pressed (A, B, X, Y, Start, etc.)
+          for (let i = 0; i < gamepad.buttons.length; i++) {
+            if (gamepad.buttons[i].pressed) {
+              gamepadCheckActive = false;
+              this.scene.tweens.killAll();
+              const nextLevel = level + 1;
+              this.scene.scene.restart({ 
+                level: nextLevel, 
+                score: score,
+                coins: coins,
+                gameMode: this.scene.gameMode
+              });
+              return;
+            }
+          }
+        }
+      }
+      
+      // Continue polling
+      if (gamepadCheckActive) {
+        requestAnimationFrame(checkGamepad);
+      }
+    };
+    
+    // Start gamepad polling after a short delay to avoid accidental presses
+    setTimeout(() => {
+      if (gamepadCheckActive) {
+        checkGamepad();
+      }
+    }, 300);
   }
 
   public showGameOver(score: number, coins: number, enemiesDefeated: number, distance: number) {

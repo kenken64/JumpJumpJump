@@ -3729,6 +3729,23 @@ export default class GameScene extends Phaser.Scene {
         return
       }
 
+      // DQN Training mode: Auto-transition to next level without UI
+      if (this.dqnTraining) {
+        console.log(`🤖 DQN: Level ${this.currentLevel} complete! Auto-transitioning to level ${this.currentLevel + 1}...`)
+        
+        // Brief delay then restart with next level
+        this.time.delayedCall(500, () => {
+          this.scene.restart({
+            level: this.currentLevel + 1,
+            score: this.score,
+            coins: this.coinCount,
+            gameMode: this.gameMode,
+            dqnTraining: true
+          })
+        })
+        return
+      }
+
       this.uiManager.showLevelComplete(this.currentLevel, this.score, this.coinCount)
     }
   }
