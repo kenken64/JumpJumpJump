@@ -1187,7 +1187,7 @@ export default class GameScene extends Phaser.Scene {
     this.physics.add.collider(this.blockFragments, this.platforms)
     this.physics.add.collider(this.bullets, this.platforms, this.handleBulletPlatformCollision, undefined, this)
     this.physics.add.collider(this.coins, this.platforms)
-    this.physics.add.collider(this.powerUps, this.platforms)
+    // Note: powerUps are static (no gravity) so they don't need platform collider
 
     // Setup player-enemy collision with overlap detection
     this.physics.add.overlap(this.player, this.enemies, this.handlePlayerEnemyCollision, undefined, this)
@@ -2357,32 +2357,66 @@ export default class GameScene extends Phaser.Scene {
       return
     }
     
+    // Clear any existing powerups to prevent duplicates on scene restart
+    if (this.powerUps && this.powerUps.getLength() > 0) {
+      console.log(`🎁 Clearing ${this.powerUps.getLength()} existing powerups before spawning`)
+      this.powerUps.clear(true, true)
+    }
+    
     // Spawn power-ups at random positions on platforms
     const powerUpTypes = ['powerSpeed', 'powerShield', 'powerLife', 'powerHealth', 'powerHealth']
     const numPowerUps = 10
 
-    // Reset RNG for power-ups in online mode for deterministic spawning
-    // Use seeded RNG for BOTH online and offline modes
-    const seed = this.onlineSeed || 12345 // Fallback seed
-    this.onlineRngState = seed * 11 + 99999
-    console.log('🎁 Power-up RNG initialized, seed state:', this.onlineRngState)
+    // In online mode, use seeded RNG for deterministic spawning
+    // In offline mode, use true random for variety each level
+    if (this.isOnlineMode) {
+      const seed = this.onlineSeed || 12345
+      this.onlineRngState = seed * 11 + 99999
+      console.log('🎁 Power-up RNG initialized (online), seed state:', this.onlineRngState)
+    }
+
+    // Track used X positions to avoid overlapping powerups
+    const usedXPositions: number[] = []
+    const minXDistance = 200 // Minimum distance between powerups
 
     for (let i = 0; i < numPowerUps; i++) {
-      const x = this.onlineSeededBetween(1000, 8000)
-      const y = 500
-      const typeIndex = this.onlineSeededBetween(0, powerUpTypes.length - 1)
+      // Generate X position, ensuring no overlap with existing powerups
+      let x: number
+      let attempts = 0
+      const maxAttempts = 20
+      
+      do {
+        x = this.isOnlineMode ? this.onlineSeededBetween(1000, 8000) : Phaser.Math.Between(1000, 8000)
+        attempts++
+      } while (
+        attempts < maxAttempts && 
+        usedXPositions.some(usedX => Math.abs(usedX - x) < minXDistance)
+      )
+      
+      usedXPositions.push(x)
+      
+      const y = Phaser.Math.Between(300, 600) // Vary Y position for better distribution
+      const typeIndex = this.isOnlineMode ? this.onlineSeededBetween(0, powerUpTypes.length - 1) : Phaser.Math.Between(0, powerUpTypes.length - 1)
       const type = powerUpTypes[typeIndex]
 
-      const powerUp = this.powerUps.create(x, y, type)
+      // Create sprite directly and add to physics group to avoid duplicate sprite issues
+      const powerUp = this.physics.add.sprite(x, y, type)
+      this.powerUps.add(powerUp)
       powerUp.setScale(0.6)
-      powerUp.setBounce(0.2)
-      powerUp.setCollideWorldBounds(true)
+      
+      // Make powerups static - they float in place, no physics movement needed
+      const body = powerUp.body as Phaser.Physics.Arcade.Body
+      body.setAllowGravity(false)
+      body.setImmovable(true)
+      
       // Deterministic id for online mode so collections are consistent
       // Use loop index instead of global counter to ensure IDs are deterministic
       // when RNG state is reset (prevents double spawns if called multiple times)
       const powerupId = `powerup_${i}_${Math.floor(x)}_${Math.floor(y)}`
       powerUp.setData('powerupId', powerupId)
       powerUp.setData('type', type)
+      
+      console.log(`🎁 Created powerup ${i}: ${type} at (${x}, ${y}) - ID: ${powerupId}`)
 
       // Add floating animation
       this.tweens.add({
@@ -2414,6 +2448,8 @@ export default class GameScene extends Phaser.Scene {
         })
       }
     }
+    
+    console.log(`🎁 Spawned ${this.powerUps.getLength()} powerups total`)
   }
 
   private collectPowerUp(_player: Phaser.Physics.Arcade.Sprite, powerUp: Phaser.Physics.Arcade.Sprite) {
