@@ -157,8 +157,6 @@ export default class GameScene extends Phaser.Scene {
   private respawnEnemyCounter: number = 0
   // Counter for unique coin drop IDs
   private coinDropCounter: number = 0
-  // Counter for unique power-up IDs
-  private powerUpCounter: number = 0
 
   // DQN Training
   private dqnTraining: boolean = false
@@ -2376,8 +2374,9 @@ export default class GameScene extends Phaser.Scene {
       powerUp.setBounce(0.2)
       powerUp.setCollideWorldBounds(true)
       // Deterministic id for online mode so collections are consistent
-      this.powerUpCounter++
-      const powerupId = `powerup_${this.powerUpCounter}_${Math.floor(x)}_${Math.floor(y)}`
+      // Use loop index instead of global counter to ensure IDs are deterministic
+      // when RNG state is reset (prevents double spawns if called multiple times)
+      const powerupId = `powerup_${i}_${Math.floor(x)}_${Math.floor(y)}`
       powerUp.setData('powerupId', powerupId)
       powerUp.setData('type', type)
 
