@@ -529,7 +529,7 @@ export default class MenuScene extends Phaser.Scene {
 
     // Cheat codes section
     const cheatsY = 560
-    const cheats = this.add.text(640, cheatsY, 'CHEAT CODES:\nF3: Toggle Debug Mode | F4: Jump to Boss Level | F5: Reset Defeated Bosses', {
+    const cheats = this.add.text(640, cheatsY, 'CHEAT CODES:\nF3: Toggle Debug Mode | F4: Jump to Boss Level\nF5: Reset Defeated Bosses (Debug Mode) | F6: Kill Final Boss | F7: Add 100K Gold', {
       fontSize: '16px',
       color: '#ff6600',
       align: 'center',
