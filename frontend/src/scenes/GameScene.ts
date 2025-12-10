@@ -1798,6 +1798,36 @@ export default class GameScene extends Phaser.Scene {
       bossDistance = Phaser.Math.Distance.Between(playerX, playerY, this.boss.x, this.boss.y)
       bossHealth = (this.boss.getData('health') || 100)
     }
+
+    // Find nearest coin
+    let nearestCoinDistance = 1000
+    let nearestCoinX = 0
+    let nearestCoinY = 0
+    const coinsArray = this.coins.getChildren() as Phaser.Physics.Arcade.Sprite[]
+    for (const coin of coinsArray) {
+      if (!coin.active) continue
+      const distance = Phaser.Math.Distance.Between(playerX, playerY, coin.x, coin.y)
+      if (distance < nearestCoinDistance) {
+        nearestCoinDistance = distance
+        nearestCoinX = coin.x - playerX
+        nearestCoinY = coin.y - playerY
+      }
+    }
+
+    // Find nearest powerup
+    let nearestPowerUpDistance = 1000
+    let nearestPowerUpX = 0
+    let nearestPowerUpY = 0
+    const powerUpsArray = this.powerUps.getChildren() as Phaser.Physics.Arcade.Sprite[]
+    for (const powerUp of powerUpsArray) {
+      if (!powerUp.active) continue
+      const distance = Phaser.Math.Distance.Between(playerX, playerY, powerUp.x, powerUp.y)
+      if (distance < nearestPowerUpDistance) {
+        nearestPowerUpDistance = distance
+        nearestPowerUpX = powerUp.x - playerX
+        nearestPowerUpY = powerUp.y - playerY
+      }
+    }
     
     return {
       playerX,
@@ -1813,7 +1843,13 @@ export default class GameScene extends Phaser.Scene {
       gapAhead,
       bossActive,
       bossDistance,
-      bossHealth
+      bossHealth,
+      nearestCoinDistance,
+      nearestCoinX,
+      nearestCoinY,
+      nearestPowerUpDistance,
+      nearestPowerUpX,
+      nearestPowerUpY
     }
   }
 
