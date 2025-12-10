@@ -413,6 +413,10 @@ export default class GameScene extends Phaser.Scene {
   }
 
   create() {
+    // Reset counters for deterministic ID generation
+    this.respawnEnemyCounter = 0
+    this.coinDropCounter = 0
+
     // Initialize UI Manager
     this.uiManager = new UIManager(this)
 
