@@ -183,6 +183,15 @@ function createMockScene() {
     },
     add: {
       sprite: vi.fn(() => createFullMockSprite()),
+      container: vi.fn(() => ({
+        setScrollFactor: vi.fn().mockReturnThis(),
+        setDepth: vi.fn().mockReturnThis(),
+        setVisible: vi.fn().mockReturnThis(),
+        add: vi.fn().mockReturnThis(),
+        setPosition: vi.fn().mockReturnThis(),
+        setScale: vi.fn().mockReturnThis(),
+        destroy: vi.fn()
+      })),
       rectangle: vi.fn(() => ({
         setScrollFactor: vi.fn().mockReturnThis(),
         setDepth: vi.fn().mockReturnThis(),

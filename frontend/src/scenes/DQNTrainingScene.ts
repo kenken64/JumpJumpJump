@@ -250,7 +250,13 @@ export default class DQNTrainingScene extends Phaser.Scene {
                 hasGroundAhead, gapAhead,
                 bossActive: false,  // DQNTrainingScene doesn't have bosses
                 bossDistance: 1000,
-                bossHealth: 100
+                bossHealth: 100,
+                nearestCoinDistance: 1000,
+                nearestCoinX: 0,
+                nearestCoinY: 0,
+                nearestPowerUpDistance: 1000,
+                nearestPowerUpX: 0,
+                nearestPowerUpY: 0
             }
         } catch {
             return null

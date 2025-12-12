@@ -63,6 +63,9 @@ importers:
       jsdom:
         specifier: ^27.2.0
         version: 27.2.0
+      phaser3spectorjs:
+        specifier: link:mocks\phaser3spectorjs
+        version: link:mocks/phaser3spectorjs
       typescript:
         specifier: ~5.9.3
         version: 5.9.3

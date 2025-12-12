@@ -68,6 +68,7 @@ export default class GameScene extends Phaser.Scene {
   private stompStartY: number = 0
   private blockFragments!: Phaser.Physics.Arcade.Group
   private playerIsDead: boolean = false
+  private isTransitioning: boolean = false
   private playerHealth: number = 100
   private maxHealth: number = 100
   public playerLives: number = 3
@@ -148,6 +149,12 @@ export default class GameScene extends Phaser.Scene {
   private onlinePlayerId?: string
   private onlinePlayerNumber?: number
   private onlineSeed?: number
+  
+  // Level Generation State
+  private isGeneratingWorld: boolean = false
+  private loadingBar?: Phaser.GameObjects.Rectangle
+  private loadingBarBg?: Phaser.GameObjects.Rectangle
+  private loadingText?: Phaser.GameObjects.Text
   private onlineRngState: number = 0
   // Track remote enemies and coins by network ID for online sync
   private remoteEnemies: Map<string, Phaser.Physics.Arcade.Sprite> = new Map()
@@ -665,7 +672,62 @@ export default class GameScene extends Phaser.Scene {
     this.onlineRngState = testState
 
     console.log('Generating world...')
-    this.worldGenerationX = this.worldGenerator.generateWorld()
+    
+    // For 'levels' mode (including online co-op), pre-generate the entire level
+    // This ensures all entities exist from the start, preventing desync issues
+    if (this.gameMode === 'levels') {
+      console.log(`🌍 Pre-generating entire level (${this.levelLength}px) for stability...`)
+      
+      // Initialize generation state
+      this.isGeneratingWorld = true
+      this.physics.pause() // Pause physics during generation
+      
+      // Create Loading UI
+      const centerX = this.cameras.main.width / 2
+      const centerY = this.cameras.main.height / 2
+      
+      // Background overlay
+      const overlay = this.add.rectangle(centerX, centerY, 2000, 2000, 0x000000, 0.8)
+      overlay.setScrollFactor(0)
+      overlay.setDepth(9000)
+      
+      // Loading text
+      this.loadingText = this.add.text(centerX, centerY - 50, 'GENERATING WORLD...', {
+        fontSize: '32px',
+        color: '#ffffff',
+        fontStyle: 'bold'
+      })
+      this.loadingText.setOrigin(0.5)
+      this.loadingText.setScrollFactor(0)
+      this.loadingText.setDepth(9001)
+      
+      // Progress bar background
+      this.loadingBarBg = this.add.rectangle(centerX, centerY + 30, 600, 30, 0x333333)
+      this.loadingBarBg.setScrollFactor(0)
+      this.loadingBarBg.setDepth(9001)
+      
+      // Progress bar
+      this.loadingBar = this.add.rectangle(centerX - 300, centerY + 30, 0, 30, 0x00ff00)
+      this.loadingBar.setOrigin(0, 0.5)
+      this.loadingBar.setScrollFactor(0)
+      this.loadingBar.setDepth(9002)
+      
+      // Generate initial world (safe zone + first few chunks)
+      this.worldGenerationX = this.worldGenerator.generateWorld()
+      
+      // Start async generation loop
+      this.generationTimer = this.time.addEvent({
+        delay: 1, // Run as fast as possible but allow frame updates
+        callback: this.generateLevelChunks,
+        callbackScope: this,
+        loop: true
+      })
+      
+    } else {
+      // Endless mode: standard initial generation
+      this.worldGenerationX = this.worldGenerator.generateWorld()
+    }
+    
     console.log('Platforms created:', this.platforms.getChildren().length)
 
     // Create player animations FIRST before creating the player sprite
@@ -1514,12 +1576,8 @@ export default class GameScene extends Phaser.Scene {
   }
 
   private spawnCoins() {
-    // In online mode, only HOST spawns coins - non-host receives them via network
-    // This prevents duplicate coins
-    if (this.isOnlineMode && !this.isOnlineHost) {
-      console.log('🪙 COIN DEBUG: Non-host skipping spawnCoins() - waiting for network')
-      return
-    }
+    // In online mode, both Host and Client spawn coins deterministically
+    // This prevents duplicate coins and ensures immediate availability
     console.log(`🪙 COIN DEBUG: spawnCoins() called - isOnlineMode=${this.isOnlineMode}, isHost=${this.isOnlineHost}`)
     
     // Spawn coins at various positions throughout the world (Y values are above floor at 650)
@@ -1798,6 +1856,36 @@ export default class GameScene extends Phaser.Scene {
       bossDistance = Phaser.Math.Distance.Between(playerX, playerY, this.boss.x, this.boss.y)
       bossHealth = (this.boss.getData('health') || 100)
     }
+
+    // Find nearest coin
+    let nearestCoinDistance = 1000
+    let nearestCoinX = 0
+    let nearestCoinY = 0
+    const coinsArray = this.coins.getChildren() as Phaser.Physics.Arcade.Sprite[]
+    for (const coin of coinsArray) {
+      if (!coin.active) continue
+      const distance = Phaser.Math.Distance.Between(playerX, playerY, coin.x, coin.y)
+      if (distance < nearestCoinDistance) {
+        nearestCoinDistance = distance
+        nearestCoinX = coin.x - playerX
+        nearestCoinY = coin.y - playerY
+      }
+    }
+
+    // Find nearest powerup
+    let nearestPowerUpDistance = 1000
+    let nearestPowerUpX = 0
+    let nearestPowerUpY = 0
+    const powerUpsArray = this.powerUps.getChildren() as Phaser.Physics.Arcade.Sprite[]
+    for (const powerUp of powerUpsArray) {
+      if (!powerUp.active) continue
+      const distance = Phaser.Math.Distance.Between(playerX, playerY, powerUp.x, powerUp.y)
+      if (distance < nearestPowerUpDistance) {
+        nearestPowerUpDistance = distance
+        nearestPowerUpX = powerUp.x - playerX
+        nearestPowerUpY = powerUp.y - playerY
+      }
+    }
     
     return {
       playerX,
@@ -1813,7 +1901,13 @@ export default class GameScene extends Phaser.Scene {
       gapAhead,
       bossActive,
       bossDistance,
-      bossHealth
+      bossHealth,
+      nearestCoinDistance,
+      nearestCoinX,
+      nearestCoinY,
+      nearestPowerUpDistance,
+      nearestPowerUpX,
+      nearestPowerUpY
     }
   }
 
@@ -2351,11 +2445,8 @@ export default class GameScene extends Phaser.Scene {
   }
 
   private spawnPowerUps() {
-    // In online mode, only HOST spawns power-ups - non-host receives them via network
-    if (this.isOnlineMode && !this.isOnlineHost) {
-      console.log('🎁 Non-host: Waiting for power-up spawn messages from host...')
-      return
-    }
+    // In online mode, both Host and Client spawn power-ups deterministically
+    // This ensures they are available immediately without waiting for network messages
     
     // Clear any existing powerups to prevent duplicates on scene restart
     if (this.powerUps && this.powerUps.getLength() > 0) {
@@ -2395,7 +2486,8 @@ export default class GameScene extends Phaser.Scene {
       
       usedXPositions.push(x)
       
-      const y = Phaser.Math.Between(300, 600) // Vary Y position for better distribution
+      // Use seeded RNG for Y position in online mode to ensure deterministic placement
+      const y = this.isOnlineMode ? this.onlineSeededBetween(300, 600) : Phaser.Math.Between(300, 600)
       const typeIndex = this.isOnlineMode ? this.onlineSeededBetween(0, powerUpTypes.length - 1) : Phaser.Math.Between(0, powerUpTypes.length - 1)
       const type = powerUpTypes[typeIndex]
 
@@ -2662,18 +2754,17 @@ export default class GameScene extends Phaser.Scene {
 
 
   private spawnCoinsInArea(startX: number, endX: number) {
-    // In online mode, only HOST spawns coins - non-host receives them via network
-    // This prevents duplicate coins
-    if (this.isOnlineMode && !this.isOnlineHost) {
-      console.log(`🪙 COIN DEBUG: Non-host skipping spawnCoinsInArea(${startX}, ${endX})`)
-      return // Non-host doesn't spawn coins locally
-    }
+    // In online mode, both Host and Client spawn coins deterministically
+    // This ensures they are available immediately without waiting for network messages
     console.log(`🪙 COIN DEBUG: spawnCoinsInArea(${startX}, ${endX}) - isHost=${this.isOnlineHost}`)
     
     // Reset RNG for this chunk to ensure deterministic coin spawning in online mode
     // Use a unique formula to differentiate from enemy RNG
     // Use seeded RNG for BOTH online and offline modes
     const chunkIndex = Math.floor(startX / 800)
+    if (this.isOnlineMode && !this.onlineSeed) {
+      console.warn('⚠️ spawnCoinsInArea called without onlineSeed! Coin spawning may be desynced.')
+    }
     const seed = this.onlineSeed || 12345 // Fallback seed if undefined
     this.onlineRngState = seed * 3 + chunkIndex * 54321
     console.log(`🪙 Coin RNG reset for chunk ${chunkIndex}, seed state: ${this.onlineRngState}`)
@@ -2773,12 +2864,9 @@ export default class GameScene extends Phaser.Scene {
   }
 
   private spawnEnemiesInArea(startX: number, endX: number) {
-    // In online mode, only HOST spawns enemies - non-host receives them via network
-    // This prevents duplicate enemies
-    if (this.isOnlineMode && !this.isOnlineHost) {
-      console.log(`👾 Non-host skipping spawnEnemiesInArea(${startX}, ${endX})`)
-      return // Non-host doesn't spawn enemies locally
-    }
+    // In online mode, both Host and Client spawn enemies deterministically
+    // This ensures they are available immediately without waiting for network messages
+    console.log(`👾 spawnEnemiesInArea(${startX}, ${endX}) - isHost=${this.isOnlineHost}`)
     
     // Don't spawn enemies on the starting platform (first 500 pixels)
     if (startX < 500) return
@@ -2788,6 +2876,9 @@ export default class GameScene extends Phaser.Scene {
     // Reset RNG for this chunk to ensure deterministic enemy spawning in online mode
     // Use a unique multiplier (12345) different from coins
     // Use seeded RNG for BOTH online and offline modes
+    if (this.isOnlineMode && !this.onlineSeed) {
+      console.warn('⚠️ spawnEnemiesInArea called without onlineSeed! Enemy spawning may be desynced.')
+    }
     const seed = this.onlineSeed || 12345 // Fallback seed
     this.onlineRngState = seed * 7 + chunkIndex * 12345
     console.log(`👾 Enemy RNG reset for chunk ${chunkIndex}, seed state: ${this.onlineRngState}`)
@@ -3593,8 +3684,14 @@ export default class GameScene extends Phaser.Scene {
   }
 
   private enterPortal(isRemoteTrigger: boolean = false) {
-    if (this.playerIsDead) return
-    this.playerIsDead = true
+    // Prevent multiple transitions
+    if (this.isTransitioning) return
+    
+    // If dead and NOT a remote trigger, we can't enter portal locally
+    if (this.playerIsDead && !isRemoteTrigger) return
+    
+    this.isTransitioning = true
+    this.playerIsDead = true // Stop other updates
 
     // In online mode, notify other player if we are the one triggering it
     if (this.isOnlineMode && !isRemoteTrigger) {
@@ -3627,9 +3724,28 @@ export default class GameScene extends Phaser.Scene {
         coins: this.coinCount,
         isRecording: this.isRecordingForDQN
       }
-      if (this.isCoopMode) {
+      
+      if (this.isOnlineMode) {
+        // CRITICAL: Pass online configuration to next level
+        nextLevelData.mode = 'online_coop'
+        nextLevelData.playerNumber = this.onlinePlayerNumber
+        nextLevelData.playerId = this.onlinePlayerId
+        
+        // Deterministically rotate seed so both players get the same next level
+        // We don't need to send it over network if both use the same formula
+        const nextSeed = (this.onlineSeed || 12345) + 11111
+        
+        if (this.onlineGameState) {
+          nextLevelData.gameState = {
+            ...this.onlineGameState,
+            level: this.currentLevel + 1,
+            seed: nextSeed
+          }
+        }
+      } else if (this.isCoopMode) {
         nextLevelData.mode = 'coop'
       }
+
       if (this.dqnTraining) {
         nextLevelData.dqnTraining = true
       }
@@ -3700,6 +3816,66 @@ export default class GameScene extends Phaser.Scene {
     }
   }
 
+  private generationTimer?: Phaser.Time.TimerEvent
+
+  /**
+   * Incrementally generate level chunks to avoid freezing the UI
+   */
+  private generateLevelChunks() {
+    // Generate 2 chunks per frame to keep UI responsive
+    for (let i = 0; i < 2; i++) {
+      if (this.worldGenerationX >= this.levelLength) {
+        // Generation complete!
+        this.finishWorldGeneration()
+        return
+      }
+
+      const chunkStartX = this.worldGenerationX
+      
+      // Reset RNG for determinism
+      this.worldGenerator.resetRngForChunk(chunkStartX)
+      this.worldGenerator.generateChunk(chunkStartX)
+      this.worldGenerationX += 800
+      
+      // Spawn entities immediately
+      this.spawnCoinsInArea(chunkStartX, chunkStartX + 800)
+      this.spawnEnemiesInArea(chunkStartX, chunkStartX + 800)
+    }
+
+    // Update progress bar
+    if (this.loadingBar && this.loadingText) {
+      const progress = Math.min(this.worldGenerationX / this.levelLength, 1)
+      this.loadingBar.width = 600 * progress
+      this.loadingText.setText(`GENERATING WORLD... ${Math.floor(progress * 100)}%`)
+    }
+  }
+
+  private finishWorldGeneration() {
+    console.log(`✅ Level pre-generation complete. Total platforms: ${this.platforms.getChildren().length}`)
+    
+    // Create end marker
+    if (!this.levelEndMarker) {
+      this.createLevelEndMarker()
+    }
+
+    // Remove loading UI
+    this.loadingBar?.destroy()
+    this.loadingBarBg?.destroy()
+    this.loadingText?.destroy()
+    
+    const overlay = this.children.list.find(c => (c as any).depth === 9000)
+    overlay?.destroy()
+
+    this.isGeneratingWorld = false
+    this.physics.resume() // Resume physics
+    
+    // Stop the timer
+    if (this.generationTimer) {
+      this.generationTimer.remove()
+      this.generationTimer = undefined
+    }
+  }
+
   private checkLevelComplete() {
     if (!this.levelEndMarker) return
     if (this.levelCompleteShown) return // Prevent multiple triggers
@@ -3729,6 +3905,23 @@ export default class GameScene extends Phaser.Scene {
         return
       }
 
+      // DQN Training mode: Auto-transition to next level without UI
+      if (this.dqnTraining) {
+        console.log(`🤖 DQN: Level ${this.currentLevel} complete! Auto-transitioning to level ${this.currentLevel + 1}...`)
+        
+        // Brief delay then restart with next level
+        this.time.delayedCall(500, () => {
+          this.scene.restart({
+            level: this.currentLevel + 1,
+            score: this.score,
+            coins: this.coinCount,
+            gameMode: this.gameMode,
+            dqnTraining: true
+          })
+        })
+        return
+      }
+
       this.uiManager.showLevelComplete(this.currentLevel, this.score, this.coinCount)
     }
   }
@@ -3736,6 +3929,9 @@ export default class GameScene extends Phaser.Scene {
 
 
   update() {
+    // Block updates during world generation
+    if (this.isGeneratingWorld) return
+
     // DQN Training: Handle keyboard controls and training loop
     if (this.dqnTraining) {
       this.handleDQNKeyboardControls()
@@ -3820,6 +4016,9 @@ export default class GameScene extends Phaser.Scene {
           console.log(`🌍 Generating chunk ${Math.floor(chunkStartX / 800)} at X=${chunkStartX}`)
         }
         
+        // Explicitly reset RNG for this chunk to ensure deterministic generation
+        // This guarantees that both Host and Client generate the exact same terrain
+        this.worldGenerator.resetRngForChunk(chunkStartX)
         this.worldGenerator.generateChunk(chunkStartX)
         this.worldGenerationX += 800
 
@@ -3911,6 +4110,9 @@ export default class GameScene extends Phaser.Scene {
     if (currentMeter > lastMeter) {
       this.uiManager.updateScore(1)
     }
+
+    // Update Boss Indicator
+    this.uiManager.updateBossIndicator(this.boss)
 
     // Health & Lives
     this.uiManager.updateHealthBar(this.playerHealth, this.maxHealth)

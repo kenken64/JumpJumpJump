@@ -637,8 +637,8 @@ describe('VirtualGamepad', () => {
       // Check circle calls for different colors
       // Left/Right: 0x888888, Jump: 0x00aa00, Shoot: 0xaa0000
       expect(mockScene.add.circle).toHaveBeenCalledWith(0, 0, 35, 0x888888, 0.5)
-      expect(mockScene.add.circle).toHaveBeenCalledWith(0, 0, 45, 0x00aa00, 0.5)
-      expect(mockScene.add.circle).toHaveBeenCalledWith(0, 0, 45, 0xaa0000, 0.5)
+      expect(mockScene.add.circle).toHaveBeenCalledWith(0, 0, 55, 0x00aa00, 0.5)
+      expect(mockScene.add.circle).toHaveBeenCalledWith(0, 0, 55, 0xaa0000, 0.5)
     })
 
     it('should create text labels with correct content', async () => {
