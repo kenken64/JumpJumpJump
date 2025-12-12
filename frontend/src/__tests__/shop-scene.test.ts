@@ -50,6 +50,7 @@ vi.mock('phaser', () => {
     lineTo: vi.fn().mockReturnThis(),
     closePath: vi.fn().mockReturnThis(),
     fillPath: vi.fn().mockReturnThis(),
+    fillPoints: vi.fn().mockReturnThis(),
     lineStyle: vi.fn().mockReturnThis(),
     strokeRect: vi.fn().mockReturnThis(),
     generateTexture: vi.fn().mockReturnThis(),
@@ -93,6 +94,15 @@ vi.mock('phaser', () => {
               config.onComplete()
             }
           })
+        }
+      },
+      Curves: {
+        Path: class {
+          constructor() {}
+          cubicBezierTo() {}
+          lineTo() {}
+          moveTo() {}
+          getPoints() { return [] }
         }
       },
       Input: {
@@ -229,7 +239,7 @@ describe('ShopScene', () => {
 
     it('should initialize shop items array', () => {
       scene.create()
-      expect((scene as any).shopItems.length).toBe(8)
+      expect((scene as any).shopItems.length).toBe(9)
     })
 
     it('should include weapons in shop items', () => {

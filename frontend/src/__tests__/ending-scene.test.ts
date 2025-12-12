@@ -14,13 +14,16 @@ vi.mock('phaser', () => {
       }
       scene = {
         key: 'EndingScene',
-        start: vi.fn()
+        start: vi.fn(),
+        isActive: vi.fn().mockReturnValue(true)
       }
       cameras = {
         main: {
           width: 1280,
           height: 720,
-          setBackgroundColor: vi.fn()
+          setBackgroundColor: vi.fn(),
+          flash: vi.fn(),
+          shake: vi.fn()
         }
       }
       add = {
@@ -41,16 +44,34 @@ vi.mock('phaser', () => {
             setOrigin: vi.fn().mockReturnThis(),
             setStroke: vi.fn().mockReturnThis(),
             setShadow: vi.fn().mockReturnThis(),
+            setDepth: vi.fn().mockReturnThis(),
+            setWordWrapWidth: vi.fn().mockReturnThis(),
             y: y,
             height: 5000
           }
           storyTextRef = storyText
           return storyText
         }),
-        circle: vi.fn().mockReturnValue({})
+        circle: vi.fn().mockReturnValue({}),
+        image: vi.fn().mockReturnValue({
+          setScale: vi.fn().mockReturnThis(),
+          setDepth: vi.fn().mockReturnThis(),
+          setRotation: vi.fn().mockReturnThis(),
+          setVisible: vi.fn().mockReturnThis(),
+          setAlpha: vi.fn().mockReturnThis(),
+          setPosition: vi.fn().mockReturnThis()
+        }),
+        particles: vi.fn().mockReturnValue({
+          setDepth: vi.fn().mockReturnThis(),
+          start: vi.fn().mockReturnThis(),
+          stop: vi.fn().mockReturnThis(),
+          createEmitter: vi.fn().mockReturnThis(),
+          explode: vi.fn().mockReturnThis()
+        })
       }
       load = {
-        audio: vi.fn()
+        audio: vi.fn(),
+        image: vi.fn()
       }
       input = {
         keyboard: {
@@ -63,9 +84,18 @@ vi.mock('phaser', () => {
         stopAll: vi.fn(),
         play: vi.fn()
       }
+      tweens = {
+        add: vi.fn().mockImplementation((config) => {
+          if (config.onComplete) config.onComplete()
+          return {}
+        })
+      }
       scale = {
         width: 1280,
         height: 720
+      }
+      time = {
+        delayedCall: vi.fn().mockReturnValue({})
       }
       
       constructor() {
@@ -74,7 +104,11 @@ vi.mock('phaser', () => {
     },
     Math: {
       Between: vi.fn().mockReturnValue(640),
-      FloatBetween: vi.fn().mockReturnValue(1)
+      FloatBetween: vi.fn().mockReturnValue(1),
+      Angle: {
+        Between: vi.fn().mockReturnValue(0)
+      },
+      DegToRad: vi.fn().mockReturnValue(0)
     }
   }
 
@@ -158,7 +192,7 @@ describe('EndingScene', () => {
       expect(scene.add.text).toHaveBeenCalledWith(
         640, // width / 2
         770, // height + 50
-        expect.stringContaining('They Came From the Dark Between Stars'),
+        expect.stringContaining('The Chrysalis Protocol'),
         expect.objectContaining({
           fontSize: '32px',
           color: '#FFE81F', // Star Wars Yellow
@@ -436,7 +470,7 @@ describe('EndingScene', () => {
       // Get the story text content from the mock call
       const textCalls = (scene.add.text as any).mock.calls
       const storyCall = textCalls.find((call: any[]) => 
-        typeof call[2] === 'string' && call[2].includes('They Came From the Dark Between Stars')
+        typeof call[2] === 'string' && call[2].includes('The Chrysalis Protocol')
       )
       expect(storyCall).toBeDefined()
     })
@@ -446,7 +480,7 @@ describe('EndingScene', () => {
       
       const textCalls = (scene.add.text as any).mock.calls
       const storyCall = textCalls.find((call: any[]) => 
-        typeof call[2] === 'string' && call[2].includes('The Watchers')
+        typeof call[2] === 'string' && call[2].includes('Dr. Maya Chen')
       )
       expect(storyCall).toBeDefined()
     })
@@ -456,7 +490,7 @@ describe('EndingScene', () => {
       
       const textCalls = (scene.add.text as any).mock.calls
       const storyCall = textCalls.find((call: any[]) => 
-        typeof call[2] === 'string' && call[2].includes('Prove them wrong')
+        typeof call[2] === 'string' && call[2].includes('The beacon pulsed. Help was coming.')
       )
       expect(storyCall).toBeDefined()
     })
