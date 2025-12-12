@@ -53,8 +53,8 @@ export class VirtualGamepad {
     const actionY = height - 150
     const actionX = width - 150
 
-    // Jump Button (A)
-    this.jumpBtn = this.createButton(actionX, actionY + 60, 'JUMP', 0x00aa00, 45) // Increased size
+    // Jump Button (A) - Increased size and spacing
+    this.jumpBtn = this.createButton(actionX - 20, actionY + 60, 'JUMP', 0x00aa00, 55) 
     this.jumpBtn.setInteractive()
     this.jumpBtn.on('pointerdown', () => { 
       this.isJump = true 
@@ -70,8 +70,8 @@ export class VirtualGamepad {
       }
     })
 
-    // Shoot Button (B)
-    this.shootBtn = this.createButton(actionX + 80, actionY - 20, 'SHOOT', 0xaa0000, 45) // Increased size
+    // Shoot Button (B) - Increased size and spacing
+    this.shootBtn = this.createButton(actionX + 100, actionY - 40, 'SHOOT', 0xaa0000, 55)
     this.shootBtn.setInteractive()
     this.shootBtn.on('pointerdown', () => { this.isShoot = true })
     this.shootBtn.on('pointerup', () => { this.isShoot = false })

@@ -43,6 +43,11 @@ export class UIManager {
   private tipBackground?: Phaser.GameObjects.Rectangle;
   private activeTip: string | null = null;
 
+  // Boss Indicator
+  private bossIndicator?: Phaser.GameObjects.Container;
+  private bossIndicatorArrow?: Phaser.GameObjects.Text;
+  private bossIndicatorText?: Phaser.GameObjects.Text;
+
   constructor(scene: GameScene) {
     this.scene = scene;
   }
@@ -59,6 +64,94 @@ export class UIManager {
     
     // Create Debug UI (hidden by default)
     this.createDebugUI();
+
+    // Create Boss Indicator (hidden by default)
+    this.createBossIndicator();
+  }
+
+  private createBossIndicator() {
+    this.bossIndicator = this.scene.add.container(0, 0);
+    this.bossIndicator.setScrollFactor(0);
+    this.bossIndicator.setDepth(1000);
+    this.bossIndicator.setVisible(false);
+
+    // Create arrow using text for simplicity, or could use a shape
+    this.bossIndicatorArrow = this.scene.add.text(0, 0, '➤', {
+      fontSize: '40px',
+      color: '#ff0000',
+      fontStyle: 'bold',
+      stroke: '#ffffff',
+      strokeThickness: 4
+    });
+    this.bossIndicatorArrow.setOrigin(0.5);
+
+    this.bossIndicatorText = this.scene.add.text(0, 30, 'BOSS', {
+      fontSize: '16px',
+      color: '#ff0000',
+      fontStyle: 'bold',
+      stroke: '#000000',
+      strokeThickness: 3
+    });
+    this.bossIndicatorText.setOrigin(0.5);
+
+    this.bossIndicator.add([this.bossIndicatorArrow, this.bossIndicatorText]);
+  }
+
+  public updateBossIndicator(boss: Phaser.Physics.Arcade.Sprite | null) {
+    if (!this.bossIndicator || !this.bossIndicatorArrow) return;
+
+    if (!boss || !boss.active || !boss.visible) {
+      this.bossIndicator.setVisible(false);
+      return;
+    }
+
+    const cam = this.scene.cameras.main;
+    const bossX = boss.x;
+    const bossY = boss.y;
+
+    // Check if boss is off-screen
+    const isOffScreen = 
+      bossX < cam.scrollX || 
+      bossX > cam.scrollX + cam.width || 
+      bossY < cam.scrollY || 
+      bossY > cam.scrollY + cam.height;
+
+    if (isOffScreen) {
+      this.bossIndicator.setVisible(true);
+
+      // Calculate angle to boss
+      const angle = Phaser.Math.Angle.Between(
+        cam.scrollX + cam.width / 2,
+        cam.scrollY + cam.height / 2,
+        bossX,
+        bossY
+      );
+
+      // Position indicator at edge of screen
+      const padding = 50;
+      const centerX = cam.width / 2;
+      const centerY = cam.height / 2;
+      
+      // Calculate position on screen edge
+      // Simple clamping for now
+      let targetX = centerX + Math.cos(angle) * (centerX - padding);
+      let targetY = centerY + Math.sin(angle) * (centerY - padding);
+
+      // Clamp to screen bounds with padding
+      targetX = Phaser.Math.Clamp(targetX, padding, cam.width - padding);
+      targetY = Phaser.Math.Clamp(targetY, padding, cam.height - padding);
+
+      this.bossIndicator.setPosition(targetX, targetY);
+      
+      // Rotate arrow to point at boss
+      this.bossIndicatorArrow.setRotation(angle);
+      
+      // Pulse effect
+      const scale = 1 + Math.sin(this.scene.time.now / 200) * 0.2;
+      this.bossIndicator.setScale(scale);
+    } else {
+      this.bossIndicator.setVisible(false);
+    }
   }
 
   private createCoopUI() {
@@ -742,6 +835,7 @@ export class UIManager {
         level: nextLevel, 
         score: score,
         coins: coins,
+        lives: this.scene.playerLives,
         gameMode: this.scene.gameMode
       });
     });
@@ -754,6 +848,7 @@ export class UIManager {
         level: nextLevel, 
         score: score,
         coins: coins,
+        lives: this.scene.playerLives,
         gameMode: this.scene.gameMode
       });
     });
