@@ -57,6 +57,12 @@ All game assets are from Kenney asset packs, organized in `frontend/assets/`:
 - **Backend**: http://localhost:8000
 - **API Docs**: http://localhost:8000/docs
 
+### 8. Safety & Data Integrity
+- **File System**: **DO NOT DELETE** any files outside this project directory.
+- **Database**: 
+  - Deleting data from the SQLite database requires explicit permission from the user.
+  - **DO NOT DROP** any table without explicit permission from the user.
+
 ## Common Commands
 
 ### Development
