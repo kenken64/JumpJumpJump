@@ -203,8 +203,24 @@ describe('MenuScene', () => {
     vi.clearAllMocks()
     localStorage.clear()
     
+    // Mock navigator.getGamepads
+    if (!global.navigator.getGamepads) {
+      Object.defineProperty(global.navigator, 'getGamepads', {
+        value: vi.fn().mockReturnValue([]),
+        writable: true
+      });
+    } else {
+      (global.navigator.getGamepads as any) = vi.fn().mockReturnValue([]);
+    }
+
     // Instantiate scene
     scene = new MenuScene()
+  })
+
+  afterEach(() => {
+    if (scene) {
+      scene.shutdown()
+    }
   })
 
   it('should be defined', () => {
