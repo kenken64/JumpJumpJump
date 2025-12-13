@@ -22,13 +22,15 @@ interface ShopItem {
   /** Display name */
   name: string
   /** Item category */
-  type: 'weapon' | 'skin'
+  type: 'weapon' | 'skin' | 'powerup'
   /** Cost in coins */
   price: number
   /** Texture key for display */
   icon: string
   /** Item description text */
   description: string
+  /** Whether item can be purchased multiple times */
+  consumable?: boolean
 }
 
 /**
@@ -188,11 +190,42 @@ export default class ShopScene extends Phaser.Scene {
     
     lfgGraphics.generateTexture('lfg', 90, 80)
     lfgGraphics.destroy()
+
+    // Create Extra Life icon (Heart)
+    const heartGraphics = this.make.graphics({ x: 0, y: 0 })
+    
+    // Green background circle
+    heartGraphics.fillStyle(0x00cc00, 1)
+    heartGraphics.fillCircle(40, 40, 35)
+
+    // Pink Heart
+    heartGraphics.fillStyle(0xff0066, 1)
+    
+    const heartPath = new Phaser.Curves.Path(40, 55)
+    heartPath.cubicBezierTo(40, 55, 15, 40, 15, 25)
+    heartPath.cubicBezierTo(15, 10, 30, 10, 40, 25)
+    heartPath.cubicBezierTo(50, 10, 65, 10, 65, 25)
+    heartPath.cubicBezierTo(65, 40, 40, 55, 40, 55)
+    
+    const points = heartPath.getPoints(40)
+    heartGraphics.fillPoints(points)
+    
+    heartGraphics.generateTexture('extraLife', 80, 80)
+    heartGraphics.destroy()
   }
 
   create() {
     // Shop items catalog
     this.shopItems = [
+      {
+        id: 'extraLife',
+        name: 'Extra Life',
+        type: 'powerup',
+        price: 100,
+        icon: 'extraLife',
+        description: 'Adds 1 extra life. Can be purchased multiple times.',
+        consumable: true
+      },
       {
         id: 'laserGun',
         name: 'Laser Gun',
@@ -545,16 +578,30 @@ export default class ShopScene extends Phaser.Scene {
   }
 
   private purchaseItem(item: ShopItem) {
-    if (this.coinCount >= item.price && !this.purchasedItems.has(item.id)) {
+    const canBuy = this.coinCount >= item.price
+    const alreadyOwned = this.purchasedItems.has(item.id)
+    
+    if (canBuy && (!alreadyOwned || item.consumable)) {
       this.coinCount -= item.price
-      this.purchasedItems.add(item.id)
+      
+      if (!item.consumable) {
+        this.purchasedItems.add(item.id)
+      } else {
+        // Handle consumable specific logic
+        if (item.id === 'extraLife') {
+          const currentLives = parseInt(localStorage.getItem('purchasedLives') || '0')
+          localStorage.setItem('purchasedLives', (currentLives + 1).toString())
+        }
+      }
       
       // Update display
       this.coinText.setText(`${this.coinCount}`)
       
       // Save purchases
       this.saveCoins()
-      this.savePurchasedItems()
+      if (!item.consumable) {
+        this.savePurchasedItems()
+      }
       
       // Show success message
       const successText = this.add.text(640, 300, `${item.name} Purchased!`, {

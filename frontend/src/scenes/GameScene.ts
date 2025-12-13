@@ -466,7 +466,12 @@ export default class GameScene extends Phaser.Scene {
     this.playerIsDead = false
     this.playerHealth = this.initHealth !== undefined ? this.initHealth : 100
     // Use carried over lives from previous level, or default to 3
-    this.playerLives = this.initLives !== undefined ? this.initLives : 3
+    const purchasedLives = parseInt(localStorage.getItem('purchasedLives') || '0')
+    if (purchasedLives > 0) {
+      console.log(`❤️ Adding ${purchasedLives} purchased lives`)
+      localStorage.setItem('purchasedLives', '0')
+    }
+    this.playerLives = (this.initLives !== undefined ? this.initLives : 3) + purchasedLives
     // Use carried over score from previous level, or start at 0
     this.score = this.initScore !== undefined ? this.initScore : 0
     
@@ -3383,7 +3388,8 @@ export default class GameScene extends Phaser.Scene {
           let scoreReward = 50
           if (enemySize === 'medium') scoreReward = 100
           if (enemySize === 'large') scoreReward = 200
-          this.uiManager.updateScore(scoreReward)
+          this.score += scoreReward
+          this.uiManager.updateScore(this.score)
           this.enemiesDefeated++
           enemySprite.destroy()
         }
@@ -3496,7 +3502,8 @@ export default class GameScene extends Phaser.Scene {
     this.dropCoins(this.boss.x, this.boss.y, coinReward)
 
     // Award huge score bonus for defeating boss
-    this.uiManager.updateScore(1000)
+    this.score += 1000
+    this.uiManager.updateScore(this.score)
 
     // Check for final boss (Index 21)
     if (bossIndex === 21) {
@@ -4108,7 +4115,8 @@ export default class GameScene extends Phaser.Scene {
     const currentMeter = Math.floor(this.player.x / 100)
     const lastMeter = Math.floor((this.player.x - (this.player.body as Phaser.Physics.Arcade.Body).velocity.x * 0.016) / 100)
     if (currentMeter > lastMeter) {
-      this.uiManager.updateScore(1)
+      this.score += 1
+      this.uiManager.updateScore(this.score)
     }
 
     // Update Boss Indicator
@@ -4709,7 +4717,8 @@ export default class GameScene extends Phaser.Scene {
       // Instantly kill enemy in debug mode
       const coinReward = enemySprite.getData('coinReward') || 10
       this.dropCoins(enemySprite.x, enemySprite.y, coinReward)
-      this.uiManager.updateScore(100)
+      this.score += 100
+      this.uiManager.updateScore(this.score)
       
       // Create death effect
       const enemyType = enemySprite.getData('enemyType') || 'alienGreen'
@@ -5561,7 +5570,8 @@ export default class GameScene extends Phaser.Scene {
               let scoreReward = 50 // small
               if (enemySize === 'medium') scoreReward = 100
               if (enemySize === 'large') scoreReward = 200
-              this.uiManager.updateScore(scoreReward)
+              this.score += scoreReward
+              this.uiManager.updateScore(this.score)
 
             // If we're in online mode, report the kill to the server and avoid spawning local coins
             const enemyId = enemySprite.getData('enemyId')
@@ -6152,7 +6162,8 @@ export default class GameScene extends Phaser.Scene {
       let scoreReward = 50 // small
       if (enemySize === 'medium') scoreReward = 100
       if (enemySize === 'large') scoreReward = 200
-      this.uiManager.updateScore(scoreReward)
+      this.score += scoreReward
+      this.uiManager.updateScore(this.score)
 
       // Death animation
       if (enemySprite.body) {
@@ -7032,7 +7043,8 @@ export default class GameScene extends Phaser.Scene {
         let scoreReward = 50
         if (enemySize === 'medium') scoreReward = 100
         if (enemySize === 'large') scoreReward = 200
-        this.uiManager.updateScore(scoreReward)
+        this.score += scoreReward
+        this.uiManager.updateScore(this.score)
 
         enemySprite.setVelocity(0, 0)
         enemySprite.setTint(0xff00ff)
@@ -7280,7 +7292,8 @@ export default class GameScene extends Phaser.Scene {
     let scoreReward = 50
     if (enemySize === 'medium') scoreReward = 100
     if (enemySize === 'large') scoreReward = 200
-    this.uiManager.updateScore(scoreReward)
+    this.score += scoreReward
+    this.uiManager.updateScore(this.score)
 
     // Death animation
     enemySprite.setVelocity(0, 0)
