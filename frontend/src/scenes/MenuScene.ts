@@ -632,8 +632,9 @@ export default class MenuScene extends Phaser.Scene {
       z-index: 10000;
     `
     
-    // Add to DOM
-    document.body.appendChild(nameInput)
+    // Add to DOM - append to game container to support fullscreen
+    const gameContainer = canvas.parentElement || document.body
+    gameContainer.appendChild(nameInput)
     
     // Focus after a short delay to ensure it's in DOM
     setTimeout(() => nameInput.focus(), 100)
@@ -661,8 +662,8 @@ export default class MenuScene extends Phaser.Scene {
 
     // Cleanup function
     const cleanup = () => {
-      if (document.body.contains(nameInput)) {
-        document.body.removeChild(nameInput)
+      if (nameInput.parentElement) {
+        nameInput.parentElement.removeChild(nameInput)
       }
       window.removeEventListener('resize', resizeHandler)
       

@@ -583,7 +583,10 @@ describe('UIManager', () => {
       // Mock canvas getBoundingClientRect
       scene.game.canvas = {
         getBoundingClientRect: () => ({ left: 0, top: 0, bottom: 100, right: 100 }),
-        focus: vi.fn()
+        focus: vi.fn(),
+        parentElement: {
+          appendChild: vi.fn()
+        }
       } as any
     })
 
@@ -593,7 +596,7 @@ describe('UIManager', () => {
       
       expect(document.createElement).toHaveBeenCalledWith('div')
       expect(document.createElement).toHaveBeenCalledWith('input')
-      expect(document.body.appendChild).toHaveBeenCalled()
+      expect(scene.game.canvas.parentElement.appendChild).toHaveBeenCalled()
       expect(uiManager.chatInputActive).toBe(true)
     })
 

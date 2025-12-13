@@ -1384,7 +1384,8 @@ export class UIManager {
     
     this.chatContainer.appendChild(label);
     this.chatContainer.appendChild(this.chatInputElement);
-    document.body.appendChild(this.chatContainer);
+    const gameContainer = gameCanvas.parentElement || document.body;
+    gameContainer.appendChild(this.chatContainer);
     
     // Focus the input
     this.chatInputElement.focus();

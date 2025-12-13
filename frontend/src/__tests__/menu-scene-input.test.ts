@@ -12,7 +12,12 @@ vi.mock('phaser', () => {
               top: 0,
               width: 1280,
               height: 720
-            })
+            }),
+            parentElement: {
+              appendChild: vi.fn(),
+              removeChild: vi.fn(),
+              contains: vi.fn().mockReturnValue(true)
+            }
           }
         }
         sys = {
@@ -24,7 +29,12 @@ vi.mock('phaser', () => {
                 top: 0,
                 width: 1280,
                 height: 720
-              })
+              }),
+              parentElement: {
+                appendChild: vi.fn(),
+                removeChild: vi.fn(),
+                contains: vi.fn().mockReturnValue(true)
+              }
             }
           }
         }
@@ -132,24 +142,30 @@ describe('MenuScene Input Dialog', () => {
       return {}
     })
     
-    document.body.appendChild = vi.fn().mockImplementation((node) => {
-      documentBodyMock.push(node)
-      return node
-    })
-    
-    document.body.removeChild = vi.fn().mockImplementation((node) => {
-      const index = documentBodyMock.indexOf(node)
-      if (index > -1) {
-        documentBodyMock.splice(index, 1)
-      }
-      return node
-    })
-    
-    document.body.contains = vi.fn().mockImplementation((node) => {
-      return documentBodyMock.includes(node)
-    })
-
     scene = new MenuScene()
+
+    // Mock the parentElement methods to track added nodes
+    const parentElementMock = {
+      appendChild: vi.fn().mockImplementation((node) => {
+        documentBodyMock.push(node)
+        node.parentElement = parentElementMock
+        return node
+      }),
+      removeChild: vi.fn().mockImplementation((node) => {
+        const index = documentBodyMock.indexOf(node)
+        if (index > -1) {
+          documentBodyMock.splice(index, 1)
+        }
+        node.parentElement = null
+        return node
+      }),
+      contains: vi.fn().mockImplementation((node) => {
+        return documentBodyMock.includes(node)
+      })
+    }
+
+    // Apply mock to scene.game.canvas
+    scene.game.canvas.parentElement = parentElementMock
   })
 
   it('should create an HTML input element when showing name dialog', () => {
@@ -157,7 +173,7 @@ describe('MenuScene Input Dialog', () => {
     (scene as any).showNameInputDialog()
     
     expect(document.createElement).toHaveBeenCalledWith('input')
-    expect(document.body.appendChild).toHaveBeenCalled()
+    expect(scene.game.canvas.parentElement.appendChild).toHaveBeenCalled()
     expect(documentBodyMock.length).toBe(1)
     expect(documentBodyMock[0].placeholder).toBe('Enter name...')
   })
@@ -204,6 +220,6 @@ describe('MenuScene Input Dialog', () => {
     cancelHandler()
     
     expect(documentBodyMock.length).toBe(0)
-    expect(document.body.removeChild).toHaveBeenCalled()
+    expect(scene.game.canvas.parentElement.removeChild).toHaveBeenCalled()
   })
 })

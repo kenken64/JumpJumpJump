@@ -419,7 +419,8 @@ export default class OnlineLobbyScene extends Phaser.Scene {
       outline: none;
       box-shadow: 0 0 15px rgba(0, 255, 0, 0.3);
     `
-    document.body.appendChild(this.roomNameInput)
+    const gameContainer = canvas.parentElement || document.body
+    gameContainer.appendChild(this.roomNameInput)
     this.roomNameInput.focus()
     
     // Create button
@@ -501,7 +502,8 @@ export default class OnlineLobbyScene extends Phaser.Scene {
       outline: none;
       box-shadow: 0 0 15px rgba(0, 255, 255, 0.3);
     `
-    document.body.appendChild(this.roomCodeInput)
+    const gameContainer = canvas.parentElement || document.body
+    gameContainer.appendChild(this.roomCodeInput)
     this.roomCodeInput.focus()
     
     // Auto-uppercase input
