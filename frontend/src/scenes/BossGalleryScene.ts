@@ -146,7 +146,7 @@ export default class BossGalleryScene extends Phaser.Scene {
     const startX = 240
     const startY = 220
     const spacingX = 270
-    const spacingY = 270
+    const spacingY = 250
 
     pageBosses.forEach((boss, index) => {
       const col = index % 4
@@ -288,7 +288,7 @@ export default class BossGalleryScene extends Phaser.Scene {
     this.nextButtonText = undefined
     
     // Page indicator
-    this.pageText = this.add.text(640, 630, `Page ${this.currentPage + 1} / ${this.totalPages}`, {
+    this.pageText = this.add.text(640, 610, `Page ${this.currentPage + 1} / ${this.totalPages}`, {
       fontSize: '24px',
       color: '#ffffff',
       fontStyle: 'bold'
@@ -296,7 +296,7 @@ export default class BossGalleryScene extends Phaser.Scene {
     this.pageText.setOrigin(0.5)
 
     // Previous button
-    this.prevButton = this.add.rectangle(400, 630, 150, 50, 0x333333)
+    this.prevButton = this.add.rectangle(400, 610, 200, 60, 0x333333)
     this.prevButton.setInteractive({ useHandCursor: true })
     this.prevButton.on('pointerover', () => this.prevButton!.setFillStyle(0x555555))
     this.prevButton.on('pointerout', () => this.prevButton!.setFillStyle(0x333333))
@@ -307,15 +307,15 @@ export default class BossGalleryScene extends Phaser.Scene {
       }
     })
 
-    this.prevButtonText = this.add.text(400, 630, '◀ PREV', {
-      fontSize: '20px',
+    this.prevButtonText = this.add.text(400, 610, '◀ PREV', {
+      fontSize: '24px',
       color: '#ffffff',
       fontStyle: 'bold'
     })
     this.prevButtonText.setOrigin(0.5)
 
     // Next button
-    this.nextButton = this.add.rectangle(880, 630, 150, 50, 0x333333)
+    this.nextButton = this.add.rectangle(880, 610, 200, 60, 0x333333)
     this.nextButton.setInteractive({ useHandCursor: true })
     this.nextButton.on('pointerover', () => this.nextButton!.setFillStyle(0x555555))
     this.nextButton.on('pointerout', () => this.nextButton!.setFillStyle(0x333333))
@@ -327,8 +327,8 @@ export default class BossGalleryScene extends Phaser.Scene {
       }
     })
 
-    this.nextButtonText = this.add.text(880, 630, 'NEXT ▶', {
-      fontSize: '20px',
+    this.nextButtonText = this.add.text(880, 610, 'NEXT ▶', {
+      fontSize: '24px',
       color: '#ffffff',
       fontStyle: 'bold'
     })
