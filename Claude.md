@@ -40,3 +40,12 @@ FastAPI provides a high-performance REST API with automatic documentation and as
 - Serverless architecture
 - ACID compliant
 - Cross-platform compatibility
+
+## Safety Guidelines
+
+### File System
+- **DO NOT DELETE** any files outside this project directory.
+
+### Database Management
+- **Deleting data** from the SQLite database requires explicit permission from the user.
+- **DO NOT DROP** any table without explicit permission from the user.
