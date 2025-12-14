@@ -858,22 +858,25 @@ export class UIManager {
     const checkGamepad = () => {
       if (!gamepadCheckActive) return;
       
-      const gamepads = navigator.getGamepads();
-      for (const gamepad of gamepads) {
-        if (gamepad) {
-          // Check if any button is pressed (A, B, X, Y, Start, etc.)
-          for (let i = 0; i < gamepad.buttons.length; i++) {
-            if (gamepad.buttons[i].pressed) {
-              gamepadCheckActive = false;
-              this.scene.tweens.killAll();
-              const nextLevel = level + 1;
-              this.scene.scene.restart({ 
-                level: nextLevel, 
-                score: score,
-                coins: coins,
-                gameMode: this.scene.gameMode
-              });
-              return;
+      const gamepads = navigator.getGamepads ? navigator.getGamepads() : [];
+      if (gamepads) {
+        for (let g = 0; g < gamepads.length; g++) {
+          const gamepad = gamepads[g];
+          if (gamepad) {
+            // Check if any button is pressed (A, B, X, Y, Start, etc.)
+            for (let i = 0; i < gamepad.buttons.length; i++) {
+              if (gamepad.buttons[i].pressed) {
+                gamepadCheckActive = false;
+                this.scene.tweens.killAll();
+                const nextLevel = level + 1;
+                this.scene.scene.restart({ 
+                  level: nextLevel, 
+                  score: score,
+                  coins: coins,
+                  gameMode: this.scene.gameMode
+                });
+                return;
+              }
             }
           }
         }
