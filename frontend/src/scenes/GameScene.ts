@@ -1605,13 +1605,17 @@ export default class GameScene extends Phaser.Scene {
     ]
 
     coinPositions.forEach((pos, index) => {
-      const coin = this.coins.create(pos.x, pos.y, 'coin')
+      const safePos = this.findSafeCoinPosition(pos.x, pos.y, 0, index)
+      const coin = this.coins.create(safePos.x, safePos.y, 'coin')
       coin.setScale(0.5)
       coin.setBounce(0.3)
       coin.setCollideWorldBounds(true)
       // Disable gravity for floating level coins so they don't fall
       if (coin.body) {
-        (coin.body as Phaser.Physics.Arcade.Body).setAllowGravity(false)
+        const body = coin.body as Phaser.Physics.Arcade.Body
+        body.setAllowGravity(false)
+        // Arcade bodies don't auto-scale with setScale(). Match body to visual size.
+        body.setSize(coin.displayWidth, coin.displayHeight, true)
       }
       // Add unique ID for online sync
       coin.setData('coinId', `coin_init_${index}_${pos.x}_${pos.y}`)
@@ -1620,7 +1624,7 @@ export default class GameScene extends Phaser.Scene {
       // Add floating animation
       this.tweens.add({
         targets: coin,
-        y: pos.y - 20,
+        y: safePos.y - 20,
         duration: 1000,
         yoyo: true,
         repeat: -1,
@@ -2710,7 +2714,9 @@ export default class GameScene extends Phaser.Scene {
         const coinId = `coin_drop_${this.coinDropCounter}_${Math.floor(x)}_${Math.floor(y)}_${i}`
         const coinX = x + offsetX
         const coinY = y + offsetY
-        const coin = this.coins.create(coinX, coinY, 'coin')
+        const chunkStartX = Math.floor(coinX / 800) * 800
+        const safePos = this.findSafeCoinPosition(coinX, coinY, chunkStartX, i)
+        const coin = this.coins.create(safePos.x, safePos.y, 'coin')
         // Set deterministic coin ID for online sync
         coin.setData('coinId', coinId)
         coin.setData('value', 1)
@@ -2724,7 +2730,9 @@ export default class GameScene extends Phaser.Scene {
         coin.setVelocity(velX, velY)
         coin.setScale(0.5)
         coin.setCollideWorldBounds(true)
-        coin.body.setAllowGravity(true)
+        ;(coin.body as Phaser.Physics.Arcade.Body).setAllowGravity(true)
+        // Arcade bodies don't auto-scale with setScale(). Match body to visual size.
+        ;(coin.body as Phaser.Physics.Arcade.Body).setSize(coin.displayWidth, coin.displayHeight, true)
         // Add drag to prevent coins from sliding forever and causing sync issues
         coin.setDragX(200)
 
@@ -2741,15 +2749,15 @@ export default class GameScene extends Phaser.Scene {
         if (this.isOnlineMode && this.isOnlineHost && this.onlinePlayerManager) {
           const coinState: NetworkCoinState = {
             coin_id: coinId,
-            x: Math.round(coinX),
-            y: Math.round(coinY),
+            x: Math.round(safePos.x),
+            y: Math.round(safePos.y),
             is_collected: false,
             collected_by: null,
             value: 1,
             velocity_x: velX,
             velocity_y: velY
           }
-          console.log(`🪙 HOST: Reporting dropped coin ${coinId} at (${Math.round(coinX)}, ${Math.round(coinY)})`)
+          console.log(`🪙 HOST: Reporting dropped coin ${coinId} at (${Math.round(safePos.x)}, ${Math.round(safePos.y)})`)
           this.onlinePlayerManager.reportCoinSpawn(coinState)
         }
       })
@@ -2809,8 +2817,155 @@ export default class GameScene extends Phaser.Scene {
     }
   }
 
+  private isCoinSpawnBlocked(x: number, y: number, halfExtent: number): boolean {
+    // NOTE: Phaser Arcade's overlapRect relies on the world's RTree (treeMinMax).
+    // In some configs, `useTree` is disabled, which can crash overlapRect. We instead
+    // do a safe manual AABB check against platform/spike bodies.
+    const rectLeft = x - halfExtent
+    const rectTop = y - halfExtent
+    const rectRight = x + halfExtent
+    const rectBottom = y + halfExtent
+
+    const intersectsBody = (body: any): boolean => {
+      if (!body) return false
+      const left = body.left ?? body.x
+      const top = body.top ?? body.y
+      const right = body.right ?? (body.x + body.width)
+      const bottom = body.bottom ?? (body.y + body.height)
+      return rectLeft < right && rectRight > left && rectTop < bottom && rectBottom > top
+    }
+
+    const platforms = this.platforms?.getChildren?.() as any[] | undefined
+    if (platforms) {
+      for (const obj of platforms) {
+        if (intersectsBody(obj.body)) return true
+      }
+    }
+
+    const spikes = this.spikes?.getChildren?.() as any[] | undefined
+    if (spikes) {
+      for (const obj of spikes) {
+        if (intersectsBody(obj.body)) return true
+      }
+    }
+
+    // Fallback: sample a small cross/box around the coin's center to avoid spawning inside platforms/walls.
+    const samplePoints = [
+      { x, y },
+      { x: x - halfExtent, y },
+      { x: x + halfExtent, y },
+      { x, y: y - halfExtent },
+      { x, y: y + halfExtent },
+      { x: x - halfExtent, y: y - halfExtent },
+      { x: x + halfExtent, y: y - halfExtent },
+      { x: x - halfExtent, y: y + halfExtent },
+      { x: x + halfExtent, y: y + halfExtent }
+    ]
+
+    for (const p of samplePoints) {
+      if (this.isOnPlatform(p.x, p.y)) return true
+      if (this.isOnSpikes(p.x, p.y)) return true
+    }
+    return false
+  }
+
+  private isPlayerSpaceBlockedAt(x: number, y: number): boolean {
+    // Approximate: if the player body cannot physically occupy this space without
+    // intersecting solids, then the coin is effectively uncollectable.
+    const playerBody = this.player?.body as Phaser.Physics.Arcade.Body | undefined
+    const playerW = Math.max(playerBody?.width ?? 50, 40)
+    const playerH = Math.max(playerBody?.height ?? 80, 60)
+
+    const halfW = playerW / 2
+    const halfH = playerH / 2
+    const rectLeft = x - halfW
+    const rectTop = y - halfH
+    const rectRight = x + halfW
+    const rectBottom = y + halfH
+
+    const intersectsBody = (body: any): boolean => {
+      if (!body) return false
+      const left = body.left ?? body.x
+      const top = body.top ?? body.y
+      const right = body.right ?? (body.x + body.width)
+      const bottom = body.bottom ?? (body.y + body.height)
+      return rectLeft < right && rectRight > left && rectTop < bottom && rectBottom > top
+    }
+
+    const platforms = this.platforms?.getChildren?.() as any[] | undefined
+    if (platforms) {
+      for (const obj of platforms) {
+        if (intersectsBody(obj.body)) return true
+      }
+    }
+
+    const spikes = this.spikes?.getChildren?.() as any[] | undefined
+    if (spikes) {
+      for (const obj of spikes) {
+        if (intersectsBody(obj.body)) return true
+      }
+    }
+
+    return false
+  }
+
+  private findSafeCoinPosition(baseX: number, baseY: number, chunkStartX: number, index: number): { x: number, y: number } {
+    // Deterministic “nearby search” so online/offline both pick identical safe positions.
+    // Matches WorldGenerator's implicit grid scale (tileSize=70) without importing it.
+    const tileSize = 70
+    const step = tileSize / 2
+    const halfExtent = 12
+
+    // Prefer searching upward first to avoid placing coins in wall/floor pockets.
+    const up = tileSize
+    const up2 = tileSize * 2
+
+    const offsets = [
+      { dx: 0, dy: 0 },
+      { dx: 0, dy: -step },
+      { dx: 0, dy: -up },
+      { dx: 0, dy: -up2 },
+      { dx: step, dy: 0 },
+      { dx: -step, dy: 0 },
+      { dx: 0, dy: step },
+      { dx: step, dy: -step },
+      { dx: -step, dy: -step },
+      { dx: step, dy: step },
+      { dx: -step, dy: step },
+      { dx: tileSize, dy: 0 },
+      { dx: -tileSize, dy: 0 },
+      { dx: 0, dy: tileSize },
+      { dx: tileSize, dy: -step },
+      { dx: -tileSize, dy: -step },
+      { dx: tileSize, dy: step },
+      { dx: -tileSize, dy: step },
+      { dx: tileSize, dy: -up },
+      { dx: -tileSize, dy: -up },
+      { dx: tileSize * 2, dy: 0 },
+      { dx: -tileSize * 2, dy: 0 },
+      { dx: tileSize * 2, dy: -up },
+      { dx: -tileSize * 2, dy: -up }
+    ]
+
+    const chunkIndex = Math.floor(chunkStartX / 800)
+    const rotation = Math.abs((chunkIndex + 1) * 31 + index * 7) % offsets.length
+
+    for (let i = 0; i < offsets.length; i++) {
+      const o = offsets[(i + rotation) % offsets.length]
+      const x = baseX + o.dx
+      const y = baseY + o.dy
+      if (!this.isCoinSpawnBlocked(x, y, halfExtent) && !this.isPlayerSpaceBlockedAt(x, y)) {
+        return { x, y }
+      }
+    }
+
+    // Fallback: keep the original position.
+    return { x: baseX, y: baseY }
+  }
+
   private createCoinAt(x: number, y: number, chunkStartX: number, index: number) {
-    const coin = this.coins.create(x, y, 'coin')
+    const safePos = this.findSafeCoinPosition(x, y, chunkStartX, index)
+    const coin = this.coins.create(safePos.x, safePos.y, 'coin')
     coin.setScale(0.5)
     coin.setBounce(0.3)
     coin.setCollideWorldBounds(true)
@@ -2820,13 +2975,16 @@ export default class GameScene extends Phaser.Scene {
 
     // Disable gravity for static level coins
     if (coin.body) {
-      (coin.body as Phaser.Physics.Arcade.Body).setAllowGravity(false)
+      const body = coin.body as Phaser.Physics.Arcade.Body
+      body.setAllowGravity(false)
+      // Arcade bodies don't auto-scale with setScale(). Match body to visual size.
+      body.setSize(coin.displayWidth, coin.displayHeight, true)
     }
 
     // Add floating animation
     this.tweens.add({
       targets: coin,
-      y: y - 20,
+      y: safePos.y - 20,
       duration: 1000,
       yoyo: true,
       repeat: -1,
