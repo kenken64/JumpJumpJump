@@ -39,6 +39,18 @@ vi.mock('phaser', () => {
             }
             return skipBtn
           }
+          if (content && typeof content === 'string' && content.includes('CONGRATULATIONS')) {
+            // Congratulations text mock
+            return {
+              setOrigin: vi.fn().mockReturnThis(),
+              setStroke: vi.fn().mockReturnThis(),
+              setShadow: vi.fn().mockReturnThis(),
+              setDepth: vi.fn().mockReturnThis(),
+              setAlpha: vi.fn().mockReturnThis(),
+              y: y,
+              height: 100
+            }
+          }
           // Story text
           const storyText = {
             setOrigin: vi.fn().mockReturnThis(),
@@ -46,6 +58,7 @@ vi.mock('phaser', () => {
             setShadow: vi.fn().mockReturnThis(),
             setDepth: vi.fn().mockReturnThis(),
             setWordWrapWidth: vi.fn().mockReturnThis(),
+            setAlpha: vi.fn().mockReturnThis(),
             y: y,
             height: 5000
           }
@@ -245,6 +258,7 @@ describe('EndingScene', () => {
   describe('update', () => {
     it('should scroll text upward', () => {
       scene.create()
+      ;(scene as any).canScroll = true // Enable scrolling after congrats
       
       const initialY = storyTextRef.y
       scene.update(0, 160) // 160ms delta
@@ -256,6 +270,7 @@ describe('EndingScene', () => {
 
     it('should scroll proportionally to delta time', () => {
       scene.create()
+      ;(scene as any).canScroll = true // Enable scrolling after congrats
       
       const startY = 770
       storyTextRef.y = startY
@@ -275,6 +290,7 @@ describe('EndingScene', () => {
 
     it('should trigger returnToMenu when text scrolls off screen', async () => {
       scene.create()
+      ;(scene as any).canScroll = true // Enable scrolling after congrats
       vi.clearAllMocks()
       
       // Set text position so it's completely off screen
@@ -292,6 +308,7 @@ describe('EndingScene', () => {
 
     it('should not trigger returnToMenu if text is still visible', () => {
       scene.create()
+      ;(scene as any).canScroll = true // Enable scrolling after congrats
       vi.clearAllMocks()
       
       // Text still on screen
@@ -500,6 +517,9 @@ describe('EndingScene', () => {
     it('should use slow scroll speed for dramatic effect', () => {
       scene.create()
       
+      // Enable scrolling (simulates after congrats text fades out)
+      ;(scene as any).canScroll = true
+      
       const startY = storyTextRef.y
       scene.update(0, 1600) // 1.6 seconds = 1600ms
       
@@ -507,6 +527,17 @@ describe('EndingScene', () => {
       // y -= (0.15 * 1600) / 16 = 15 pixels per 1.6 seconds
       const expectedMove = (0.15 * 1600) / 16
       expect(storyTextRef.y).toBeCloseTo(startY - expectedMove, 1)
+    })
+    
+    it('should not scroll before congrats text fades out', () => {
+      scene.create()
+      
+      // canScroll starts as false
+      const startY = storyTextRef.y
+      scene.update(0, 1600)
+      
+      // Should not have moved
+      expect(storyTextRef.y).toBe(startY)
     })
   })
 

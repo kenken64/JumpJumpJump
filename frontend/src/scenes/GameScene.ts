@@ -234,6 +234,9 @@ export default class GameScene extends Phaser.Scene {
       this.currentLevel = data.level || 1
       console.log('🤖 DQN Training mode enabled!')
       // Agent will be initialized after scene is ready
+    } else {
+      // Explicitly reset DQN mode when not in training
+      this.dqnTraining = false
     }
 
     // Handle loaded game
@@ -5942,12 +5945,14 @@ export default class GameScene extends Phaser.Scene {
 
     this.spikes.children.entries.forEach((spike: any) => {
       const spikeSprite = spike as Phaser.Physics.Arcade.Sprite
-      const spikeTop = spikeSprite.y - (spikeSprite.height / 2) + 10 // Only top 10px are dangerous
+      // Spike uses bottom-center origin (0.5, 1), so y is the bottom
+      // Top of spike = y - height, danger zone is the top portion
+      const spikeTop = spikeSprite.y - spikeSprite.height + 10 // Only top 10px are dangerous
       const spikeLeft = spikeSprite.x - (spikeSprite.width / 2)
       const spikeRight = spikeSprite.x + (spikeSprite.width / 2)
 
       // Check if player's feet overlap with spike tips
-      if (playerBottom >= spikeTop && playerBottom <= spikeTop + 20 &&
+      if (playerBottom >= spikeTop && playerBottom <= spikeTop + 25 &&
         playerRight >= spikeLeft && playerLeft <= spikeRight) {
 
         // Debug mode god mode - no damage

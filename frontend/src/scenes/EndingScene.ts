@@ -4,6 +4,8 @@ import { GameAPI } from '../services/api'
 export default class EndingScene extends Phaser.Scene {
   private storyText!: Phaser.GameObjects.Text
   private scrollSpeed: number = 0.15 // Reduced speed for dramatic effect
+  private canScroll: boolean = false // Control when scrolling starts
+  private congratsText?: Phaser.GameObjects.Text
 
   constructor() {
     super('EndingScene')
@@ -125,6 +127,42 @@ Maya closed her eyes—those slightly-wrong, faintly-glowing eyes—and waited f
     this.storyText.setShadow(2, 2, '#000000', 2, true, true)
     this.storyText.setDepth(10) // Ensure text is above planet animation
 
+    // Create congratulations text - starts invisible
+    this.congratsText = this.add.text(width / 2, height / 2, 'CONGRATULATIONS!\n\nYou have completed the game!', {
+      fontSize: '64px',
+      fontFamily: 'Arial',
+      color: '#FFD700', // Gold color
+      align: 'center',
+      fontStyle: 'bold'
+    })
+    this.congratsText.setOrigin(0.5, 0.5)
+    this.congratsText.setStroke('#000000', 6)
+    this.congratsText.setShadow(3, 3, '#000000', 3, true, true)
+    this.congratsText.setDepth(20) // In front of everything
+    this.congratsText.setAlpha(0) // Start invisible
+
+    // Fade in the congratulations text
+    this.tweens.add({
+      targets: this.congratsText,
+      alpha: 1,
+      duration: 1500,
+      ease: 'Power2',
+      onComplete: () => {
+        // Hold for 2 seconds, then fade out and start scrolling
+        this.time.delayedCall(2000, () => {
+          this.tweens.add({
+            targets: this.congratsText,
+            alpha: 0,
+            duration: 1000,
+            ease: 'Power2',
+            onComplete: () => {
+              this.canScroll = true
+            }
+          })
+        })
+      }
+    })
+
     // Skip button
     const skipBtn = this.add.text(width - 100, height - 50, 'SKIP [ESC]', {
       fontSize: '20px',
@@ -140,6 +178,9 @@ Maya closed her eyes—those slightly-wrong, faintly-glowing eyes—and waited f
   }
 
   update(_time: number, delta: number) {
+    // Only scroll after congratulations text fades out
+    if (!this.canScroll) return
+
     this.storyText.y -= (this.scrollSpeed * delta) / 16
 
     // Reset or end when text goes off screen
