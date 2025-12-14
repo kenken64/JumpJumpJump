@@ -106,28 +106,32 @@ export class WorldGenerator {
   generateWorld(): number {
     const tileSize = 70
     const floorY = 650
+    // The walking surface Y - where the top of floor tiles should be
+    const floorSurfaceY = floorY - tileSize / 2
+
+    // ========== GROUND TERRAIN HITBOX ==========
+    const groundHitboxWidth = tileSize * 0.95
+    const groundHitboxHeight = 40  // thick hitbox
     
     console.log('=== Generating World ===')
-    console.log('Floor Y:', floorY, 'Tile size:', tileSize)
+    console.log('Floor surface Y:', floorSurfaceY, 'Tile size:', tileSize)
     
     // Create safe spawn platform (500 pixels wide, no enemies)
     const spawnPlatformWidth = 500
     for (let x = 0; x < spawnPlatformWidth; x += tileSize) {
       const posX = x + tileSize/2
       
-      // Create sprite first
-      const tile = this.scene.add.sprite(posX, floorY, 'metalMid')
-      tile.setOrigin(0.5, 0.5)
+      // Create sprite with top-center origin, positioned so top is at floorSurfaceY
+      const tile = this.scene.add.sprite(posX, floorSurfaceY, 'metalMid')
+      tile.setOrigin(0.5, 0)  // top-center origin
       
       // Add static physics body
       this.scene.physics.add.existing(tile, true)
       
-      // Get the body and configure it to match texture dimensions
+      // Hitbox slightly down from top - metal is flat
       const body = tile.body as Phaser.Physics.Arcade.StaticBody
-      // Use full texture size to prevent gaps between tiles
-      const hitboxSize = tileSize
-      body.setSize(hitboxSize, hitboxSize)
-      body.setOffset(0, 0)
+      body.setSize(groundHitboxWidth, groundHitboxHeight)
+      body.setOffset((tile.width - groundHitboxWidth) / 2, 10)
       body.updateFromGameObject()
       
       // Add to platforms group AFTER physics is set up
@@ -177,6 +181,15 @@ export class WorldGenerator {
     const tileSize = 70
     const chunkWidth = 800
     const floorY = 650
+    // The walking surface Y - where the top of floor tiles should be
+    const floorSurfaceY = floorY - tileSize / 2
+
+    // ========== GROUND TERRAIN HITBOX ==========
+    const groundHitboxWidth = tileSize * 0.95
+    const groundHitboxHeight = 40  // thick hitbox
+
+    // ========== FLOATING PLATFORM HITBOX (jumpable platforms above ground) ==========
+    const floatingPlatformHitboxHeight = 20
     
     // Get biome-specific tiles based on X position
     const floorTile = this.getBiomeFloorTileForBiome(currentBiome)
@@ -189,15 +202,17 @@ export class WorldGenerator {
       const tileBiome = this.getBiomeForX(x)
       const tileFloorTexture = this.getBiomeFloorTileForBiome(tileBiome)
       
-      const floor = this.scene.add.sprite(x + tileSize/2, floorY, tileFloorTexture)
-      floor.setOrigin(0.5, 0.5)
+      // Create sprite with top-center origin, positioned so top is at floorSurfaceY
+      const floor = this.scene.add.sprite(x + tileSize/2, floorSurfaceY, tileFloorTexture)
+      floor.setOrigin(0.5, 0)  // top-center origin
+
       this.scene.physics.add.existing(floor, true)
       const body = floor.body as Phaser.Physics.Arcade.StaticBody
-      // Ground platform hitbox - align to top surface
-      const hitboxWidth = tileSize * 0.95
-      const hitboxHeight = tileSize * 0.3  // Thin hitbox on top surface
-      body.setSize(hitboxWidth, hitboxHeight)
-      body.setOffset((floor.width - hitboxWidth) / 2, 0)  // Align to top
+      // Metal tiles are flat; dirt/stone have zigzag peaks - hitbox at flat center
+      const hitboxYOffset = tileBiome === 'metal' ? 10 : 20
+      body.setSize(groundHitboxWidth, groundHitboxHeight)
+      body.setOffset((floor.width - groundHitboxWidth) / 2, hitboxYOffset)
+      body.updateFromGameObject()
       this.platforms.add(floor)
     }
     
@@ -231,12 +246,8 @@ export class WorldGenerator {
             plat.setOrigin(0.5, 0.5)
             this.scene.physics.add.existing(plat, true)
             const body = plat.body as Phaser.Physics.Arcade.StaticBody
-            // Floating platform hitbox - full width to prevent gaps, reasonable height for stability
-            // Use one-way collision so player can jump up through it
-            const hitboxWidth = plat.width // Full width
-            const hitboxHeight = 20 // 20px height (approx 30% of tile)
-            body.setSize(hitboxWidth, hitboxHeight)
-            // Align hitbox to TOP of platform sprite
+            // Floating platform hitbox - uses floatingPlatformHitboxHeight defined above
+            body.setSize(plat.width, floatingPlatformHitboxHeight)
             body.setOffset(0, 0)
             
             // Configure one-way collision: only collide on top face
@@ -274,12 +285,8 @@ export class WorldGenerator {
             step.setOrigin(0.5, 0.5)
             this.scene.physics.add.existing(step, true)
             const body = step.body as Phaser.Physics.Arcade.StaticBody
-            // Staircase platform hitbox - full width to prevent gaps, reasonable height for stability
-            // Use one-way collision so player can jump up through it
-            const hitboxWidth = step.width // Full width
-            const hitboxHeight = 20 // 20px height
-            body.setSize(hitboxWidth, hitboxHeight)
-            // Align hitbox to TOP of platform sprite
+            // Staircase platform hitbox - uses floatingPlatformHitboxHeight defined above
+            body.setSize(step.width, floatingPlatformHitboxHeight)
             body.setOffset(0, 0)
             
             // Configure one-way collision: only collide on top face
@@ -324,11 +331,9 @@ export class WorldGenerator {
             top.setOrigin(0.5, 0.5)
             this.scene.physics.add.existing(top, true)
             const bodyT = top.body as Phaser.Physics.Arcade.StaticBody
-            // Full width to prevent gaps
-            const hitboxWidth = top.width
-            const hitboxHeight = top.height * 0.8
-            bodyT.setSize(hitboxWidth, hitboxHeight)
-            bodyT.setOffset(0, (top.height - hitboxHeight) / 2)
+            // Floating platform on pillar - uses floatingPlatformHitboxHeight
+            bodyT.setSize(top.width, floatingPlatformHitboxHeight)
+            bodyT.setOffset(0, 0)
             bodyT.updateFromGameObject()
             this.platforms.add(top)
             
@@ -357,21 +362,26 @@ export class WorldGenerator {
         }
         
         if (canPlace) {
+          let spikeBaseY: number | null = null
           for (let i = 0; i < spikeWidth; i++) {
-            // Create platform block underneath
-            const block = this.scene.add.sprite(currentX + i * tileSize + tileSize/2, floorY, floorTile)
-            block.setOrigin(0.5, 0.5)
+            // Create platform block underneath - use top-center origin like other floor tiles
+            const block = this.scene.add.sprite(currentX + i * tileSize + tileSize/2, floorSurfaceY, floorTile)
+            block.setOrigin(0.5, 0)  // top-center origin
+
             this.scene.physics.add.existing(block, true)
             const blockBody = block.body as Phaser.Physics.Arcade.StaticBody
-            const hitboxSize = tileSize * 0.95
-            blockBody.setSize(hitboxSize, hitboxSize)
-            blockBody.setOffset((block.width - hitboxSize) / 2, (block.height - hitboxSize) / 2)
+            // Metal tiles are flat; dirt/stone have zigzag peaks
+            const tileBiome = this.getBiomeForX(currentX + i * tileSize)
+            const hitboxYOffset = tileBiome === 'metal' ? 10 : 20
+            blockBody.setSize(groundHitboxWidth, groundHitboxHeight)
+            blockBody.setOffset((block.width - groundHitboxWidth) / 2, hitboxYOffset)
             blockBody.updateFromGameObject()
             this.platforms.add(block)
             
-            // Place spikes on top of the block
+            // Place spikes on the walking surface
             const spikeX = currentX + i * tileSize + tileSize/2
-            const spikeY = floorY - tileSize/2
+            const spikeY = floorSurfaceY + hitboxYOffset  // at hitbox top
+            if (spikeBaseY === null) spikeBaseY = spikeY
             console.log(`  Spike ${i} at X:${spikeX}, Y:${spikeY}`)
             
             if (!this.scene.textures.exists('spikes')) {
@@ -388,10 +398,12 @@ export class WorldGenerator {
             occupiedCells.add(`${Math.floor((currentX + i * tileSize) / tileSize)}-${groundLevelIndex}`)
           }
           
-          // Track spike position for coin spawn prevention
+          // Track spike position for coin spawn prevention.
+          // Use the same Y reference as spike placement (block top / spike base).
+          // NOTE: GameScene uses this as an approximate Y for prevention checks.
           this.spikePositions.push({
             x: currentX,
-            y: floorY - tileSize/2,
+            y: spikeBaseY ?? (floorY - tileSize / 2),
             width: spikeWidth * tileSize
           })
         }

@@ -199,14 +199,14 @@ describe('WorldGenerator', () => {
   })
 
   describe('platform positioning', () => {
-    it('should create platforms at floor level (Y=650)', () => {
+    it('should create platforms at floor surface level (Y=615)', () => {
       worldGenerator.generateWorld()
       
       const spriteCalls = mockScene.add.sprite.mock.calls
-      const floorY = 650
+      const floorSurfaceY = 615  // floorY (650) - tileSize/2 (35)
       
-      // Some sprites should be at floor level
-      const floorSprites = spriteCalls.filter((call: any[]) => call[1] === floorY)
+      // Some sprites should be at floor surface level
+      const floorSprites = spriteCalls.filter((call: any[]) => call[1] === floorSurfaceY)
       expect(floorSprites.length).toBeGreaterThan(0)
     })
 
