@@ -4066,9 +4066,9 @@ export default class GameScene extends Phaser.Scene {
       
       this.levelCompleteShown = true
 
-      // Check if this is the final level (110)
-      if (this.currentLevel === 110) {
-        console.log('🏆 LEVEL 110 COMPLETE! Transitioning to Ending Scene...')
+      // Check if this is the final level (110) or beyond - only in levels mode
+      if (this.gameMode === 'levels' && this.currentLevel >= 110) {
+        console.log(`🏆 LEVEL ${this.currentLevel} COMPLETE! Transitioning to Ending Scene...`)
         this.scene.start('EndingScene')
         return
       }
