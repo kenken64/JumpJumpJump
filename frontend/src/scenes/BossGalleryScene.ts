@@ -364,4 +364,16 @@ export default class BossGalleryScene extends Phaser.Scene {
       }
     }
   }
+
+  shutdown() {
+    // Workaround for Phaser GamepadPlugin bug: ensure pads array exists
+    try {
+      const gamepadPlugin = this.input?.gamepad as any
+      if (gamepadPlugin && !gamepadPlugin.pads) {
+        gamepadPlugin.pads = []
+      }
+    } catch (e) {
+      // Ignore
+    }
+  }
 }

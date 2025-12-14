@@ -7290,6 +7290,18 @@ export default class GameScene extends Phaser.Scene {
   }
 
   shutdown() {
+    // Workaround for Phaser GamepadPlugin bug: ensure pads array exists
+    // This prevents "Cannot read properties of undefined (reading 'removeAllListeners')"
+    // when shutting down a scene before any gamepad was connected
+    try {
+      const gamepadPlugin = this.input?.gamepad as any
+      if (gamepadPlugin && !gamepadPlugin.pads) {
+        gamepadPlugin.pads = []
+      }
+    } catch (e) {
+      // Ignore - plugin may not exist
+    }
+    
     // Stop and clean up music when scene shuts down using MusicManager
     this.musicManager.stopMusic()
     

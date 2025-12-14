@@ -1893,6 +1893,18 @@ export default class MenuScene extends Phaser.Scene {
    * Cleanup when scene is destroyed
    */
   shutdown() {
+    // Workaround for Phaser GamepadPlugin bug: ensure pads array exists
+    // This prevents "Cannot read properties of undefined (reading 'removeAllListeners')"
+    // when shutting down a scene before any gamepad was connected
+    try {
+      const gamepadPlugin = this.input?.gamepad as any
+      if (gamepadPlugin && !gamepadPlugin.pads) {
+        gamepadPlugin.pads = []
+      }
+    } catch (e) {
+      // Ignore - plugin may not exist
+    }
+    
     // Clear the background gamepad polling interval
     if (this.gamepadPollIntervalId) {
       clearInterval(this.gamepadPollIntervalId)
