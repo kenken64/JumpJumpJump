@@ -41,6 +41,9 @@ export default class MenuScene extends Phaser.Scene {
     // Load UI assets
     this.load.image('coin', '/assets/kenney_platformer-art-requests/Tiles/shieldGold.png')
 
+    // Load story image
+    this.load.image('storyImage', '/assets/story.png')
+
     // Load all alien skins
     this.load.image('alienBeige_stand', '/assets/kenney_platformer-art-extended-enemies/Alien sprites/alienBeige_stand.png')
     this.load.image('alienBlue_stand', '/assets/kenney_platformer-art-extended-enemies/Alien sprites/alienBlue_stand.png')
@@ -302,6 +305,22 @@ export default class MenuScene extends Phaser.Scene {
       fontStyle: 'bold'
     })
     tutorialText.setOrigin(0.5)
+
+    // Create Story Button (below How to Play)
+    const storyButton = this.add.rectangle(250, 700, 120, 35, 0x6600aa)
+    storyButton.setInteractive({ useHandCursor: true })
+    storyButton.on('pointerover', () => storyButton.setFillStyle(0x8800cc))
+    storyButton.on('pointerout', () => storyButton.setFillStyle(0x6600aa))
+    storyButton.on('pointerdown', () => {
+      this.showStory()
+    })
+
+    const storyText = this.add.text(250, 700, 'STORY', {
+      fontSize: '16px',
+      color: '#ffffff',
+      fontStyle: 'bold'
+    })
+    storyText.setOrigin(0.5)
 
     // Create Credits Button (bottom right, above Settings)
     const creditsButton = this.add.rectangle(1150, 600, 150, 40, 0x444444)
@@ -566,6 +585,54 @@ export default class MenuScene extends Phaser.Scene {
     })
     closeText.setOrigin(0.5)
     closeText.setDepth(102)
+  }
+
+  /**
+   * Shows the story image fullscreen
+   * Press ESC to close and return to menu
+   * @private
+   */
+  private showStory() {
+    const { width, height } = this.cameras.main
+
+    // Create dark overlay
+    const overlay = this.add.rectangle(width / 2, height / 2, width, height, 0x000000, 0.95)
+    overlay.setDepth(100)
+    overlay.setInteractive() // Block clicks to menu
+
+    // Create fullscreen story image
+    const storyImage = this.add.image(width / 2, height / 2, 'storyImage')
+    storyImage.setDepth(101)
+    
+    // Scale to fit screen while maintaining aspect ratio
+    const scaleX = width / storyImage.width
+    const scaleY = height / storyImage.height
+    const scale = Math.min(scaleX, scaleY) * 0.95 // 95% of screen to leave margin
+    storyImage.setScale(scale)
+
+    // Instructions text
+    const instructionText = this.add.text(width / 2, height - 30, 'Press ESC to return to menu', {
+      fontSize: '20px',
+      color: '#ffffff',
+      backgroundColor: '#000000',
+      padding: { x: 10, y: 5 }
+    })
+    instructionText.setOrigin(0.5)
+    instructionText.setDepth(102)
+
+    // Close function
+    const closeStory = () => {
+      overlay.destroy()
+      storyImage.destroy()
+      instructionText.destroy()
+      this.input.keyboard?.off('keydown-ESC', closeStory)
+    }
+
+    // ESC key to close
+    this.input.keyboard?.on('keydown-ESC', closeStory)
+
+    // Also allow clicking overlay to close
+    overlay.on('pointerdown', closeStory)
   }
 
   /**
