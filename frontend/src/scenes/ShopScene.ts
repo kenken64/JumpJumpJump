@@ -642,4 +642,16 @@ export default class ShopScene extends Phaser.Scene {
   private savePurchasedItems() {
     localStorage.setItem('purchasedItems', JSON.stringify(Array.from(this.purchasedItems)))
   }
+
+  shutdown() {
+    // Workaround for Phaser GamepadPlugin bug: ensure pads array exists
+    try {
+      const gamepadPlugin = this.input?.gamepad as any
+      if (gamepadPlugin && !gamepadPlugin.pads) {
+        gamepadPlugin.pads = []
+      }
+    } catch (e) {
+      // Ignore
+    }
+  }
 }
