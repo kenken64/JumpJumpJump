@@ -29,16 +29,23 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      - name: Install Trivy
+        run: |
+          sudo apt-get install -y wget apt-transport-https gnupg lsb-release
+          wget -qO - https://aquasecurity.github.io/trivy-repo/deb/public.key | sudo apt-key add -
+          echo deb https://aquasecurity.github.io/trivy-repo/deb $(lsb_release -sc) main | sudo tee -a /etc/apt/sources.list.d/trivy.list
+          sudo apt-get update
+          sudo apt-get install -y trivy
+
       - name: Run Trivy on Frontend Dockerfile
         uses: aquasecurity/trivy-action@master
         with:
           scan-type: 'config'
           scan-ref: 'frontend/Dockerfile'
           format: 'table'
-          exit-code: '1'
-          severity: 'CRITICAL,HIGH'
+          exit-code: '0'
+          severity: 'CRITICAL,HIGH,MEDIUM'
           trivyignores: '.trivyignore'
-        continue-on-error: true
         id: frontend-scan
 
       - name: Run Trivy on Backend Dockerfile
@@ -47,11 +54,22 @@ jobs:
           scan-type: 'config'
           scan-ref: 'backend/Dockerfile'
           format: 'table'
-          exit-code: '1'
-          severity: 'CRITICAL,HIGH'
+          exit-code: '0'
+          severity: 'CRITICAL,HIGH,MEDIUM'
           trivyignores: '.trivyignore'
-        continue-on-error: true
         id: backend-scan
+
+      - name: Check for Critical/High issues in Frontend
+        run: |
+          echo "Scanning frontend Dockerfile for CRITICAL and HIGH issues..."
+          trivy config --severity CRITICAL,HIGH --exit-code 1 frontend/Dockerfile || echo "FRONTEND_ISSUES=true" >> $GITHUB_ENV
+        continue-on-error: true
+
+      - name: Check for Critical/High issues in Backend
+        run: |
+          echo "Scanning backend Dockerfile for CRITICAL and HIGH issues..."
+          trivy config --severity CRITICAL,HIGH --exit-code 1 backend/Dockerfile || echo "BACKEND_ISSUES=true" >> $GITHUB_ENV
+        continue-on-error: true
 
       - name: Upload Frontend Trivy Results (SARIF)
         uses: aquasecurity/trivy-action@master
@@ -85,11 +103,16 @@ jobs:
           category: 'trivy-backend-dockerfile'
         if: always()
 
-      - name: Check scan results
-        if: steps.frontend-scan.outcome == 'failure' || steps.backend-scan.outcome == 'failure'
+      - name: Fail if Critical/High issues found
+        if: env.FRONTEND_ISSUES == 'true' || env.BACKEND_ISSUES == 'true'
         run: |
-          echo "::error::Security vulnerabilities found in Dockerfiles"
-          echo "Please review the Trivy scan results above and fix the issues."
+          echo "::error::Security vulnerabilities found in Dockerfiles. See the scan results above."
+          if [ "$FRONTEND_ISSUES" == "true" ]; then
+            echo "  - Frontend Dockerfile has CRITICAL or HIGH severity issues"
+          fi
+          if [ "$BACKEND_ISSUES" == "true" ]; then
+            echo "  - Backend Dockerfile has CRITICAL or HIGH severity issues"
+          fi
           exit 1
 
   scan-images:
