@@ -45,7 +45,6 @@ jobs:
           format: 'table'
           exit-code: '0'
           severity: 'CRITICAL,HIGH,MEDIUM'
-          trivyignores: '.trivyignore'
         id: frontend-scan
 
       - name: Run Trivy on Backend Dockerfile
@@ -56,7 +55,6 @@ jobs:
           format: 'table'
           exit-code: '0'
           severity: 'CRITICAL,HIGH,MEDIUM'
-          trivyignores: '.trivyignore'
         id: backend-scan
 
       - name: Check for Critical/High issues in Frontend
