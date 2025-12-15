@@ -1,0 +1,7 @@
+# Trivy ignore file
+# Add vulnerability IDs or misconfiguration IDs to ignore
+
+# Example format:
+# CVE-2021-12345
+# DS002 - Image user is 'root' (if intentionally running as root)
+
