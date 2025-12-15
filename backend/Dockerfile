@@ -17,9 +17,9 @@ COPY --chown=appuser:appgroup . .
 RUN mkdir -p /app/data && chown -R appuser:appgroup /app/data
 
 # Set default environment variables (can be overridden by Railway)
+# Note: API_KEY should be set at runtime via environment variable, not in Dockerfile
 ENV ALLOWED_ORIGINS=http://localhost:3000,http://localhost:5173
 ENV DATA_DIR=/app/data
-ENV API_KEY=your-secret-api-key-here
 
 # Set default PORT to 8000 if not provided by Railway
 ENV PORT=8000
