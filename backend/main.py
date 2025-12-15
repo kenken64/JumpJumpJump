@@ -17,13 +17,24 @@ import logging
 # Setup game state logger
 game_logger = logging.getLogger("game_state")
 game_logger.setLevel(logging.INFO)
-# Create file handler which logs even debug messages
-fh = logging.FileHandler('game_state.log')
-fh.setLevel(logging.INFO)
-# Create formatter and add it to the handlers
+
+# Create formatter
 formatter = logging.Formatter('%(asctime)s - %(message)s')
-fh.setFormatter(formatter)
-game_logger.addHandler(fh)
+
+# Try to create file handler, fall back to stream handler if permission denied
+try:
+    # Use /tmp for Railway deployments, local file otherwise
+    log_path = '/tmp/game_state.log' if os.getenv("RAILWAY_ENVIRONMENT") else 'game_state.log'
+    fh = logging.FileHandler(log_path)
+    fh.setLevel(logging.INFO)
+    fh.setFormatter(formatter)
+    game_logger.addHandler(fh)
+except (PermissionError, OSError):
+    # Fall back to console logging if file logging fails
+    ch = logging.StreamHandler()
+    ch.setLevel(logging.INFO)
+    ch.setFormatter(formatter)
+    game_logger.addHandler(ch)
 
 app = FastAPI(title="JumpJumpJump API")
 
