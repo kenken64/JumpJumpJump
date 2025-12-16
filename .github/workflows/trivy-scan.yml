@@ -1,0 +1,204 @@
+name: Trivy Security Scan
+
+on:
+  push:
+    branches: [main, master, multiplayer]
+    paths:
+      - 'frontend/Dockerfile'
+      - 'backend/Dockerfile'
+      - '.github/workflows/trivy-scan.yml'
+  pull_request:
+    branches: [main, master, multiplayer]
+    paths:
+      - 'frontend/Dockerfile'
+      - 'backend/Dockerfile'
+  schedule:
+    # Run weekly on Sundays at midnight
+    - cron: '0 0 * * 0'
+  workflow_dispatch:
+
+jobs:
+  scan-dockerfiles:
+    name: Scan Dockerfiles
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install Trivy
+        run: |
+          sudo apt-get install -y wget apt-transport-https gnupg lsb-release
+          wget -qO - https://aquasecurity.github.io/trivy-repo/deb/public.key | sudo apt-key add -
+          echo deb https://aquasecurity.github.io/trivy-repo/deb $(lsb_release -sc) main | sudo tee -a /etc/apt/sources.list.d/trivy.list
+          sudo apt-get update
+          sudo apt-get install -y trivy
+
+      - name: Run Trivy on Frontend Dockerfile
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: 'config'
+          scan-ref: 'frontend/Dockerfile'
+          format: 'table'
+          exit-code: '0'
+          severity: 'CRITICAL,HIGH,MEDIUM'
+        id: frontend-scan
+
+      - name: Run Trivy on Backend Dockerfile
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: 'config'
+          scan-ref: 'backend/Dockerfile'
+          format: 'table'
+          exit-code: '0'
+          severity: 'CRITICAL,HIGH,MEDIUM'
+        id: backend-scan
+
+      - name: Check for Critical/High issues in Frontend
+        run: |
+          echo "Scanning frontend Dockerfile for CRITICAL and HIGH issues..."
+          trivy config --severity CRITICAL,HIGH --exit-code 1 frontend/Dockerfile || echo "FRONTEND_ISSUES=true" >> $GITHUB_ENV
+        continue-on-error: true
+
+      - name: Check for Critical/High issues in Backend
+        run: |
+          echo "Scanning backend Dockerfile for CRITICAL and HIGH issues..."
+          trivy config --severity CRITICAL,HIGH --exit-code 1 backend/Dockerfile || echo "BACKEND_ISSUES=true" >> $GITHUB_ENV
+        continue-on-error: true
+
+      - name: Upload Frontend Trivy Results (SARIF)
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: 'config'
+          scan-ref: 'frontend/Dockerfile'
+          format: 'sarif'
+          output: 'frontend-trivy-results.sarif'
+          severity: 'CRITICAL,HIGH,MEDIUM'
+
+      - name: Upload Backend Trivy Results (SARIF)
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: 'config'
+          scan-ref: 'backend/Dockerfile'
+          format: 'sarif'
+          output: 'backend-trivy-results.sarif'
+          severity: 'CRITICAL,HIGH,MEDIUM'
+
+      - name: Upload Frontend SARIF to GitHub Security
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: 'frontend-trivy-results.sarif'
+          category: 'trivy-frontend-dockerfile'
+        if: always()
+
+      - name: Upload Backend SARIF to GitHub Security
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: 'backend-trivy-results.sarif'
+          category: 'trivy-backend-dockerfile'
+        if: always()
+
+      - name: Fail if Critical/High issues found
+        if: env.FRONTEND_ISSUES == 'true' || env.BACKEND_ISSUES == 'true'
+        run: |
+          echo "::error::Security vulnerabilities found in Dockerfiles. See the scan results above."
+          if [ "$FRONTEND_ISSUES" == "true" ]; then
+            echo "  - Frontend Dockerfile has CRITICAL or HIGH severity issues"
+          fi
+          if [ "$BACKEND_ISSUES" == "true" ]; then
+            echo "  - Backend Dockerfile has CRITICAL or HIGH severity issues"
+          fi
+          exit 1
+
+  scan-images:
+    name: Scan Docker Images
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build Frontend Image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./frontend
+          file: ./frontend/Dockerfile
+          push: false
+          load: true
+          tags: jumpjumpjump-frontend:scan
+
+      - name: Build Backend Image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./backend
+          file: ./backend/Dockerfile
+          push: false
+          load: true
+          tags: jumpjumpjump-backend:scan
+
+      - name: Scan Frontend Image
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: 'jumpjumpjump-frontend:scan'
+          format: 'table'
+          exit-code: '1'
+          severity: 'CRITICAL,HIGH'
+          trivyignores: '.trivyignore'
+        continue-on-error: true
+        id: frontend-image-scan
+
+      - name: Scan Backend Image
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: 'jumpjumpjump-backend:scan'
+          format: 'table'
+          exit-code: '1'
+          severity: 'CRITICAL,HIGH'
+          trivyignores: '.trivyignore'
+        continue-on-error: true
+        id: backend-image-scan
+
+      - name: Upload Frontend Image Results (SARIF)
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: 'jumpjumpjump-frontend:scan'
+          format: 'sarif'
+          output: 'frontend-image-trivy.sarif'
+          severity: 'CRITICAL,HIGH,MEDIUM'
+
+      - name: Upload Backend Image Results (SARIF)
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: 'jumpjumpjump-backend:scan'
+          format: 'sarif'
+          output: 'backend-image-trivy.sarif'
+          severity: 'CRITICAL,HIGH,MEDIUM'
+
+      - name: Upload Frontend Image SARIF
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: 'frontend-image-trivy.sarif'
+          category: 'trivy-frontend-image'
+        if: always()
+
+      - name: Upload Backend Image SARIF
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: 'backend-image-trivy.sarif'
+          category: 'trivy-backend-image'
+        if: always()
+
+      - name: Check image scan results
+        if: steps.frontend-image-scan.outcome == 'failure' || steps.backend-image-scan.outcome == 'failure'
+        run: |
+          echo "::warning::Security vulnerabilities found in Docker images"
+          echo "Please review the Trivy scan results above."

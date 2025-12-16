@@ -28,6 +28,10 @@ export default class MenuScene extends Phaser.Scene {
   private coinText?: Phaser.GameObjects.Text
   /** Text element displaying API connection status */
   private apiStatusText?: Phaser.GameObjects.Text
+  /** Interval ID for background gamepad polling (Safari fix) */
+  private gamepadPollIntervalId?: number
+  /** Last detected gamepad count for change detection */
+  private lastDetectedGamepadCount: number = 0
 
   constructor() {
     super('MenuScene')
@@ -36,6 +40,9 @@ export default class MenuScene extends Phaser.Scene {
   preload() {
     // Load UI assets
     this.load.image('coin', '/assets/kenney_platformer-art-requests/Tiles/shieldGold.png')
+
+    // Load story image
+    this.load.image('storyImage', '/assets/story.png')
 
     // Load all alien skins
     this.load.image('alienBeige_stand', '/assets/kenney_platformer-art-extended-enemies/Alien sprites/alienBeige_stand.png')
@@ -299,6 +306,22 @@ export default class MenuScene extends Phaser.Scene {
     })
     tutorialText.setOrigin(0.5)
 
+    // Create Story Button (below How to Play)
+    const storyButton = this.add.rectangle(250, 700, 120, 35, 0x6600aa)
+    storyButton.setInteractive({ useHandCursor: true })
+    storyButton.on('pointerover', () => storyButton.setFillStyle(0x8800cc))
+    storyButton.on('pointerout', () => storyButton.setFillStyle(0x6600aa))
+    storyButton.on('pointerdown', () => {
+      this.showStory()
+    })
+
+    const storyText = this.add.text(250, 700, 'STORY', {
+      fontSize: '16px',
+      color: '#ffffff',
+      fontStyle: 'bold'
+    })
+    storyText.setOrigin(0.5)
+
     // Create Credits Button (bottom right, above Settings)
     const creditsButton = this.add.rectangle(1150, 600, 150, 40, 0x444444)
     creditsButton.setInteractive({ useHandCursor: true })
@@ -392,6 +415,62 @@ export default class MenuScene extends Phaser.Scene {
         this.coinText.setText(`${this.coinCount}`)
       }
     })
+
+    // Start background gamepad polling (Safari fix)
+    // Safari requires continuous polling AND user button press to expose gamepads
+    this.startBackgroundGamepadPolling()
+  }
+
+  /**
+   * Starts background polling for gamepad detection.
+   * Safari/WebKit doesn't fire gamepadconnected until user presses a button,
+   * AND requires active polling to detect the press. This runs in background
+   * to ensure gamepads are detected before opening settings.
+   * @private
+   */
+  private startBackgroundGamepadPolling() {
+    // Clear any existing poll
+    if (this.gamepadPollIntervalId) {
+      clearInterval(this.gamepadPollIntervalId)
+    }
+
+    // Detect if Safari/WebKit
+    const isSafari = /^((?!chrome|android).)*safari/i.test(navigator.userAgent) ||
+                     /AppleWebKit/.test(navigator.userAgent) && !/Chrome/.test(navigator.userAgent)
+    
+    // Poll more frequently on Safari
+    const pollInterval = isSafari ? 100 : 500
+
+    let logCounter = 0
+    this.gamepadPollIntervalId = window.setInterval(() => {
+      const gamepads = navigator.getGamepads ? navigator.getGamepads() : []
+      const connectedCount = Array.from(gamepads).filter(gp => gp !== null && gp?.connected).length
+
+      // Log periodically on Safari for debugging
+      if (isSafari && logCounter % 50 === 0 && connectedCount === 0) {
+        console.log('🎮 [Safari] Background gamepad poll - waiting for button press...')
+      }
+      logCounter++
+
+      if (connectedCount !== this.lastDetectedGamepadCount) {
+        console.log(`🎮 Background poll: gamepad count changed ${this.lastDetectedGamepadCount} -> ${connectedCount}`)
+        this.lastDetectedGamepadCount = connectedCount
+        
+        // Emit custom event for any listeners
+        window.dispatchEvent(new CustomEvent('gamepadCountChanged', { detail: { count: connectedCount } }))
+      }
+    }, pollInterval)
+
+    // Also register for native events
+    window.addEventListener('gamepadconnected', (e: GamepadEvent) => {
+      console.log('🎮 [Background] Gamepad connected:', e.gamepad.id)
+      this.lastDetectedGamepadCount = Array.from(navigator.getGamepads()).filter(gp => gp !== null && gp?.connected).length
+    })
+
+    window.addEventListener('gamepaddisconnected', (e: GamepadEvent) => {
+      console.log('🎮 [Background] Gamepad disconnected:', e.gamepad.id)
+      this.lastDetectedGamepadCount = Array.from(navigator.getGamepads()).filter(gp => gp !== null && gp?.connected).length
+    })
   }
 
   /**
@@ -469,7 +548,7 @@ export default class MenuScene extends Phaser.Scene {
 
     // Cheat codes section
     const cheatsY = 560
-    const cheats = this.add.text(640, cheatsY, 'CHEAT CODES:\nF3: Toggle Debug Mode | F4: Jump to Boss Level | F5: Reset Defeated Bosses', {
+    const cheats = this.add.text(640, cheatsY, 'CHEAT CODES:\nF3: Toggle Debug Mode | F4: Jump to Boss Level\nF5: Reset Defeated Bosses (Debug Mode) | F6: Kill Final Boss | F7: Add 100K Gold', {
       fontSize: '16px',
       color: '#ff6600',
       align: 'center',
@@ -509,6 +588,54 @@ export default class MenuScene extends Phaser.Scene {
   }
 
   /**
+   * Shows the story image fullscreen
+   * Press ESC to close and return to menu
+   * @private
+   */
+  private showStory() {
+    const { width, height } = this.cameras.main
+
+    // Create dark overlay
+    const overlay = this.add.rectangle(width / 2, height / 2, width, height, 0x000000, 0.95)
+    overlay.setDepth(100)
+    overlay.setInteractive() // Block clicks to menu
+
+    // Create fullscreen story image
+    const storyImage = this.add.image(width / 2, height / 2, 'storyImage')
+    storyImage.setDepth(101)
+    
+    // Scale to fit screen while maintaining aspect ratio
+    const scaleX = width / storyImage.width
+    const scaleY = height / storyImage.height
+    const scale = Math.min(scaleX, scaleY) * 0.95 // 95% of screen to leave margin
+    storyImage.setScale(scale)
+
+    // Instructions text
+    const instructionText = this.add.text(width / 2, height - 30, 'Press ESC to return to menu', {
+      fontSize: '20px',
+      color: '#ffffff',
+      backgroundColor: '#000000',
+      padding: { x: 10, y: 5 }
+    })
+    instructionText.setOrigin(0.5)
+    instructionText.setDepth(102)
+
+    // Close function
+    const closeStory = () => {
+      overlay.destroy()
+      storyImage.destroy()
+      instructionText.destroy()
+      this.input.keyboard?.off('keydown-ESC', closeStory)
+    }
+
+    // ESC key to close
+    this.input.keyboard?.on('keydown-ESC', closeStory)
+
+    // Also allow clicking overlay to close
+    overlay.on('pointerdown', closeStory)
+  }
+
+  /**
    * Shows dialog for player to enter/change their name
    * Saves to localStorage and updates display when confirmed
    * @private
@@ -541,56 +668,93 @@ export default class MenuScene extends Phaser.Scene {
     instructions.setOrigin(0.5)
     instructions.setDepth(1002)
 
-    // Input box background
-    const inputBox = this.add.rectangle(640, 370, 400, 50, 0x000000)
-    inputBox.setStrokeStyle(2, 0xffffff)
-    inputBox.setDepth(1002)
+    // Create DOM input for player name - position relative to canvas
+    const canvas = this.game.canvas
+    const canvasRect = canvas.getBoundingClientRect()
+    const scaleX = canvasRect.width / 1280
+    const scaleY = canvasRect.height / 720
 
-    // Current name display
-    const currentName = localStorage.getItem('player_name') || ''
-    let inputText = currentName
-    const inputDisplay = this.add.text(640, 370, inputText || '|', {
-      fontSize: '24px',
-      color: '#ffffff',
-      fontStyle: 'bold'
-    })
-    inputDisplay.setOrigin(0.5)
-    inputDisplay.setDepth(1003)
+    const nameInput = document.createElement('input')
+    nameInput.type = 'text'
+    nameInput.placeholder = 'Enter name...'
+    nameInput.maxLength = 20
+    nameInput.value = localStorage.getItem('player_name') || ''
+    nameInput.style.cssText = `
+      position: absolute;
+      left: ${canvasRect.left + (640 * scaleX)}px;
+      top: ${canvasRect.top + (370 * scaleY)}px;
+      transform: translate(-50%, -50%);
+      width: ${380 * scaleX}px;
+      height: ${40 * scaleY}px;
+      padding: ${5 * scaleY}px ${10 * scaleX}px;
+      font-size: ${24 * scaleY}px;
+      font-family: monospace;
+      font-weight: bold;
+      color: #ffffff;
+      background-color: #000000;
+      border: 2px solid #ffffff;
+      border-radius: 4px;
+      outline: none;
+      text-align: center;
+      z-index: 10000;
+    `
+    
+    // Add to DOM - append to game container to support fullscreen
+    const gameContainer = canvas.parentElement || document.body
+    gameContainer.appendChild(nameInput)
+    
+    // Focus after a short delay to ensure it's in DOM
+    setTimeout(() => nameInput.focus(), 100)
 
-    // Blinking cursor
-    let showCursor = true
-    const cursorTimer = this.time.addEvent({
-      delay: 500,
-      callback: () => {
-        showCursor = !showCursor
-        inputDisplay.setText(inputText + (showCursor ? '|' : ''))
-      },
-      loop: true
-    })
+    // Handle window resize to keep input positioned correctly
+    const resizeHandler = () => {
+      const newRect = canvas.getBoundingClientRect()
+      const newScaleX = newRect.width / 1280
+      const newScaleY = newRect.height / 720
+      
+      nameInput.style.left = `${newRect.left + (640 * newScaleX)}px`
+      nameInput.style.top = `${newRect.top + (370 * newScaleY)}px`
+      nameInput.style.width = `${380 * newScaleX}px`
+      nameInput.style.height = `${40 * newScaleY}px`
+      nameInput.style.fontSize = `${24 * newScaleY}px`
+      nameInput.style.padding = `${5 * newScaleY}px ${10 * newScaleX}px`
+    }
+    window.addEventListener('resize', resizeHandler)
+
+    let confirm: Phaser.GameObjects.Text | undefined
+    let saveButton: Phaser.GameObjects.Rectangle
+    let saveText: Phaser.GameObjects.Text
+    let cancelButton: Phaser.GameObjects.Rectangle
+    let cancelText: Phaser.GameObjects.Text
+
+    // Cleanup function
+    const cleanup = () => {
+      if (nameInput.parentElement) {
+        nameInput.parentElement.removeChild(nameInput)
+      }
+      window.removeEventListener('resize', resizeHandler)
+      
+      overlay.destroy()
+      dialogBox.destroy()
+      title.destroy()
+      instructions.destroy()
+      if (cancelButton) cancelButton.destroy()
+      if (cancelText) cancelText.destroy()
+      if (saveButton) saveButton.destroy()
+      if (saveText) saveText.destroy()
+      if (confirm) confirm.destroy()
+    }
 
     // Cancel button
-    const cancelButton = this.add.rectangle(540, 450, 150, 50, 0x880000)
+    cancelButton = this.add.rectangle(540, 450, 150, 50, 0x880000)
     cancelButton.setStrokeStyle(2, 0xff0000)
     cancelButton.setInteractive({ useHandCursor: true })
     cancelButton.setDepth(1002)
     cancelButton.on('pointerover', () => cancelButton.setFillStyle(0xcc0000))
     cancelButton.on('pointerout', () => cancelButton.setFillStyle(0x880000))
-    cancelButton.on('pointerdown', () => {
-      cursorTimer.remove()
-      overlay.destroy()
-      dialogBox.destroy()
-      title.destroy()
-      instructions.destroy()
-      inputBox.destroy()
-      inputDisplay.destroy()
-      cancelButton.destroy()
-      cancelText.destroy()
-      saveButton.destroy()
-      saveText.destroy()
-      this.input.keyboard?.off('keydown')
-    })
+    cancelButton.on('pointerdown', cleanup)
 
-    const cancelText = this.add.text(540, 450, 'CANCEL', {
+    cancelText = this.add.text(540, 450, 'CANCEL', {
       fontSize: '20px',
       color: '#ffffff',
       fontStyle: 'bold'
@@ -599,14 +763,14 @@ export default class MenuScene extends Phaser.Scene {
     cancelText.setDepth(1003)
 
     // Save button
-    const saveButton = this.add.rectangle(740, 450, 150, 50, 0x008800)
+    saveButton = this.add.rectangle(740, 450, 150, 50, 0x008800)
     saveButton.setStrokeStyle(2, 0x00ff00)
     saveButton.setInteractive({ useHandCursor: true })
     saveButton.setDepth(1002)
     saveButton.on('pointerover', () => saveButton.setFillStyle(0x00cc00))
     saveButton.on('pointerout', () => saveButton.setFillStyle(0x008800))
 
-    const saveText = this.add.text(740, 450, 'SAVE', {
+    saveText = this.add.text(740, 450, 'SAVE', {
       fontSize: '20px',
       color: '#ffffff',
       fontStyle: 'bold'
@@ -615,6 +779,7 @@ export default class MenuScene extends Phaser.Scene {
     saveText.setDepth(1003)
 
     const saveName = () => {
+      const inputText = nameInput.value
       if (inputText.trim().length > 0) {
         localStorage.setItem('player_name', inputText.trim())
         console.log('✅ Player name saved:', inputText.trim())
@@ -626,7 +791,7 @@ export default class MenuScene extends Phaser.Scene {
         }
 
         // Show confirmation
-        const confirm = this.add.text(640, 510, '✓ Name saved!', {
+        confirm = this.add.text(640, 510, '✓ Name saved!', {
           fontSize: '18px',
           color: '#00ff00',
           fontStyle: 'bold'
@@ -634,39 +799,18 @@ export default class MenuScene extends Phaser.Scene {
         confirm.setOrigin(0.5)
         confirm.setDepth(1003)
 
-        this.time.delayedCall(1000, () => {
-          cursorTimer.remove()
-          overlay.destroy()
-          dialogBox.destroy()
-          title.destroy()
-          instructions.destroy()
-          inputBox.destroy()
-          inputDisplay.destroy()
-          cancelButton.destroy()
-          cancelText.destroy()
-          saveButton.destroy()
-          saveText.destroy()
-          confirm.destroy()
-          this.input.keyboard?.off('keydown')
-        })
+        this.time.delayedCall(1000, cleanup)
       }
     }
 
     saveButton.on('pointerdown', saveName)
 
-    // Handle keyboard input
-    this.input.keyboard?.on('keydown', (event: KeyboardEvent) => {
-      if (event.key === 'Enter') {
+    // Handle Enter key on input
+    nameInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
         saveName()
-      } else if (event.key === 'Escape') {
-        cancelButton.emit('pointerdown')
-      } else if (event.key === 'Backspace') {
-        inputText = inputText.slice(0, -1)
-        inputDisplay.setText(inputText + '|')
-      } else if (event.key.length === 1 && inputText.length < 20) {
-        // Only add printable characters, max 20 chars
-        inputText += event.key
-        inputDisplay.setText(inputText + '|')
+      } else if (e.key === 'Escape') {
+        cleanup()
       }
     })
   }
@@ -1473,8 +1617,16 @@ export default class MenuScene extends Phaser.Scene {
         mappingContainer.push(statusText)
 
         if (gamepadCount === 0) {
+          // Detect Safari/WebKit for specific messaging
+          const isSafari = /^((?!chrome|android).)*safari/i.test(navigator.userAgent) ||
+                           /AppleWebKit/.test(navigator.userAgent) && !/Chrome/.test(navigator.userAgent)
+          
+          const helpMessage = isSafari 
+            ? 'Safari: Press a button on your gamepad\nto enable detection (browser security)'
+            : 'Press any button on your gamepad to detect it'
+
           const helpText = this.add.text(640, startY + lineHeight + 20,
-            'Press any button on your gamepad to detect it', {
+            helpMessage, {
             fontSize: '18px',
             color: '#ffaa00',
             align: 'center',
@@ -1483,6 +1635,19 @@ export default class MenuScene extends Phaser.Scene {
           helpText.setOrigin(0.5)
           helpText.setDepth(102)
           mappingContainer.push(helpText)
+
+          // Safari-specific additional help
+          if (isSafari) {
+            const safariNote = this.add.text(640, startY + lineHeight + 70,
+              '💡 Keep this panel open and press any button', {
+              fontSize: '16px',
+              color: '#88aaff',
+              align: 'center'
+            })
+            safariNote.setOrigin(0.5)
+            safariNote.setDepth(102)
+            mappingContainer.push(safariNote)
+          }
           return
         }
 
@@ -1722,6 +1887,29 @@ export default class MenuScene extends Phaser.Scene {
       fontStyle: 'bold'
     })
     loadText.setOrigin(0.5)
+  }
+
+  /**
+   * Cleanup when scene is destroyed
+   */
+  shutdown() {
+    // Workaround for Phaser GamepadPlugin bug: ensure pads array exists
+    // This prevents "Cannot read properties of undefined (reading 'removeAllListeners')"
+    // when shutting down a scene before any gamepad was connected
+    try {
+      const gamepadPlugin = this.input?.gamepad as any
+      if (gamepadPlugin && !gamepadPlugin.pads) {
+        gamepadPlugin.pads = []
+      }
+    } catch (e) {
+      // Ignore - plugin may not exist
+    }
+    
+    // Clear the background gamepad polling interval
+    if (this.gamepadPollIntervalId) {
+      clearInterval(this.gamepadPollIntervalId)
+      this.gamepadPollIntervalId = undefined
+    }
   }
 }
 

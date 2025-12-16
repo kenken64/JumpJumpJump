@@ -24,11 +24,12 @@ export class VirtualGamepad {
     const { width, height } = this.scene.scale
 
     // Left/Right controls (D-pad style) on the left side
-    const dpadY = height - 150
-    const dpadX = 150
+    // Moved up to avoid interference with bottom screen gestures/UI
+    const dpadY = height - 190 
+    const dpadX = 170
 
-    // Left Button
-    this.leftBtn = this.createButton(dpadX - 60, dpadY, '◀', 0x888888)
+    // Left Button - Increased size
+    this.leftBtn = this.createButton(dpadX - 70, dpadY, '◀', 0x888888, 50)
     this.leftBtn.setInteractive()
     this.leftBtn.on('pointerdown', () => { this.isLeft = true })
     this.leftBtn.on('pointerup', () => { this.isLeft = false })
@@ -38,8 +39,8 @@ export class VirtualGamepad {
       if (pointer.isDown) this.isLeft = true 
     })
 
-    // Right Button
-    this.rightBtn = this.createButton(dpadX + 60, dpadY, '▶', 0x888888)
+    // Right Button - Increased size
+    this.rightBtn = this.createButton(dpadX + 70, dpadY, '▶', 0x888888, 50)
     this.rightBtn.setInteractive()
     this.rightBtn.on('pointerdown', () => { this.isRight = true })
     this.rightBtn.on('pointerup', () => { this.isRight = false })
@@ -53,8 +54,8 @@ export class VirtualGamepad {
     const actionY = height - 150
     const actionX = width - 150
 
-    // Jump Button (A)
-    this.jumpBtn = this.createButton(actionX, actionY + 60, 'JUMP', 0x00aa00, 45) // Increased size
+    // Jump Button (A) - Increased size and spacing
+    this.jumpBtn = this.createButton(actionX - 20, actionY + 60, 'JUMP', 0x00aa00, 55) 
     this.jumpBtn.setInteractive()
     this.jumpBtn.on('pointerdown', () => { 
       this.isJump = true 
@@ -70,8 +71,8 @@ export class VirtualGamepad {
       }
     })
 
-    // Shoot Button (B)
-    this.shootBtn = this.createButton(actionX + 80, actionY - 20, 'SHOOT', 0xaa0000, 45) // Increased size
+    // Shoot Button (B) - Increased size and spacing
+    this.shootBtn = this.createButton(actionX + 100, actionY - 40, 'SHOOT', 0xaa0000, 55)
     this.shootBtn.setInteractive()
     this.shootBtn.on('pointerdown', () => { this.isShoot = true })
     this.shootBtn.on('pointerup', () => { this.isShoot = false })
@@ -145,14 +146,14 @@ export class VirtualGamepad {
     // Re-position controls on resize
     const { width, height } = this.scene.scale
     
-    const dpadY = height - 150
-    const dpadX = 150
-    this.leftBtn.setPosition(dpadX - 60, dpadY)
-    this.rightBtn.setPosition(dpadX + 60, dpadY)
+    const dpadY = height - 190
+    const dpadX = 170
+    this.leftBtn.setPosition(dpadX - 70, dpadY)
+    this.rightBtn.setPosition(dpadX + 70, dpadY)
 
     const actionY = height - 150
     const actionX = width - 150
-    this.jumpBtn.setPosition(actionX, actionY + 60)
-    this.shootBtn.setPosition(actionX + 80, actionY - 20)
+    this.jumpBtn.setPosition(actionX - 20, actionY + 60)
+    this.shootBtn.setPosition(actionX + 100, actionY - 40)
   }
 }

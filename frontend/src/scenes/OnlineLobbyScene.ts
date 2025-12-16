@@ -419,7 +419,8 @@ export default class OnlineLobbyScene extends Phaser.Scene {
       outline: none;
       box-shadow: 0 0 15px rgba(0, 255, 0, 0.3);
     `
-    document.body.appendChild(this.roomNameInput)
+    const gameContainer = canvas.parentElement || document.body
+    gameContainer.appendChild(this.roomNameInput)
     this.roomNameInput.focus()
     
     // Create button
@@ -501,7 +502,8 @@ export default class OnlineLobbyScene extends Phaser.Scene {
       outline: none;
       box-shadow: 0 0 15px rgba(0, 255, 255, 0.3);
     `
-    document.body.appendChild(this.roomCodeInput)
+    const gameContainer = canvas.parentElement || document.body
+    gameContainer.appendChild(this.roomCodeInput)
     this.roomCodeInput.focus()
     
     // Auto-uppercase input
@@ -1046,6 +1048,18 @@ export default class OnlineLobbyScene extends Phaser.Scene {
   }
 
   shutdown(): void {
+    // Workaround for Phaser GamepadPlugin bug: ensure pads array exists
+    // This prevents "Cannot read properties of undefined (reading 'removeAllListeners')"
+    // when shutting down a scene before any gamepad was connected
+    try {
+      const gamepadPlugin = this.input?.gamepad as any
+      if (gamepadPlugin && !gamepadPlugin.pads) {
+        gamepadPlugin.pads = []
+      }
+    } catch (e) {
+      // Ignore - plugin may not exist
+    }
+    
     this.cleanupInputs()
     this.onlineService.disconnect()
   }

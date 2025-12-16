@@ -128,7 +128,8 @@ describe('App Component', () => {
       mode: Phaser.Scale.FIT,
       autoCenter: Phaser.Scale.CENTER_BOTH,
       width: 1280,
-      height: 720
+      height: 720,
+      fullscreenTarget: 'game-container'
     })
   })
 

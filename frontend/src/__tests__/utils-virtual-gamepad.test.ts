@@ -573,9 +573,9 @@ describe('VirtualGamepad', () => {
       
       gamepad.resize()
       
-      // Left button: dpadX - 60 = 150 - 60 = 90, dpadY = height - 150 = 930
+      // Left button: dpadX - 70 = 170 - 70 = 100, dpadY = height - 190 = 890
       const leftContainer = allContainers[0]
-      expect(leftContainer.setPosition).toHaveBeenCalledWith(90, 930)
+      expect(leftContainer.setPosition).toHaveBeenCalledWith(100, 890)
     })
 
     it('should calculate correct positions for right button', async () => {
@@ -587,9 +587,9 @@ describe('VirtualGamepad', () => {
       
       gamepad.resize()
       
-      // Right button: dpadX + 60 = 150 + 60 = 210, dpadY = 930
+      // Right button: dpadX + 70 = 170 + 70 = 240, dpadY = 890
       const rightContainer = allContainers[1]
-      expect(rightContainer.setPosition).toHaveBeenCalledWith(210, 930)
+      expect(rightContainer.setPosition).toHaveBeenCalledWith(240, 890)
     })
 
     it('should calculate correct positions for jump button', async () => {
@@ -602,8 +602,9 @@ describe('VirtualGamepad', () => {
       gamepad.resize()
       
       // Jump button: actionX = width - 150 = 1770, actionY + 60 = 930 + 60 = 990
+      // Corrected to match createControls: actionX - 20 = 1750
       const jumpContainer = allContainers[2]
-      expect(jumpContainer.setPosition).toHaveBeenCalledWith(1770, 990)
+      expect(jumpContainer.setPosition).toHaveBeenCalledWith(1750, 990)
     })
 
     it('should calculate correct positions for shoot button', async () => {
@@ -615,9 +616,9 @@ describe('VirtualGamepad', () => {
       
       gamepad.resize()
       
-      // Shoot button: actionX + 80 = 1770 + 80 = 1850, actionY - 20 = 930 - 20 = 910
+      // Shoot button: actionX + 100 = 1770 + 100 = 1870, actionY - 40 = 930 - 40 = 890
       const shootContainer = allContainers[3]
-      expect(shootContainer.setPosition).toHaveBeenCalledWith(1850, 910)
+      expect(shootContainer.setPosition).toHaveBeenCalledWith(1870, 890)
     })
   })
 
@@ -626,8 +627,8 @@ describe('VirtualGamepad', () => {
       const { VirtualGamepad } = await import('../utils/VirtualGamepad')
       new VirtualGamepad(mockScene)
       
-      // Left button at (dpadX - 60, dpadY) = (90, 570)
-      expect(mockScene.add.container).toHaveBeenCalledWith(90, 570)
+      // Left button at (dpadX - 70, dpadY) = (100, 530)
+      expect(mockScene.add.container).toHaveBeenCalledWith(100, 530)
     })
 
     it('should create buttons with correct colors', async () => {
@@ -636,9 +637,9 @@ describe('VirtualGamepad', () => {
       
       // Check circle calls for different colors
       // Left/Right: 0x888888, Jump: 0x00aa00, Shoot: 0xaa0000
-      expect(mockScene.add.circle).toHaveBeenCalledWith(0, 0, 35, 0x888888, 0.5)
-      expect(mockScene.add.circle).toHaveBeenCalledWith(0, 0, 45, 0x00aa00, 0.5)
-      expect(mockScene.add.circle).toHaveBeenCalledWith(0, 0, 45, 0xaa0000, 0.5)
+      expect(mockScene.add.circle).toHaveBeenCalledWith(0, 0, 50, 0x888888, 0.5)
+      expect(mockScene.add.circle).toHaveBeenCalledWith(0, 0, 55, 0x00aa00, 0.5)
+      expect(mockScene.add.circle).toHaveBeenCalledWith(0, 0, 55, 0xaa0000, 0.5)
     })
 
     it('should create text labels with correct content', async () => {

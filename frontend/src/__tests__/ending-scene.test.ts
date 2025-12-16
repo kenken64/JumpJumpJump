@@ -14,13 +14,16 @@ vi.mock('phaser', () => {
       }
       scene = {
         key: 'EndingScene',
-        start: vi.fn()
+        start: vi.fn(),
+        isActive: vi.fn().mockReturnValue(true)
       }
       cameras = {
         main: {
           width: 1280,
           height: 720,
-          setBackgroundColor: vi.fn()
+          setBackgroundColor: vi.fn(),
+          flash: vi.fn(),
+          shake: vi.fn()
         }
       }
       add = {
@@ -36,21 +39,52 @@ vi.mock('phaser', () => {
             }
             return skipBtn
           }
+          if (content && typeof content === 'string' && content.includes('CONGRATULATIONS')) {
+            // Congratulations text mock
+            return {
+              setOrigin: vi.fn().mockReturnThis(),
+              setStroke: vi.fn().mockReturnThis(),
+              setShadow: vi.fn().mockReturnThis(),
+              setDepth: vi.fn().mockReturnThis(),
+              setAlpha: vi.fn().mockReturnThis(),
+              y: y,
+              height: 100
+            }
+          }
           // Story text
           const storyText = {
             setOrigin: vi.fn().mockReturnThis(),
             setStroke: vi.fn().mockReturnThis(),
             setShadow: vi.fn().mockReturnThis(),
+            setDepth: vi.fn().mockReturnThis(),
+            setWordWrapWidth: vi.fn().mockReturnThis(),
+            setAlpha: vi.fn().mockReturnThis(),
             y: y,
             height: 5000
           }
           storyTextRef = storyText
           return storyText
         }),
-        circle: vi.fn().mockReturnValue({})
+        circle: vi.fn().mockReturnValue({}),
+        image: vi.fn().mockReturnValue({
+          setScale: vi.fn().mockReturnThis(),
+          setDepth: vi.fn().mockReturnThis(),
+          setRotation: vi.fn().mockReturnThis(),
+          setVisible: vi.fn().mockReturnThis(),
+          setAlpha: vi.fn().mockReturnThis(),
+          setPosition: vi.fn().mockReturnThis()
+        }),
+        particles: vi.fn().mockReturnValue({
+          setDepth: vi.fn().mockReturnThis(),
+          start: vi.fn().mockReturnThis(),
+          stop: vi.fn().mockReturnThis(),
+          createEmitter: vi.fn().mockReturnThis(),
+          explode: vi.fn().mockReturnThis()
+        })
       }
       load = {
-        audio: vi.fn()
+        audio: vi.fn(),
+        image: vi.fn()
       }
       input = {
         keyboard: {
@@ -63,9 +97,18 @@ vi.mock('phaser', () => {
         stopAll: vi.fn(),
         play: vi.fn()
       }
+      tweens = {
+        add: vi.fn().mockImplementation((config) => {
+          if (config.onComplete) config.onComplete()
+          return {}
+        })
+      }
       scale = {
         width: 1280,
         height: 720
+      }
+      time = {
+        delayedCall: vi.fn().mockReturnValue({})
       }
       
       constructor() {
@@ -74,7 +117,11 @@ vi.mock('phaser', () => {
     },
     Math: {
       Between: vi.fn().mockReturnValue(640),
-      FloatBetween: vi.fn().mockReturnValue(1)
+      FloatBetween: vi.fn().mockReturnValue(1),
+      Angle: {
+        Between: vi.fn().mockReturnValue(0)
+      },
+      DegToRad: vi.fn().mockReturnValue(0)
     }
   }
 
@@ -158,7 +205,7 @@ describe('EndingScene', () => {
       expect(scene.add.text).toHaveBeenCalledWith(
         640, // width / 2
         770, // height + 50
-        expect.stringContaining('They Came From the Dark Between Stars'),
+        expect.stringContaining('The Chrysalis Protocol'),
         expect.objectContaining({
           fontSize: '32px',
           color: '#FFE81F', // Star Wars Yellow
@@ -211,6 +258,7 @@ describe('EndingScene', () => {
   describe('update', () => {
     it('should scroll text upward', () => {
       scene.create()
+      ;(scene as any).canScroll = true // Enable scrolling after congrats
       
       const initialY = storyTextRef.y
       scene.update(0, 160) // 160ms delta
@@ -222,6 +270,7 @@ describe('EndingScene', () => {
 
     it('should scroll proportionally to delta time', () => {
       scene.create()
+      ;(scene as any).canScroll = true // Enable scrolling after congrats
       
       const startY = 770
       storyTextRef.y = startY
@@ -241,6 +290,7 @@ describe('EndingScene', () => {
 
     it('should trigger returnToMenu when text scrolls off screen', async () => {
       scene.create()
+      ;(scene as any).canScroll = true // Enable scrolling after congrats
       vi.clearAllMocks()
       
       // Set text position so it's completely off screen
@@ -258,6 +308,7 @@ describe('EndingScene', () => {
 
     it('should not trigger returnToMenu if text is still visible', () => {
       scene.create()
+      ;(scene as any).canScroll = true // Enable scrolling after congrats
       vi.clearAllMocks()
       
       // Text still on screen
@@ -436,7 +487,7 @@ describe('EndingScene', () => {
       // Get the story text content from the mock call
       const textCalls = (scene.add.text as any).mock.calls
       const storyCall = textCalls.find((call: any[]) => 
-        typeof call[2] === 'string' && call[2].includes('They Came From the Dark Between Stars')
+        typeof call[2] === 'string' && call[2].includes('The Chrysalis Protocol')
       )
       expect(storyCall).toBeDefined()
     })
@@ -446,7 +497,7 @@ describe('EndingScene', () => {
       
       const textCalls = (scene.add.text as any).mock.calls
       const storyCall = textCalls.find((call: any[]) => 
-        typeof call[2] === 'string' && call[2].includes('The Watchers')
+        typeof call[2] === 'string' && call[2].includes('Dr. Maya Chen')
       )
       expect(storyCall).toBeDefined()
     })
@@ -456,7 +507,7 @@ describe('EndingScene', () => {
       
       const textCalls = (scene.add.text as any).mock.calls
       const storyCall = textCalls.find((call: any[]) => 
-        typeof call[2] === 'string' && call[2].includes('Prove them wrong')
+        typeof call[2] === 'string' && call[2].includes('The beacon pulsed. Help was coming.')
       )
       expect(storyCall).toBeDefined()
     })
@@ -466,6 +517,9 @@ describe('EndingScene', () => {
     it('should use slow scroll speed for dramatic effect', () => {
       scene.create()
       
+      // Enable scrolling (simulates after congrats text fades out)
+      ;(scene as any).canScroll = true
+      
       const startY = storyTextRef.y
       scene.update(0, 1600) // 1.6 seconds = 1600ms
       
@@ -473,6 +527,17 @@ describe('EndingScene', () => {
       // y -= (0.15 * 1600) / 16 = 15 pixels per 1.6 seconds
       const expectedMove = (0.15 * 1600) / 16
       expect(storyTextRef.y).toBeCloseTo(startY - expectedMove, 1)
+    })
+    
+    it('should not scroll before congrats text fades out', () => {
+      scene.create()
+      
+      // canScroll starts as false
+      const startY = storyTextRef.y
+      scene.update(0, 1600)
+      
+      // Should not have moved
+      expect(storyTextRef.y).toBe(startY)
     })
   })
 

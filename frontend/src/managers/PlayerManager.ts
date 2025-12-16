@@ -141,7 +141,8 @@ export class PlayerManager extends Phaser.Events.EventEmitter {
     // Setup physics body
     const body = this.player.body as Phaser.Physics.Arcade.Body
     body.setSize(this.player.width * 0.6, this.player.height * 0.9)
-    body.setOffset(this.player.width * 0.2, this.player.height * 0.1)
+    // Push hitbox up within sprite so player sprite appears lower on ground
+    body.setOffset(this.player.width * 0.2, 0)
     body.setMaxVelocity(400, 800)
   }
 

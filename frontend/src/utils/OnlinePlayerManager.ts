@@ -58,6 +58,8 @@ export class OnlinePlayerManager {
   private platforms: Phaser.Physics.Arcade.StaticGroup
   private lastStateSendTime: number = 0
   private stateSendInterval: number = 16 // Send state every 16ms (60 times per second)
+  private lastFullSyncTime: number = 0
+  private fullSyncInterval: number = 1000 // Full sync every 1 second
   private interpolationSpeed: number = 0.35 // Faster interpolation for smoother movement
   private positionSnapThreshold: number = 200 // Snap if difference is too large
   
@@ -357,6 +359,11 @@ export class OnlinePlayerManager {
     gun.setScale(0.6)
     gun.setDepth(1)
     
+    // If local player, hide the gun as GameScene handles it with mouse aiming
+    if (isLocal) {
+      gun.setVisible(false)
+    }
+    
     // Create health bar
     const barWidth = 60
     const healthBarBg = this.scene.add.rectangle(0, 0, barWidth + 4, 10, 0x333333)
@@ -588,13 +595,22 @@ export class OnlinePlayerManager {
       bulletTexture = 'laserGreen'
     } else if (data.weapon === 'bazooka') {
       bulletTexture = 'rocket'
+    } else if (data.weapon === 'lfg') {
+      bulletTexture = 'lfgProjectile'
     }
     
     // Create bullet visual effect
     const bullet = this.scene.add.image(data.x, data.y, bulletTexture)
-    bullet.setScale(0.5)
-    if (data.angle !== undefined) {
-      bullet.setRotation(data.angle)
+    
+    // Apply scale and rotation based on weapon type
+    if (data.weapon === 'lfg') {
+      bullet.setScale(1.0) // Full size for LFG
+      bullet.setRotation(0) // No rotation for sphere
+    } else {
+      bullet.setScale(0.5)
+      if (data.angle !== undefined) {
+        bullet.setRotation(data.angle)
+      }
     }
     
     // Calculate end position based on velocity (simulate ~2 seconds of travel)
@@ -716,6 +732,36 @@ export class OnlinePlayerManager {
     this.sendLocalPlayerState(time)
     // Send enemies states if host
     this.sendTrackedEnemiesState(time)
+    // Perform full entity sync if host
+    this.performFullEntitySync(time)
+  }
+
+  /**
+   * Periodically perform full entity sync (host only)
+   * This ensures clients remove stale enemies/coins that were killed/collected
+   */
+  private performFullEntitySync(time: number): void {
+    if (!this.isHost()) return
+    if (time - this.lastFullSyncTime < this.fullSyncInterval) return
+    this.lastFullSyncTime = time
+
+    const enemies: NetworkEnemyState[] = []
+    for (const [_, tracked] of this.trackedEnemies) {
+      if (tracked.state && tracked.state.is_alive) {
+        // Update state with latest position if sprite exists
+        if (tracked.sprite && tracked.sprite.active) {
+          tracked.state.x = Math.round(tracked.sprite.x)
+          tracked.state.y = Math.round(tracked.sprite.y)
+          tracked.state.health = tracked.sprite.getData('health')
+        }
+        enemies.push(tracked.state)
+      }
+    }
+
+    // We don't track coins in OnlinePlayerManager, so we pass empty array
+    // GameScene handles coin sync separately or we need to track them here
+    // For now, just sync enemies to fix the ghost enemy issue
+    this.syncEntities(enemies, [])
   }
 
   /**
@@ -774,19 +820,22 @@ export class OnlinePlayerManager {
       })
     }
     
-    // Update gun position and rotation based on facing direction
-    const gunOffsetX = player.state.facing_right ? 25 : -25
-    player.gun.setPosition(x + gunOffsetX, y + 5)
-    
-    // Flip gun when facing left and rotate properly
-    if (player.state.facing_right) {
-      player.gun.setFlipX(false)
-      player.gun.setRotation(0)
-      player.gun.setScale(0.6, 0.6)
-    } else {
-      player.gun.setFlipX(true)
-      player.gun.setRotation(Math.PI) // Rotate 180 degrees
-      player.gun.setScale(0.6, -0.6) // Flip Y to keep gun right-side up
+    // Update gun position and rotation based on facing direction (Remote player only)
+    // Local player gun is handled by GameScene with mouse aiming
+    if (!player.isLocal) {
+      const gunOffsetX = player.state.facing_right ? 25 : -25
+      player.gun.setPosition(x + gunOffsetX, y + 5)
+      
+      // Flip gun when facing left and rotate properly
+      if (player.state.facing_right) {
+        player.gun.setFlipX(false)
+        player.gun.setRotation(0)
+        player.gun.setScale(0.6, 0.6)
+      } else {
+        player.gun.setFlipX(true)
+        player.gun.setRotation(Math.PI) // Rotate 180 degrees
+        player.gun.setScale(0.6, -0.6) // Flip Y to keep gun right-side up
+      }
     }
     
     // Update health bar

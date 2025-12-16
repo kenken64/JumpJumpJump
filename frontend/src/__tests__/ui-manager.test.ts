@@ -70,6 +70,16 @@ function createMockScene() {
     destroy: vi.fn()
   }
 
+  const mockContainer = {
+    setScrollFactor: vi.fn().mockReturnThis(),
+    setDepth: vi.fn().mockReturnThis(),
+    add: vi.fn().mockReturnThis(),
+    destroy: vi.fn(),
+    setVisible: vi.fn().mockReturnThis(),
+    setPosition: vi.fn().mockReturnThis(),
+    list: []
+  }
+
   // Track tween callbacks for execution
   let tweenCallbacks: { onComplete?: () => void }[] = []
   let delayedCallbacks: { callback: () => void, delay: number }[] = []
@@ -83,7 +93,8 @@ function createMockScene() {
       rectangle: vi.fn().mockReturnValue({ ...mockRectangle }),
       image: vi.fn().mockReturnValue({ ...mockImage }),
       circle: vi.fn().mockReturnValue({ ...mockCircle }),
-      graphics: vi.fn().mockReturnValue({ ...mockGraphics })
+      graphics: vi.fn().mockReturnValue({ ...mockGraphics }),
+      container: vi.fn().mockReturnValue({ ...mockContainer })
     },
     tweens: {
       add: vi.fn().mockImplementation((config) => {
@@ -161,6 +172,17 @@ describe('UIManager', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     localStorage.clear()
+    
+    // Mock navigator.getGamepads
+    if (!global.navigator.getGamepads) {
+      Object.defineProperty(global.navigator, 'getGamepads', {
+        value: vi.fn().mockReturnValue([]),
+        writable: true
+      });
+    } else {
+      (global.navigator.getGamepads as any) = vi.fn().mockReturnValue([]);
+    }
+
     scene = createMockScene()
     uiManager = new UIManager(scene as any)
   })
@@ -561,7 +583,10 @@ describe('UIManager', () => {
       // Mock canvas getBoundingClientRect
       scene.game.canvas = {
         getBoundingClientRect: () => ({ left: 0, top: 0, bottom: 100, right: 100 }),
-        focus: vi.fn()
+        focus: vi.fn(),
+        parentElement: {
+          appendChild: vi.fn()
+        }
       } as any
     })
 
@@ -571,7 +596,7 @@ describe('UIManager', () => {
       
       expect(document.createElement).toHaveBeenCalledWith('div')
       expect(document.createElement).toHaveBeenCalledWith('input')
-      expect(document.body.appendChild).toHaveBeenCalled()
+      expect(scene.game.canvas.parentElement.appendChild).toHaveBeenCalled()
       expect(uiManager.chatInputActive).toBe(true)
     })
 

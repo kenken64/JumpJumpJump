@@ -34,6 +34,12 @@ export interface DQNState {
     bossActive: boolean
     bossDistance: number
     bossHealth: number
+    nearestCoinDistance: number
+    nearestCoinX: number
+    nearestCoinY: number
+    nearestPowerUpDistance: number
+    nearestPowerUpX: number
+    nearestPowerUpY: number
 }
 
 /**
@@ -68,8 +74,8 @@ export class DQNAgent {
   private policyNet!: tf.Sequential
   /** Target network for stable Q-value targets */
   private targetNet!: tf.Sequential
-  /** Number of state features (14 including boss info) */
-  private readonly stateSize = 14  // Increased to include boss info
+  /** Number of state features (20 including boss, coin, and powerup info) */
+  private readonly stateSize = 20  // Increased to include boss, coin, and powerup info
   /** Number of possible actions (9 including shooting) */
   private readonly actionSize = 9  // Expanded to include shooting actions
   /** Exploration rate (probability of random action) */
@@ -247,7 +253,9 @@ export class DQNAgent {
             state.onGround ? 1 : 0, state.nearestPlatformDistance / 1000, state.nearestPlatformHeight / 1200,
             state.nearestEnemyDistance / 1000, state.nearestSpikeDistance / 1000, state.hasGroundAhead ? 1 : 0,
             state.gapAhead ? 1 : 0,
-            state.bossActive ? 1 : 0, state.bossDistance / 1000, state.bossHealth / 100
+            state.bossActive ? 1 : 0, state.bossDistance / 1000, state.bossHealth / 100,
+            state.nearestCoinDistance / 1000, state.nearestCoinX / 1000, state.nearestCoinY / 1200,
+            state.nearestPowerUpDistance / 1000, state.nearestPowerUpX / 1000, state.nearestPowerUpY / 1200
         ]
     }
 
@@ -288,15 +296,15 @@ export class DQNAgent {
             // Check if platform is directly above (need to jump up first)
             const platformAbove = state.nearestPlatformHeight < -50 && state.nearestPlatformDistance < 150
             
-            // Progressive penalties for being stuck - very aggressive triggers
-            if (this.stuckCounter > 5 || (this.stuckCounter > 3 && platformTooHigh) || (this.stuckCounter > 2 && platformAbove)) {
-                reward -= 2.0  // Very strong penalty
+            // Progressive penalties for being stuck - relaxed triggers
+            if (this.stuckCounter > 10 || (this.stuckCounter > 6 && platformTooHigh) || (this.stuckCounter > 5 && platformAbove)) {
+                reward -= 0.5  // Reduced from -2.0
                 // Activate retreat mode - move far left and try double jump
                 if (!this.stuckRetreatMode) {
                     this.stuckRetreatMode = true
                     this.retreatFrames = 0
                     this.needsDoubleJump = platformTooHigh || platformAbove
-                    reward += 0.3  // Small reward for starting retreat
+                    reward += 0.1  // Small reward for starting retreat
                 }
             }
         } else if (progress > 0) {
@@ -307,7 +315,7 @@ export class DQNAgent {
             this.randomExplorationFrames = 0
         } else if (!isMovingRight) {
             // Reduce stuck counter when trying other actions
-            this.stuckCounter = Math.max(0, this.stuckCounter - 2)
+            this.stuckCounter = Math.max(0, this.stuckCounter - 1)
         }
         
         // Track vertical progress (moving upward is good for platforms)
@@ -331,36 +339,28 @@ export class DQNAgent {
         } else {
             this.framesSinceProgress++
             
-            // Escalating penalties for no progress - very aggressive
-            if (this.framesSinceProgress > 90) {  // Reduced from 180 to 90
-                reward -= 2.0  // Massive penalty after 1.5 seconds
+            // Escalating penalties for no progress - significantly relaxed
+            if (this.framesSinceProgress > 180) {  // 3 seconds (was 1.5s)
+                reward -= 1.0  // Reduced from -2.0
                 // Force random exploration if completely stuck
                 if (!this.forceRandomExploration) {
                     this.forceRandomExploration = true
                     this.randomExplorationFrames = 0
                     console.log('🎲 Agent stuck - forcing random exploration')
                 }
-            } else if (this.framesSinceProgress > 60) {  // Reduced from 120 to 60
-                reward -= 1.0  // Strong penalty after 1 second
-            } else if (this.framesSinceProgress > 30) {  // Was 60
-                reward -= 0.5  // Medium penalty after 0.5 seconds
-            } else if (this.framesSinceProgress > 15 && state.onGround) {  // Was 30
-                // Early penalty for being stuck on ground
-                reward -= 0.3
+            } else if (this.framesSinceProgress > 120) {  // 2 seconds (was 1s)
+                reward -= 0.5  // Reduced from -1.0
+            } else if (this.framesSinceProgress > 60) {  // 1 second (was 0.5s)
+                reward -= 0.1  // Reduced from -0.5
             }
             
-            // Encourage exploration when stuck - very early triggers
-            if (this.framesSinceProgress > 10) {  // Reduced from 15
+            // Encourage exploration when stuck
+            if (this.framesSinceProgress > 30) {
                 if (!isMovingRight) {
-                    reward += 0.2  // Increased reward for trying different actions
+                    reward += 0.1  // Reward for trying different actions
                 }
                 if (isJumping) {
-                    reward += 0.4  // Very strong reward for jumping when stuck
-                }
-            } else if (this.framesSinceProgress > 3 && state.onGround) {  // Reduced from 5
-                // Very early encouragement to jump when on ground
-                if (isJumping) {
-                    reward += 0.25  // Increased from 0.2
+                    reward += 0.2  // Reward for jumping when stuck
                 }
             }
         }
@@ -379,6 +379,22 @@ export class DQNAgent {
         // Extra reward for successfully jumping onto higher platforms
         if (state.onGround && verticalProgress > 20 && progress > 0) {
             reward += 0.5  // Successfully landed on higher platform while progressing
+        }
+
+        // Reward for getting closer to coins
+        if (state.nearestCoinDistance < 200) {
+            reward += 0.2
+        }
+        if (state.nearestCoinDistance < 50) {
+            reward += 0.5
+        }
+
+        // Reward for getting closer to powerups
+        if (state.nearestPowerUpDistance < 200) {
+            reward += 0.3
+        }
+        if (state.nearestPowerUpDistance < 50) {
+            reward += 0.8
         }
         
         // Boss engagement rewards - ONLY when boss is actually spawned and active

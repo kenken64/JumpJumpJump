@@ -4,6 +4,8 @@ import { GameAPI } from '../services/api'
 export default class EndingScene extends Phaser.Scene {
   private storyText!: Phaser.GameObjects.Text
   private scrollSpeed: number = 0.15 // Reduced speed for dramatic effect
+  private canScroll: boolean = false // Control when scrolling starts
+  private congratsText?: Phaser.GameObjects.Text
 
   constructor() {
     super('EndingScene')
@@ -11,6 +13,9 @@ export default class EndingScene extends Phaser.Scene {
 
   preload() {
     this.load.audio('endingMusic', '/assets/music/ending.mp3')
+    this.load.image('planetEarth', '/assets/kenny_planets/Planets/planet09.png')
+    this.load.image('spaceship', '/assets/kenney_sci-fi-rts/PNG/Default size/Unit/scifiUnit_06.png')
+    this.load.image('particle', '/assets/kenney_platformer-art-requests/Tiles/laserRedBurst.png') // Use existing burst asset for particles
   }
 
   create() {
@@ -23,97 +28,90 @@ export default class EndingScene extends Phaser.Scene {
     // Background (Blackhole effect or just black)
     this.cameras.main.setBackgroundColor('#000000')
     this.createStarfield()
+    
+    // Create the crash animation behind the text
+    this.createCrashAnimation()
 
     const storyContent = `
-They Came From the Dark Between Stars
+The Chrysalis Protocol
 
-The first ships arrived without warning.
-Massive obsidian pyramids descended through Earth's atmosphere and hovered over seven major cities. No communication. No demands. No explanation.
-Then the abductions began.
+The last thing Dr. Maya Chen remembered before everything went wrong was her hand slamming the eject button. Her ship had been dying around her, alarms screaming, the hull breaching in three places, and then—nothing. Just darkness and the sensation of falling forever.
 
-The Chosen
-They didn't take the weak. They didn't take the elderly or the sick or the young.
-They took warriors.
-Special forces operatives vanished from military bases. Champion fighters disappeared from arenas. Survivalists were plucked from remote wilderness. Anyone who had proven themselves dangerous—anyone who had killed and survived—woke up in the same place.
-An infinite arena of floating platforms, suspended over an abyss that had no bottom.
-The Hunting Grounds.
+When she woke up, she knew immediately something was off. Her hands looked wrong. Three thick fingers instead of five, skin that glowed faintly blue in the darkness like some deep-sea creature. She tried to scream but the sound that came out was layered, harmonic, inhuman. The kind of sound that shouldn't come from a human throat.
 
-The Awakening
-You remember the light first.
-A blue pulse that cut through your bedroom wall, your barracks, your cabin in the mountains—wherever they found you. Then weightlessness. Then nothing.
-Now you stand on cold metal, wind howling from somewhere impossibly far below. The platform beneath your feet stretches maybe twenty meters before ending in void. Another platform floats ahead. Then another. An endless corridor of jumping stones arranged across seven vertical planes, disappearing into mist and distance.
-Your weapons are gone. Your team is gone. Your world is gone.
-But you are not alone.
+Because she wasn't human anymore.
 
-The Watchers
-They observe from obsidian towers that rise between the platforms like black teeth. Tall. Silent. Their faces hidden behind biomechanical masks that click and whir with alien calculation.
-You never see them clearly. Just shapes in the peripheral darkness. The glint of targeting lasers. The shimmer of cloaking fields engaging and disengaging.
-They are studying you.
-Evaluating you.
-And somewhere in their ancient hierarchy, they are betting on you.
+The emergency pod had buried itself deep in Kepler-442b's surface, which wasn't rock or dirt but something that felt almost organic, warm and pulsing. And the planet's atmosphere hadn't killed her—it had done something much worse. It had changed her on a molecular level.
 
-The Game
-You learn the rules through death.
-The platforms generate as you move—solid blocks, thin ledges, surfaces that crumble seconds after you touch them. Stand still, and the ground beneath you dissolves. The only way to survive is forward.
-Always forward.
-Creatures materialize from the void. Some skitter on too many legs. Some lumber with armored hides. Some fly on wings that shouldn't exist in any atmosphere. They are not from Earth. They are trophies from other conquered worlds, released into the arena to test you.
-Kill them, and golden markers appear—data fragments the Watchers use as currency. Collect enough, and hidden terminals flicker to life, offering weapons: pulse guns, thermal lances, plasma blades. Tools scavenged from a hundred dead civilizations.
-The Watchers want you armed.
-They want you dangerous.
-Prey that cannot fight back is prey not worth hunting.
+The pod's damaged AI crackled to life, making her jump. "Xenomorphic contamination detected. Cellular structure compromised. Reversal requires Synthesis Formula. Location: planetary core."
 
-The Leaderboard
-A holographic display burns in the sky above every platform cluster. Names. Numbers. Rankings.
-At first, you don't understand. Then you see your own name appear at the bottom, a score of zero beside it.
-Every meter you travel adds points. Every creature you kill adds more. Every fragment you collect, every weapon you claim, every second you refuse to die—it all counts.
-The Watchers are keeping score.
-And the highest names on that board? They haven't been seen in weeks. Months. Some say they ascended to the deeper levels, where the platforms grow sparse and the gravity shifts without warning.
-Some say they were deemed worthy of the real hunt.
+"Of course it is," Maya muttered, her voice still wrong, still multi-toned.
 
-The Notorious Ones
-Every fifth level, the arena changes.
-The platforms stop generating. The lesser creatures retreat. The wind dies. And from the darkness above, one of them descends.
-Not a Watcher.
-Something worse.
-A hunter.
-Twenty-four elite killers rotate through the arena, each one a legend among their kind. They have names that translate roughly into human language—names earned through millennia of slaughter:
-The one who tears dimensions.
-The one who drinks light.
-The one who burns worlds.
-They are larger than the Watchers. Faster. Their armor has been forged from the bones of apex predators across the galaxy. Their weapons have ended species.
-They do not hide.
-They announce themselves with roars that shake the platforms, then they hunt you across the arena until one of you stops moving.
-Kill one, and your name rockets up the leaderboard. The Watchers howl with something that might be approval. More weapons appear. Better weapons. The next stretch of platforms becomes almost generous.
-You have proven yourself entertaining.
-Die to one, and you are nothing. A footnote. A skull added to a trophy wall that stretches across light-years.
+She pulled herself out of the wreckage, and her new body moved differently—stronger, faster, but foreign. The planet stretched out before her in impossible colors. Crystalline trees that seemed to breathe in rhythm, rivers that ran uphill defying gravity, everything slightly alive in a way that made her stomach turn. Well, whatever organs she had now that passed for a stomach.
 
-The Lie They Tell You
-"Reach the end," the survivors whisper. "Kill all twenty-four. There's a way out. A portal. A ship. Something."
-You've heard the rumors in the brief moments between levels, when the platforms stabilize and humans can find each other. They speak of a final boss—a twenty-fifth hunter who guards the exit. They speak of Earth, still spinning somewhere beyond the void.
-They speak of escape.
-But you've also seen the leaderboard.
-The top ten names have been static for months. No one rises to first place. No one claims the final victory. Either they are still fighting somewhere in the deep levels, or the "escape" is just another game the Watchers play.
-Hope as entertainment.
-Despair as sport.
+She'd walked maybe a mile, still getting used to legs that bent at slightly wrong angles, when the first guardian appeared. The thing was massive, easily thirty feet tall, translucent like a jellyfish but vaguely humanoid. Inside its body, organs floated suspended in fluid, pulsing with light. She'd later think of it as the Membrane Colossus, but right then she just thought: I'm going to die on this planet as something that isn't even me.
 
-What You Know
-You know the platforms will keep generating as long as you keep moving.
-You know the creatures will keep coming, worth more points the deeper you go.
-You know the fragments can buy you speed, shields, second chances.
-You know twenty-four nightmares stand between you and whatever lies at the end.
-And you know one thing the Watchers haven't figured out yet:
-Humans don't break.
-We adapt. We learn. We turn the rules against the rulemakers. Every warrior they abducted carries generations of combat evolution in their blood. Every survivor on these platforms is someone who has already looked death in the face and refused.
-The Watchers wanted dangerous prey.
-They're about to learn what that really means.
+It attacked without warning. A limb that phased between solid and liquid struck at her. Maya dove behind a crystal formation, her heart—hearts?—racing. She felt something building in her hands, energy crackling between her fingers. It was instinct, this new body knowing things her mind didn't.
 
-Your Hunt Begins
-The platform hums beneath your boots.
-Ahead, the first creature materializes—something with too many eyes and a hunger older than your species. The leaderboard flickers, waiting for your name to rise.
-Somewhere in the darkness, a Watcher leans forward to observe.
-Somewhere deeper, the first of the Notorious Ones sharpens a blade that has tasted the blood of a thousand worlds.
-They think you are prey.
-Prove them wrong.
+Desperate, she released it. An electromagnetic blast erupted from her palms, hitting the creature. Suddenly it was solid, completely physical, vulnerable. Maya didn't think. She just ran forward, roaring, and drove her fist into the glowing core in its chest.
+
+The creature exploded into crystalline fragments. In the debris, a strand of DNA glowed, hovering in the air. When she touched it, information flooded her mind—genetic code, part of something larger. Part of the formula to change her back.
+
+One piece down. How many more?
+
+The journey took her deeper into the planet's strange anatomy. She learned to hunt, to fight, to survive with this body she hadn't asked for. The Breathing Caverns were worse than the surface—walls that literally inhaled and exhaled, making the space expand and contract like being inside massive lungs. The air was thick, humid, wrong.
+
+The Parasite Sovereign wasn't one creature but thousands—a swarm intelligence that moved like a living shadow. They covered her in seconds, tiny bodies trying to absorb her into their collective consciousness. Maya felt them probing her mind, trying to make her part of the hive.
+
+But her mutated cells were toxic to them. She'd never know if it was luck or design, but when she focused, she could broadcast on their frequency. She sent out signals—not their harmonious network chatter but something discordant, chaotic. The swarm turned on itself in confusion, thousands of small creatures suddenly fighting, consuming each other.
+
+She grabbed the second genetic fragment from the carnage and kept moving, trying not to think about how natural it felt to kill with this body. How easy. How good.
+
+By the time she reached the Resonance Plains, where gravity folded in on itself and up became sideways, Maya was changing in ways that had nothing to do with biology. She was starting to forget what coffee tasted like. Starting to lose the memory of her daughter Elena's exact voice.
+
+The Echo Tyrant was waiting—a being that existed across multiple timelines simultaneously. It attacked from past, present, and future versions of itself at once. But her enhanced perception could track the temporal echoes like following threads in a tapestry. She watched, learned the pattern, and waited for the single moment when all its versions converged into one point in space-time.
+
+She struck once. The Tyrant collapsed into a single timeline and vanished. The third fragment was hers.
+
+The core chamber took her breath away—walls made of concentrated starlight, a pool in the center that looked like someone had liquefied a rainbow. Something rose from that pool. Not really a body, more like a presence, an intelligence so vast it made her feel microscopic.
+
+"Why fight this?" it asked inside her head, the voice kind, almost sad. "You are stronger now. Faster. You could live for centuries. Why choose limitation?"
+
+"Because limitation is what makes us human," Maya said, surprised at the certainty in her voice. "Because I have a daughter who needs her mother, not some immortal alien thing wearing her mother's memories."
+
+It tested her then, not with violence but with visions. Futures where she stayed changed, became something powerful and eternal. She saw herself exploring galaxies, living through the heat death of stars, accumulating knowledge that would make her godlike.
+
+Maya pushed back with smaller memories. Elena's face when she lost her first tooth. The smell of her lab on Monday mornings. Her dad teaching her to fish in the creek behind their house, his patience when she kept tangling the line. Stupid, small, perfectly human things that mattered more than immortality.
+
+"I don't want perfect," she said quietly. "I just want to go home."
+
+The presence seemed to consider this, a vast intelligence trying to understand human stubbornness. Then it retreated, almost respectfully. The three DNA fragments swirled together in the pool—pieces of her original self the planet had preserved like a backup.
+
+Maya jumped in without hesitation.
+
+The transformation back was excruciating. She felt her body tearing itself apart cell by cell and reforming, alien structures dying, human DNA reasserting dominance like reclaiming invaded territory. Her extra fingers dissolved, her chitinous armor softened back into skin, her multi-spectrum vision collapsed into normal human sight. When she finally crawled out, gasping and shaking, she was Maya Chen again.
+
+Mostly.
+
+The pod's beacon activated automatically, its pulse steady and strong. Rescue ships would come. Her ordeal was over.
+
+Maya collapsed against the pod's hull, exhausted beyond measure. Her hands—five-fingered, calloused, human hands—were shaking. She touched her face, her arms, her chest, feeling the familiar architecture of her own body. Real. Solid. Hers.
+
+But she could still see those flecks of blue in her reflection on the pod's metal surface. Her eyes glowed faintly in the dim light. And when she closed them, she could still perceive things no human should—faint electromagnetic fields, the subtle vibration of the planet's core beneath her.
+
+The changes weren't completely gone. Maybe they never would be.
+
+Above her, Kepler-442b's sky shifted through colors that had no names in any human language. Maya thought about Elena, probably convinced her mother was dead by now. She thought about her lab, her colleagues, her small apartment with the plants she'd probably killed by now from neglect.
+
+She'd fought through hell to get back to all of that. To be ordinary again. To be human.
+
+And sitting there, waiting for rescue, feeling her heart beat its familiar rhythm, Maya realized something. The planet hadn't just tested her strength. It had tested what she valued most—and she'd passed. She'd chosen limitation over power, mortality over eternity, home over the infinite.
+
+That choice, she thought, was the most human thing of all.
+
+The beacon pulsed. Help was coming.
+
+Maya closed her eyes—those slightly-wrong, faintly-glowing eyes—and waited for the ship that would take her home.
 `
 
     this.storyText = this.add.text(width / 2, height + 50, storyContent, {
@@ -127,6 +125,43 @@ Prove them wrong.
     this.storyText.setOrigin(0.5, 0)
     this.storyText.setStroke('#000000', 4)
     this.storyText.setShadow(2, 2, '#000000', 2, true, true)
+    this.storyText.setDepth(10) // Ensure text is above planet animation
+
+    // Create congratulations text - starts invisible
+    this.congratsText = this.add.text(width / 2, height / 2, 'CONGRATULATIONS!\n\nYou have completed the game!', {
+      fontSize: '64px',
+      fontFamily: 'Arial',
+      color: '#FFD700', // Gold color
+      align: 'center',
+      fontStyle: 'bold'
+    })
+    this.congratsText.setOrigin(0.5, 0.5)
+    this.congratsText.setStroke('#000000', 6)
+    this.congratsText.setShadow(3, 3, '#000000', 3, true, true)
+    this.congratsText.setDepth(20) // In front of everything
+    this.congratsText.setAlpha(0) // Start invisible
+
+    // Fade in the congratulations text
+    this.tweens.add({
+      targets: this.congratsText,
+      alpha: 1,
+      duration: 1500,
+      ease: 'Power2',
+      onComplete: () => {
+        // Hold for 2 seconds, then fade out and start scrolling
+        this.time.delayedCall(2000, () => {
+          this.tweens.add({
+            targets: this.congratsText,
+            alpha: 0,
+            duration: 1000,
+            ease: 'Power2',
+            onComplete: () => {
+              this.canScroll = true
+            }
+          })
+        })
+      }
+    })
 
     // Skip button
     const skipBtn = this.add.text(width - 100, height - 50, 'SKIP [ESC]', {
@@ -143,6 +178,9 @@ Prove them wrong.
   }
 
   update(_time: number, delta: number) {
+    // Only scroll after congratulations text fades out
+    if (!this.canScroll) return
+
     this.storyText.y -= (this.scrollSpeed * delta) / 16
 
     // Reset or end when text goes off screen
@@ -151,22 +189,109 @@ Prove them wrong.
     }
   }
 
+  private createCrashAnimation() {
+    const { width, height } = this.cameras.main
+    
+    // 1. Planet (Earth-like)
+    const planet = this.add.image(width * 0.7, height * 0.6, 'planetEarth')
+    planet.setScale(0.5)
+    planet.setDepth(1) // Behind text (text will be higher)
+    
+    // 2. Spaceship
+    const ship = this.add.image(-100, height * 0.2, 'spaceship')
+    ship.setScale(0.8)
+    ship.setRotation(Phaser.Math.DegToRad(45)) // Angle towards planet
+    ship.setDepth(2)
+    
+    // Engine trail particles
+    const trailParticles = this.add.particles(0, 0, 'particle', {
+      speed: 100,
+      scale: { start: 0.5, end: 0 },
+      blendMode: 'ADD',
+      lifespan: 300,
+      follow: ship,
+      followOffset: { x: -20, y: -20 } // Adjust based on ship rotation
+    })
+    trailParticles.setDepth(1)
+
+    // 3. Crash Sequence Function
+    const playCrash = () => {
+      // Reset ship position
+      ship.setPosition(-100, height * 0.2)
+      ship.setVisible(true)
+      ship.setAlpha(1)
+      trailParticles.start()
+      
+      // Calculate angle to planet
+      const angle = Phaser.Math.Angle.Between(ship.x, ship.y, planet.x, planet.y)
+      ship.setRotation(angle + Math.PI/2) // Adjust for sprite orientation
+
+      // Tween ship to planet
+      this.tweens.add({
+        targets: ship,
+        x: planet.x,
+        y: planet.y,
+        duration: 3000,
+        ease: 'Power2', // Accelerate
+        onUpdate: () => {
+          // Add some shake/vibration
+          ship.x += Phaser.Math.Between(-2, 2)
+          ship.y += Phaser.Math.Between(-2, 2)
+        },
+        onComplete: () => {
+          // Explosion!
+          ship.setVisible(false)
+          trailParticles.stop()
+          
+          // Explosion particles
+          const explosion = this.add.particles(planet.x, planet.y, 'particle', {
+            speed: { min: 100, max: 300 },
+            angle: { min: 0, max: 360 },
+            scale: { start: 1, end: 0 },
+            blendMode: 'ADD',
+            lifespan: 800,
+            quantity: 50,
+            emitting: false
+          })
+          explosion.setDepth(3)
+          explosion.explode(100)
+          
+          // Flash effect
+          this.cameras.main.flash(200, 255, 200, 0)
+          
+          // Shake camera slightly
+          this.cameras.main.shake(200, 0.005)
+          
+          // Loop animation after delay
+          this.time.delayedCall(2000, () => {
+             if (this.scene.isActive()) {
+                 playCrash()
+             }
+          })
+        }
+      })
+    }
+
+    // Start initial animation
+    playCrash()
+  }
+
   private async returnToMenu() {
     this.sound.stopAll()
     
-    // Delete save game so user starts fresh
+    // Clear local progression data immediately
+    localStorage.removeItem('defeatedBossLevels')
+    
     const playerName = localStorage.getItem('player_name')
     if (playerName) {
+      // Clear player-specific boss records
+      for (let i = 0; i < 24; i++) {
+        localStorage.removeItem(`${playerName}_boss_${i}`)
+      }
+
       try {
         await GameAPI.deleteSave(playerName)
         console.log('Save game deleted for', playerName)
-
-        // Clear defeated bosses locally
-        localStorage.removeItem('defeatedBossLevels')
-        for (let i = 0; i < 24; i++) {
-          localStorage.removeItem(`${playerName}_boss_${i}`)
-        }
-        console.log('Cleared local boss records for', playerName)
       } catch (error) {
         console.error('Failed to delete save game:', error)
       }
@@ -183,5 +308,17 @@ Prove them wrong.
         const size = Phaser.Math.FloatBetween(0.5, 2)
         this.add.circle(x, y, size, 0xffffff, Phaser.Math.FloatBetween(0.2, 1))
      }
+  }
+
+  shutdown() {
+    // Workaround for Phaser GamepadPlugin bug: ensure pads array exists
+    try {
+      const gamepadPlugin = this.input?.gamepad as any
+      if (gamepadPlugin && !gamepadPlugin.pads) {
+        gamepadPlugin.pads = []
+      }
+    } catch (e) {
+      // Ignore
+    }
   }
 }

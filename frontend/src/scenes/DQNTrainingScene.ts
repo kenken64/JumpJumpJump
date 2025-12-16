@@ -250,7 +250,13 @@ export default class DQNTrainingScene extends Phaser.Scene {
                 hasGroundAhead, gapAhead,
                 bossActive: false,  // DQNTrainingScene doesn't have bosses
                 bossDistance: 1000,
-                bossHealth: 100
+                bossHealth: 100,
+                nearestCoinDistance: 1000,
+                nearestCoinX: 0,
+                nearestCoinY: 0,
+                nearestPowerUpDistance: 1000,
+                nearestPowerUpX: 0,
+                nearestPowerUpY: 0
             }
         } catch {
             return null
@@ -357,5 +363,17 @@ export default class DQNTrainingScene extends Phaser.Scene {
         this.scene.stop('GameScene')
         this.dqnAgent?.dispose()
         this.scene.start('MenuScene')
+    }
+
+    shutdown() {
+        // Workaround for Phaser GamepadPlugin bug: ensure pads array exists
+        try {
+            const gamepadPlugin = this.input?.gamepad as any
+            if (gamepadPlugin && !gamepadPlugin.pads) {
+                gamepadPlugin.pads = []
+            }
+        } catch (e) {
+            // Ignore
+        }
     }
 }

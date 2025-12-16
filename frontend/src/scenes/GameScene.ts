@@ -68,6 +68,7 @@ export default class GameScene extends Phaser.Scene {
   private stompStartY: number = 0
   private blockFragments!: Phaser.Physics.Arcade.Group
   private playerIsDead: boolean = false
+  private isTransitioning: boolean = false
   private playerHealth: number = 100
   private maxHealth: number = 100
   public playerLives: number = 3
@@ -148,6 +149,12 @@ export default class GameScene extends Phaser.Scene {
   private onlinePlayerId?: string
   private onlinePlayerNumber?: number
   private onlineSeed?: number
+  
+  // Level Generation State
+  private isGeneratingWorld: boolean = false
+  private loadingBar?: Phaser.GameObjects.Rectangle
+  private loadingBarBg?: Phaser.GameObjects.Rectangle
+  private loadingText?: Phaser.GameObjects.Text
   private onlineRngState: number = 0
   // Track remote enemies and coins by network ID for online sync
   private remoteEnemies: Map<string, Phaser.Physics.Arcade.Sprite> = new Map()
@@ -157,8 +164,6 @@ export default class GameScene extends Phaser.Scene {
   private respawnEnemyCounter: number = 0
   // Counter for unique coin drop IDs
   private coinDropCounter: number = 0
-  // Counter for unique power-up IDs
-  private powerUpCounter: number = 0
 
   // DQN Training
   private dqnTraining: boolean = false
@@ -229,6 +234,9 @@ export default class GameScene extends Phaser.Scene {
       this.currentLevel = data.level || 1
       console.log('🤖 DQN Training mode enabled!')
       // Agent will be initialized after scene is ready
+    } else {
+      // Explicitly reset DQN mode when not in training
+      this.dqnTraining = false
     }
 
     // Handle loaded game
@@ -415,6 +423,10 @@ export default class GameScene extends Phaser.Scene {
   }
 
   create() {
+    // Reset counters for deterministic ID generation
+    this.respawnEnemyCounter = 0
+    this.coinDropCounter = 0
+
     // Initialize UI Manager
     this.uiManager = new UIManager(this)
 
@@ -457,7 +469,12 @@ export default class GameScene extends Phaser.Scene {
     this.playerIsDead = false
     this.playerHealth = this.initHealth !== undefined ? this.initHealth : 100
     // Use carried over lives from previous level, or default to 3
-    this.playerLives = this.initLives !== undefined ? this.initLives : 3
+    const purchasedLives = parseInt(localStorage.getItem('purchasedLives') || '0')
+    if (purchasedLives > 0) {
+      console.log(`❤️ Adding ${purchasedLives} purchased lives`)
+      localStorage.setItem('purchasedLives', '0')
+    }
+    this.playerLives = (this.initLives !== undefined ? this.initLives : 3) + purchasedLives
     // Use carried over score from previous level, or start at 0
     this.score = this.initScore !== undefined ? this.initScore : 0
     
@@ -663,7 +680,62 @@ export default class GameScene extends Phaser.Scene {
     this.onlineRngState = testState
 
     console.log('Generating world...')
-    this.worldGenerationX = this.worldGenerator.generateWorld()
+    
+    // For 'levels' mode (including online co-op), pre-generate the entire level
+    // This ensures all entities exist from the start, preventing desync issues
+    if (this.gameMode === 'levels') {
+      console.log(`🌍 Pre-generating entire level (${this.levelLength}px) for stability...`)
+      
+      // Initialize generation state
+      this.isGeneratingWorld = true
+      this.physics.pause() // Pause physics during generation
+      
+      // Create Loading UI
+      const centerX = this.cameras.main.width / 2
+      const centerY = this.cameras.main.height / 2
+      
+      // Background overlay
+      const overlay = this.add.rectangle(centerX, centerY, 2000, 2000, 0x000000, 0.8)
+      overlay.setScrollFactor(0)
+      overlay.setDepth(9000)
+      
+      // Loading text
+      this.loadingText = this.add.text(centerX, centerY - 50, 'GENERATING WORLD...', {
+        fontSize: '32px',
+        color: '#ffffff',
+        fontStyle: 'bold'
+      })
+      this.loadingText.setOrigin(0.5)
+      this.loadingText.setScrollFactor(0)
+      this.loadingText.setDepth(9001)
+      
+      // Progress bar background
+      this.loadingBarBg = this.add.rectangle(centerX, centerY + 30, 600, 30, 0x333333)
+      this.loadingBarBg.setScrollFactor(0)
+      this.loadingBarBg.setDepth(9001)
+      
+      // Progress bar
+      this.loadingBar = this.add.rectangle(centerX - 300, centerY + 30, 0, 30, 0x00ff00)
+      this.loadingBar.setOrigin(0, 0.5)
+      this.loadingBar.setScrollFactor(0)
+      this.loadingBar.setDepth(9002)
+      
+      // Generate initial world (safe zone + first few chunks)
+      this.worldGenerationX = this.worldGenerator.generateWorld()
+      
+      // Start async generation loop
+      this.generationTimer = this.time.addEvent({
+        delay: 1, // Run as fast as possible but allow frame updates
+        callback: this.generateLevelChunks,
+        callbackScope: this,
+        loop: true
+      })
+      
+    } else {
+      // Endless mode: standard initial generation
+      this.worldGenerationX = this.worldGenerator.generateWorld()
+    }
+    
     console.log('Platforms created:', this.platforms.getChildren().length)
 
     // Create player animations FIRST before creating the player sprite
@@ -1185,7 +1257,7 @@ export default class GameScene extends Phaser.Scene {
     this.physics.add.collider(this.blockFragments, this.platforms)
     this.physics.add.collider(this.bullets, this.platforms, this.handleBulletPlatformCollision, undefined, this)
     this.physics.add.collider(this.coins, this.platforms)
-    this.physics.add.collider(this.powerUps, this.platforms)
+    // Note: powerUps are static (no gravity) so they don't need platform collider
 
     // Setup player-enemy collision with overlap detection
     this.physics.add.overlap(this.player, this.enemies, this.handlePlayerEnemyCollision, undefined, this)
@@ -1212,8 +1284,20 @@ export default class GameScene extends Phaser.Scene {
 
     // Initialize gamepad support
     if (this.input.gamepad) {
-      // Check for already connected gamepads
-      if (this.input.gamepad.total > 0) {
+      // Check for already connected gamepads using native API (Safari fix)
+      const nativeGamepads = navigator.getGamepads ? navigator.getGamepads() : []
+      const activeNativeGamepad = Array.from(nativeGamepads).find(gp => gp !== null && gp?.connected)
+      
+      if (activeNativeGamepad) {
+        // Native API shows a gamepad - use Phaser's pad
+        if (this.input.gamepad.total > 0) {
+          this.gamepad = this.input.gamepad.getPad(0)
+          console.log('Gamepad already connected:', this.gamepad?.id)
+        } else {
+          // Safari edge case: native shows gamepad but Phaser doesn't have it yet
+          console.log('🎮 Native gamepad detected but Phaser not synced yet, waiting...')
+        }
+      } else if (this.input.gamepad.total > 0) {
         this.gamepad = this.input.gamepad.getPad(0)
         console.log('Gamepad already connected:', this.gamepad?.id)
       }
@@ -1230,6 +1314,17 @@ export default class GameScene extends Phaser.Scene {
         if (this.gamepad === pad) {
           this.gamepad = null
           console.log('Gamepad disconnected:', pad.id)
+        }
+      })
+
+      // Safari fix: Also listen to native gamepadconnected event
+      window.addEventListener('gamepadconnected', (e: GamepadEvent) => {
+        console.log('🎮 [Native] Gamepad connected in GameScene:', e.gamepad.id)
+        // Try to sync with Phaser
+        if (!this.gamepad && this.input.gamepad && this.input.gamepad.total > 0) {
+          this.gamepad = this.input.gamepad.getPad(0)
+          console.log('🎮 Synced gamepad from native event:', this.gamepad?.id)
+          this.uiManager.showTip('gamepad', 'Gamepad connected! Left stick/D-pad: Move, A: Jump, RT: Shoot')
         }
       })
     }
@@ -1264,7 +1359,16 @@ export default class GameScene extends Phaser.Scene {
         }
 
         console.log(`🎮 F4: Teleporting to boss level ${nextBossLevel}...`)
-        const bossData: any = { gameMode: 'levels', level: nextBossLevel }
+        console.log(`   Preserving: lives=${this.playerLives}, score=${this.score}, coins=${this.coinCount}`)
+        
+        // Preserve current player state when teleporting
+        const bossData: any = { 
+          gameMode: 'levels', 
+          level: nextBossLevel,
+          lives: this.playerLives,
+          score: this.score,
+          coins: this.coinCount
+        }
         if (this.isCoopMode) {
           bossData.mode = 'coop'
         }
@@ -1480,12 +1584,8 @@ export default class GameScene extends Phaser.Scene {
   }
 
   private spawnCoins() {
-    // In online mode, only HOST spawns coins - non-host receives them via network
-    // This prevents duplicate coins
-    if (this.isOnlineMode && !this.isOnlineHost) {
-      console.log('🪙 COIN DEBUG: Non-host skipping spawnCoins() - waiting for network')
-      return
-    }
+    // In online mode, both Host and Client spawn coins deterministically
+    // This prevents duplicate coins and ensures immediate availability
     console.log(`🪙 COIN DEBUG: spawnCoins() called - isOnlineMode=${this.isOnlineMode}, isHost=${this.isOnlineHost}`)
     
     // Spawn coins at various positions throughout the world (Y values are above floor at 650)
@@ -1508,13 +1608,17 @@ export default class GameScene extends Phaser.Scene {
     ]
 
     coinPositions.forEach((pos, index) => {
-      const coin = this.coins.create(pos.x, pos.y, 'coin')
+      const safePos = this.findSafeCoinPosition(pos.x, pos.y, 0, index)
+      const coin = this.coins.create(safePos.x, safePos.y, 'coin')
       coin.setScale(0.5)
       coin.setBounce(0.3)
       coin.setCollideWorldBounds(true)
       // Disable gravity for floating level coins so they don't fall
       if (coin.body) {
-        (coin.body as Phaser.Physics.Arcade.Body).setAllowGravity(false)
+        const body = coin.body as Phaser.Physics.Arcade.Body
+        body.setAllowGravity(false)
+        // Arcade bodies don't auto-scale with setScale(). Match body to visual size.
+        body.setSize(coin.displayWidth, coin.displayHeight, true)
       }
       // Add unique ID for online sync
       coin.setData('coinId', `coin_init_${index}_${pos.x}_${pos.y}`)
@@ -1523,7 +1627,7 @@ export default class GameScene extends Phaser.Scene {
       // Add floating animation
       this.tweens.add({
         targets: coin,
-        y: pos.y - 20,
+        y: safePos.y - 20,
         duration: 1000,
         yoyo: true,
         repeat: -1,
@@ -1764,6 +1868,36 @@ export default class GameScene extends Phaser.Scene {
       bossDistance = Phaser.Math.Distance.Between(playerX, playerY, this.boss.x, this.boss.y)
       bossHealth = (this.boss.getData('health') || 100)
     }
+
+    // Find nearest coin
+    let nearestCoinDistance = 1000
+    let nearestCoinX = 0
+    let nearestCoinY = 0
+    const coinsArray = this.coins.getChildren() as Phaser.Physics.Arcade.Sprite[]
+    for (const coin of coinsArray) {
+      if (!coin.active) continue
+      const distance = Phaser.Math.Distance.Between(playerX, playerY, coin.x, coin.y)
+      if (distance < nearestCoinDistance) {
+        nearestCoinDistance = distance
+        nearestCoinX = coin.x - playerX
+        nearestCoinY = coin.y - playerY
+      }
+    }
+
+    // Find nearest powerup
+    let nearestPowerUpDistance = 1000
+    let nearestPowerUpX = 0
+    let nearestPowerUpY = 0
+    const powerUpsArray = this.powerUps.getChildren() as Phaser.Physics.Arcade.Sprite[]
+    for (const powerUp of powerUpsArray) {
+      if (!powerUp.active) continue
+      const distance = Phaser.Math.Distance.Between(playerX, playerY, powerUp.x, powerUp.y)
+      if (distance < nearestPowerUpDistance) {
+        nearestPowerUpDistance = distance
+        nearestPowerUpX = powerUp.x - playerX
+        nearestPowerUpY = powerUp.y - playerY
+      }
+    }
     
     return {
       playerX,
@@ -1779,7 +1913,13 @@ export default class GameScene extends Phaser.Scene {
       gapAhead,
       bossActive,
       bossDistance,
-      bossHealth
+      bossHealth,
+      nearestCoinDistance,
+      nearestCoinX,
+      nearestCoinY,
+      nearestPowerUpDistance,
+      nearestPowerUpX,
+      nearestPowerUpY
     }
   }
 
@@ -2317,37 +2457,70 @@ export default class GameScene extends Phaser.Scene {
   }
 
   private spawnPowerUps() {
-    // In online mode, only HOST spawns power-ups - non-host receives them via network
-    if (this.isOnlineMode && !this.isOnlineHost) {
-      console.log('🎁 Non-host: Waiting for power-up spawn messages from host...')
-      return
+    // In online mode, both Host and Client spawn power-ups deterministically
+    // This ensures they are available immediately without waiting for network messages
+    
+    // Clear any existing powerups to prevent duplicates on scene restart
+    if (this.powerUps && this.powerUps.getLength() > 0) {
+      console.log(`🎁 Clearing ${this.powerUps.getLength()} existing powerups before spawning`)
+      this.powerUps.clear(true, true)
     }
     
     // Spawn power-ups at random positions on platforms
     const powerUpTypes = ['powerSpeed', 'powerShield', 'powerLife', 'powerHealth', 'powerHealth']
     const numPowerUps = 10
 
-    // Reset RNG for power-ups in online mode for deterministic spawning
-    // Use seeded RNG for BOTH online and offline modes
-    const seed = this.onlineSeed || 12345 // Fallback seed
-    this.onlineRngState = seed * 11 + 99999
-    console.log('🎁 Power-up RNG initialized, seed state:', this.onlineRngState)
+    // In online mode, use seeded RNG for deterministic spawning
+    // In offline mode, use true random for variety each level
+    if (this.isOnlineMode) {
+      const seed = this.onlineSeed || 12345
+      this.onlineRngState = seed * 11 + 99999
+      console.log('🎁 Power-up RNG initialized (online), seed state:', this.onlineRngState)
+    }
+
+    // Track used X positions to avoid overlapping powerups
+    const usedXPositions: number[] = []
+    const minXDistance = 200 // Minimum distance between powerups
 
     for (let i = 0; i < numPowerUps; i++) {
-      const x = this.onlineSeededBetween(1000, 8000)
-      const y = 500
-      const typeIndex = this.onlineSeededBetween(0, powerUpTypes.length - 1)
+      // Generate X position, ensuring no overlap with existing powerups
+      let x: number
+      let attempts = 0
+      const maxAttempts = 20
+      
+      do {
+        x = this.isOnlineMode ? this.onlineSeededBetween(1000, 8000) : Phaser.Math.Between(1000, 8000)
+        attempts++
+      } while (
+        attempts < maxAttempts && 
+        usedXPositions.some(usedX => Math.abs(usedX - x) < minXDistance)
+      )
+      
+      usedXPositions.push(x)
+      
+      // Use seeded RNG for Y position in online mode to ensure deterministic placement
+      const y = this.isOnlineMode ? this.onlineSeededBetween(300, 600) : Phaser.Math.Between(300, 600)
+      const typeIndex = this.isOnlineMode ? this.onlineSeededBetween(0, powerUpTypes.length - 1) : Phaser.Math.Between(0, powerUpTypes.length - 1)
       const type = powerUpTypes[typeIndex]
 
-      const powerUp = this.powerUps.create(x, y, type)
+      // Create sprite directly and add to physics group to avoid duplicate sprite issues
+      const powerUp = this.physics.add.sprite(x, y, type)
+      this.powerUps.add(powerUp)
       powerUp.setScale(0.6)
-      powerUp.setBounce(0.2)
-      powerUp.setCollideWorldBounds(true)
+      
+      // Make powerups static - they float in place, no physics movement needed
+      const body = powerUp.body as Phaser.Physics.Arcade.Body
+      body.setAllowGravity(false)
+      body.setImmovable(true)
+      
       // Deterministic id for online mode so collections are consistent
-      this.powerUpCounter++
-      const powerupId = `powerup_${this.powerUpCounter}_${Math.floor(x)}_${Math.floor(y)}`
+      // Use loop index instead of global counter to ensure IDs are deterministic
+      // when RNG state is reset (prevents double spawns if called multiple times)
+      const powerupId = `powerup_${i}_${Math.floor(x)}_${Math.floor(y)}`
       powerUp.setData('powerupId', powerupId)
       powerUp.setData('type', type)
+      
+      console.log(`🎁 Created powerup ${i}: ${type} at (${x}, ${y}) - ID: ${powerupId}`)
 
       // Add floating animation
       this.tweens.add({
@@ -2379,6 +2552,8 @@ export default class GameScene extends Phaser.Scene {
         })
       }
     }
+    
+    console.log(`🎁 Spawned ${this.powerUps.getLength()} powerups total`)
   }
 
   private collectPowerUp(_player: Phaser.Physics.Arcade.Sprite, powerUp: Phaser.Physics.Arcade.Sprite) {
@@ -2542,7 +2717,9 @@ export default class GameScene extends Phaser.Scene {
         const coinId = `coin_drop_${this.coinDropCounter}_${Math.floor(x)}_${Math.floor(y)}_${i}`
         const coinX = x + offsetX
         const coinY = y + offsetY
-        const coin = this.coins.create(coinX, coinY, 'coin')
+        const chunkStartX = Math.floor(coinX / 800) * 800
+        const safePos = this.findSafeCoinPosition(coinX, coinY, chunkStartX, i)
+        const coin = this.coins.create(safePos.x, safePos.y, 'coin')
         // Set deterministic coin ID for online sync
         coin.setData('coinId', coinId)
         coin.setData('value', 1)
@@ -2556,7 +2733,9 @@ export default class GameScene extends Phaser.Scene {
         coin.setVelocity(velX, velY)
         coin.setScale(0.5)
         coin.setCollideWorldBounds(true)
-        coin.body.setAllowGravity(true)
+        ;(coin.body as Phaser.Physics.Arcade.Body).setAllowGravity(true)
+        // Arcade bodies don't auto-scale with setScale(). Match body to visual size.
+        ;(coin.body as Phaser.Physics.Arcade.Body).setSize(coin.displayWidth, coin.displayHeight, true)
         // Add drag to prevent coins from sliding forever and causing sync issues
         coin.setDragX(200)
 
@@ -2573,15 +2752,15 @@ export default class GameScene extends Phaser.Scene {
         if (this.isOnlineMode && this.isOnlineHost && this.onlinePlayerManager) {
           const coinState: NetworkCoinState = {
             coin_id: coinId,
-            x: Math.round(coinX),
-            y: Math.round(coinY),
+            x: Math.round(safePos.x),
+            y: Math.round(safePos.y),
             is_collected: false,
             collected_by: null,
             value: 1,
             velocity_x: velX,
             velocity_y: velY
           }
-          console.log(`🪙 HOST: Reporting dropped coin ${coinId} at (${Math.round(coinX)}, ${Math.round(coinY)})`)
+          console.log(`🪙 HOST: Reporting dropped coin ${coinId} at (${Math.round(safePos.x)}, ${Math.round(safePos.y)})`)
           this.onlinePlayerManager.reportCoinSpawn(coinState)
         }
       })
@@ -2591,18 +2770,17 @@ export default class GameScene extends Phaser.Scene {
 
 
   private spawnCoinsInArea(startX: number, endX: number) {
-    // In online mode, only HOST spawns coins - non-host receives them via network
-    // This prevents duplicate coins
-    if (this.isOnlineMode && !this.isOnlineHost) {
-      console.log(`🪙 COIN DEBUG: Non-host skipping spawnCoinsInArea(${startX}, ${endX})`)
-      return // Non-host doesn't spawn coins locally
-    }
+    // In online mode, both Host and Client spawn coins deterministically
+    // This ensures they are available immediately without waiting for network messages
     console.log(`🪙 COIN DEBUG: spawnCoinsInArea(${startX}, ${endX}) - isHost=${this.isOnlineHost}`)
     
     // Reset RNG for this chunk to ensure deterministic coin spawning in online mode
     // Use a unique formula to differentiate from enemy RNG
     // Use seeded RNG for BOTH online and offline modes
     const chunkIndex = Math.floor(startX / 800)
+    if (this.isOnlineMode && !this.onlineSeed) {
+      console.warn('⚠️ spawnCoinsInArea called without onlineSeed! Coin spawning may be desynced.')
+    }
     const seed = this.onlineSeed || 12345 // Fallback seed if undefined
     this.onlineRngState = seed * 3 + chunkIndex * 54321
     console.log(`🪙 Coin RNG reset for chunk ${chunkIndex}, seed state: ${this.onlineRngState}`)
@@ -2642,8 +2820,155 @@ export default class GameScene extends Phaser.Scene {
     }
   }
 
+  private isCoinSpawnBlocked(x: number, y: number, halfExtent: number): boolean {
+    // NOTE: Phaser Arcade's overlapRect relies on the world's RTree (treeMinMax).
+    // In some configs, `useTree` is disabled, which can crash overlapRect. We instead
+    // do a safe manual AABB check against platform/spike bodies.
+    const rectLeft = x - halfExtent
+    const rectTop = y - halfExtent
+    const rectRight = x + halfExtent
+    const rectBottom = y + halfExtent
+
+    const intersectsBody = (body: any): boolean => {
+      if (!body) return false
+      const left = body.left ?? body.x
+      const top = body.top ?? body.y
+      const right = body.right ?? (body.x + body.width)
+      const bottom = body.bottom ?? (body.y + body.height)
+      return rectLeft < right && rectRight > left && rectTop < bottom && rectBottom > top
+    }
+
+    const platforms = this.platforms?.getChildren?.() as any[] | undefined
+    if (platforms) {
+      for (const obj of platforms) {
+        if (intersectsBody(obj.body)) return true
+      }
+    }
+
+    const spikes = this.spikes?.getChildren?.() as any[] | undefined
+    if (spikes) {
+      for (const obj of spikes) {
+        if (intersectsBody(obj.body)) return true
+      }
+    }
+
+    // Fallback: sample a small cross/box around the coin's center to avoid spawning inside platforms/walls.
+    const samplePoints = [
+      { x, y },
+      { x: x - halfExtent, y },
+      { x: x + halfExtent, y },
+      { x, y: y - halfExtent },
+      { x, y: y + halfExtent },
+      { x: x - halfExtent, y: y - halfExtent },
+      { x: x + halfExtent, y: y - halfExtent },
+      { x: x - halfExtent, y: y + halfExtent },
+      { x: x + halfExtent, y: y + halfExtent }
+    ]
+
+    for (const p of samplePoints) {
+      if (this.isOnPlatform(p.x, p.y)) return true
+      if (this.isOnSpikes(p.x, p.y)) return true
+    }
+    return false
+  }
+
+  private isPlayerSpaceBlockedAt(x: number, y: number): boolean {
+    // Approximate: if the player body cannot physically occupy this space without
+    // intersecting solids, then the coin is effectively uncollectable.
+    const playerBody = this.player?.body as Phaser.Physics.Arcade.Body | undefined
+    const playerW = Math.max(playerBody?.width ?? 50, 40)
+    const playerH = Math.max(playerBody?.height ?? 80, 60)
+
+    const halfW = playerW / 2
+    const halfH = playerH / 2
+    const rectLeft = x - halfW
+    const rectTop = y - halfH
+    const rectRight = x + halfW
+    const rectBottom = y + halfH
+
+    const intersectsBody = (body: any): boolean => {
+      if (!body) return false
+      const left = body.left ?? body.x
+      const top = body.top ?? body.y
+      const right = body.right ?? (body.x + body.width)
+      const bottom = body.bottom ?? (body.y + body.height)
+      return rectLeft < right && rectRight > left && rectTop < bottom && rectBottom > top
+    }
+
+    const platforms = this.platforms?.getChildren?.() as any[] | undefined
+    if (platforms) {
+      for (const obj of platforms) {
+        if (intersectsBody(obj.body)) return true
+      }
+    }
+
+    const spikes = this.spikes?.getChildren?.() as any[] | undefined
+    if (spikes) {
+      for (const obj of spikes) {
+        if (intersectsBody(obj.body)) return true
+      }
+    }
+
+    return false
+  }
+
+  private findSafeCoinPosition(baseX: number, baseY: number, chunkStartX: number, index: number): { x: number, y: number } {
+    // Deterministic “nearby search” so online/offline both pick identical safe positions.
+    // Matches WorldGenerator's implicit grid scale (tileSize=70) without importing it.
+    const tileSize = 70
+    const step = tileSize / 2
+    const halfExtent = 12
+
+    // Prefer searching upward first to avoid placing coins in wall/floor pockets.
+    const up = tileSize
+    const up2 = tileSize * 2
+
+    const offsets = [
+      { dx: 0, dy: 0 },
+      { dx: 0, dy: -step },
+      { dx: 0, dy: -up },
+      { dx: 0, dy: -up2 },
+      { dx: step, dy: 0 },
+      { dx: -step, dy: 0 },
+      { dx: 0, dy: step },
+      { dx: step, dy: -step },
+      { dx: -step, dy: -step },
+      { dx: step, dy: step },
+      { dx: -step, dy: step },
+      { dx: tileSize, dy: 0 },
+      { dx: -tileSize, dy: 0 },
+      { dx: 0, dy: tileSize },
+      { dx: tileSize, dy: -step },
+      { dx: -tileSize, dy: -step },
+      { dx: tileSize, dy: step },
+      { dx: -tileSize, dy: step },
+      { dx: tileSize, dy: -up },
+      { dx: -tileSize, dy: -up },
+      { dx: tileSize * 2, dy: 0 },
+      { dx: -tileSize * 2, dy: 0 },
+      { dx: tileSize * 2, dy: -up },
+      { dx: -tileSize * 2, dy: -up }
+    ]
+
+    const chunkIndex = Math.floor(chunkStartX / 800)
+    const rotation = Math.abs((chunkIndex + 1) * 31 + index * 7) % offsets.length
+
+    for (let i = 0; i < offsets.length; i++) {
+      const o = offsets[(i + rotation) % offsets.length]
+      const x = baseX + o.dx
+      const y = baseY + o.dy
+      if (!this.isCoinSpawnBlocked(x, y, halfExtent) && !this.isPlayerSpaceBlockedAt(x, y)) {
+        return { x, y }
+      }
+    }
+
+    // Fallback: keep the original position.
+    return { x: baseX, y: baseY }
+  }
+
   private createCoinAt(x: number, y: number, chunkStartX: number, index: number) {
-    const coin = this.coins.create(x, y, 'coin')
+    const safePos = this.findSafeCoinPosition(x, y, chunkStartX, index)
+    const coin = this.coins.create(safePos.x, safePos.y, 'coin')
     coin.setScale(0.5)
     coin.setBounce(0.3)
     coin.setCollideWorldBounds(true)
@@ -2653,13 +2978,16 @@ export default class GameScene extends Phaser.Scene {
 
     // Disable gravity for static level coins
     if (coin.body) {
-      (coin.body as Phaser.Physics.Arcade.Body).setAllowGravity(false)
+      const body = coin.body as Phaser.Physics.Arcade.Body
+      body.setAllowGravity(false)
+      // Arcade bodies don't auto-scale with setScale(). Match body to visual size.
+      body.setSize(coin.displayWidth, coin.displayHeight, true)
     }
 
     // Add floating animation
     this.tweens.add({
       targets: coin,
-      y: y - 20,
+      y: safePos.y - 20,
       duration: 1000,
       yoyo: true,
       repeat: -1,
@@ -2702,12 +3030,9 @@ export default class GameScene extends Phaser.Scene {
   }
 
   private spawnEnemiesInArea(startX: number, endX: number) {
-    // In online mode, only HOST spawns enemies - non-host receives them via network
-    // This prevents duplicate enemies
-    if (this.isOnlineMode && !this.isOnlineHost) {
-      console.log(`👾 Non-host skipping spawnEnemiesInArea(${startX}, ${endX})`)
-      return // Non-host doesn't spawn enemies locally
-    }
+    // In online mode, both Host and Client spawn enemies deterministically
+    // This ensures they are available immediately without waiting for network messages
+    console.log(`👾 spawnEnemiesInArea(${startX}, ${endX}) - isHost=${this.isOnlineHost}`)
     
     // Don't spawn enemies on the starting platform (first 500 pixels)
     if (startX < 500) return
@@ -2717,6 +3042,9 @@ export default class GameScene extends Phaser.Scene {
     // Reset RNG for this chunk to ensure deterministic enemy spawning in online mode
     // Use a unique multiplier (12345) different from coins
     // Use seeded RNG for BOTH online and offline modes
+    if (this.isOnlineMode && !this.onlineSeed) {
+      console.warn('⚠️ spawnEnemiesInArea called without onlineSeed! Enemy spawning may be desynced.')
+    }
     const seed = this.onlineSeed || 12345 // Fallback seed
     this.onlineRngState = seed * 7 + chunkIndex * 12345
     console.log(`👾 Enemy RNG reset for chunk ${chunkIndex}, seed state: ${this.onlineRngState}`)
@@ -3221,11 +3549,93 @@ export default class GameScene extends Phaser.Scene {
           let scoreReward = 50
           if (enemySize === 'medium') scoreReward = 100
           if (enemySize === 'large') scoreReward = 200
-          this.uiManager.updateScore(scoreReward)
+          this.score += scoreReward
+          this.uiManager.updateScore(this.score)
           this.enemiesDefeated++
           enemySprite.destroy()
         }
       }
+    })
+  }
+
+  /**
+   * Create electric discharge effect for LFG projectile
+   */
+  private createElectricDischarge(x: number, y: number) {
+    const dischargeRadius = 50
+
+    // Central flash (cyan/white)
+    const flash = this.add.circle(x, y, dischargeRadius, 0x00ffff, 0.8)
+    flash.setDepth(1000)
+
+    // Electric arcs shooting outward
+    for (let i = 0; i < 8; i++) {
+      const angle = (Math.PI * 2 / 8) * i + Math.random() * 0.3
+      const arcLength = dischargeRadius * (1.5 + Math.random() * 0.5)
+      
+      // Create jagged lightning bolt
+      const bolt = this.add.graphics()
+      bolt.setDepth(1000)
+      bolt.lineStyle(3, 0x88ffff, 1)
+      bolt.beginPath()
+      bolt.moveTo(x, y)
+      
+      // Create 3-4 segments for jagged effect
+      let currentX = x
+      let currentY = y
+      const segments = 3 + Math.floor(Math.random() * 2)
+      for (let j = 1; j <= segments; j++) {
+        const segmentLength = arcLength / segments
+        const jitter = (Math.random() - 0.5) * 20
+        currentX += Math.cos(angle + jitter * 0.1) * segmentLength
+        currentY += Math.sin(angle + jitter * 0.1) * segmentLength + jitter
+        bolt.lineTo(currentX, currentY)
+      }
+      bolt.strokePath()
+
+      // Fade out the bolt
+      this.tweens.add({
+        targets: bolt,
+        alpha: 0,
+        duration: 200 + Math.random() * 100,
+        ease: 'Power2',
+        onComplete: () => bolt.destroy()
+      })
+    }
+
+    // Small electric particles
+    for (let i = 0; i < 6; i++) {
+      const angle = Math.random() * Math.PI * 2
+      const dist = Math.random() * dischargeRadius
+      const particle = this.add.circle(
+        x + Math.cos(angle) * dist,
+        y + Math.sin(angle) * dist,
+        4,
+        0xffffff,
+        1
+      )
+      particle.setDepth(1000)
+
+      this.tweens.add({
+        targets: particle,
+        x: x + Math.cos(angle) * dischargeRadius * 2,
+        y: y + Math.sin(angle) * dischargeRadius * 2,
+        alpha: 0,
+        scale: 0,
+        duration: 250,
+        ease: 'Power2',
+        onComplete: () => particle.destroy()
+      })
+    }
+
+    // Flash animation
+    this.tweens.add({
+      targets: flash,
+      scale: 2,
+      alpha: 0,
+      duration: 200,
+      ease: 'Power2',
+      onComplete: () => flash.destroy()
     })
   }
 
@@ -3253,7 +3663,8 @@ export default class GameScene extends Phaser.Scene {
     this.dropCoins(this.boss.x, this.boss.y, coinReward)
 
     // Award huge score bonus for defeating boss
-    this.uiManager.updateScore(1000)
+    this.score += 1000
+    this.uiManager.updateScore(this.score)
 
     // Check for final boss (Index 21)
     if (bossIndex === 21) {
@@ -3441,8 +3852,14 @@ export default class GameScene extends Phaser.Scene {
   }
 
   private enterPortal(isRemoteTrigger: boolean = false) {
-    if (this.playerIsDead) return
-    this.playerIsDead = true
+    // Prevent multiple transitions
+    if (this.isTransitioning) return
+    
+    // If dead and NOT a remote trigger, we can't enter portal locally
+    if (this.playerIsDead && !isRemoteTrigger) return
+    
+    this.isTransitioning = true
+    this.playerIsDead = true // Stop other updates
 
     // In online mode, notify other player if we are the one triggering it
     if (this.isOnlineMode && !isRemoteTrigger) {
@@ -3475,9 +3892,28 @@ export default class GameScene extends Phaser.Scene {
         coins: this.coinCount,
         isRecording: this.isRecordingForDQN
       }
-      if (this.isCoopMode) {
+      
+      if (this.isOnlineMode) {
+        // CRITICAL: Pass online configuration to next level
+        nextLevelData.mode = 'online_coop'
+        nextLevelData.playerNumber = this.onlinePlayerNumber
+        nextLevelData.playerId = this.onlinePlayerId
+        
+        // Deterministically rotate seed so both players get the same next level
+        // We don't need to send it over network if both use the same formula
+        const nextSeed = (this.onlineSeed || 12345) + 11111
+        
+        if (this.onlineGameState) {
+          nextLevelData.gameState = {
+            ...this.onlineGameState,
+            level: this.currentLevel + 1,
+            seed: nextSeed
+          }
+        }
+      } else if (this.isCoopMode) {
         nextLevelData.mode = 'coop'
       }
+
       if (this.dqnTraining) {
         nextLevelData.dqnTraining = true
       }
@@ -3548,6 +3984,66 @@ export default class GameScene extends Phaser.Scene {
     }
   }
 
+  private generationTimer?: Phaser.Time.TimerEvent
+
+  /**
+   * Incrementally generate level chunks to avoid freezing the UI
+   */
+  private generateLevelChunks() {
+    // Generate 2 chunks per frame to keep UI responsive
+    for (let i = 0; i < 2; i++) {
+      if (this.worldGenerationX >= this.levelLength) {
+        // Generation complete!
+        this.finishWorldGeneration()
+        return
+      }
+
+      const chunkStartX = this.worldGenerationX
+      
+      // Reset RNG for determinism
+      this.worldGenerator.resetRngForChunk(chunkStartX)
+      this.worldGenerator.generateChunk(chunkStartX)
+      this.worldGenerationX += 800
+      
+      // Spawn entities immediately
+      this.spawnCoinsInArea(chunkStartX, chunkStartX + 800)
+      this.spawnEnemiesInArea(chunkStartX, chunkStartX + 800)
+    }
+
+    // Update progress bar
+    if (this.loadingBar && this.loadingText) {
+      const progress = Math.min(this.worldGenerationX / this.levelLength, 1)
+      this.loadingBar.width = 600 * progress
+      this.loadingText.setText(`GENERATING WORLD... ${Math.floor(progress * 100)}%`)
+    }
+  }
+
+  private finishWorldGeneration() {
+    console.log(`✅ Level pre-generation complete. Total platforms: ${this.platforms.getChildren().length}`)
+    
+    // Create end marker
+    if (!this.levelEndMarker) {
+      this.createLevelEndMarker()
+    }
+
+    // Remove loading UI
+    this.loadingBar?.destroy()
+    this.loadingBarBg?.destroy()
+    this.loadingText?.destroy()
+    
+    const overlay = this.children.list.find(c => (c as any).depth === 9000)
+    overlay?.destroy()
+
+    this.isGeneratingWorld = false
+    this.physics.resume() // Resume physics
+    
+    // Stop the timer
+    if (this.generationTimer) {
+      this.generationTimer.remove()
+      this.generationTimer = undefined
+    }
+  }
+
   private checkLevelComplete() {
     if (!this.levelEndMarker) return
     if (this.levelCompleteShown) return // Prevent multiple triggers
@@ -3570,10 +4066,27 @@ export default class GameScene extends Phaser.Scene {
       
       this.levelCompleteShown = true
 
-      // Check if this is the final level (110)
-      if (this.currentLevel === 110) {
-        console.log('🏆 LEVEL 110 COMPLETE! Transitioning to Ending Scene...')
+      // Check if this is the final level (110) or beyond - only in levels mode
+      if (this.gameMode === 'levels' && this.currentLevel >= 110) {
+        console.log(`🏆 LEVEL ${this.currentLevel} COMPLETE! Transitioning to Ending Scene...`)
         this.scene.start('EndingScene')
+        return
+      }
+
+      // DQN Training mode: Auto-transition to next level without UI
+      if (this.dqnTraining) {
+        console.log(`🤖 DQN: Level ${this.currentLevel} complete! Auto-transitioning to level ${this.currentLevel + 1}...`)
+        
+        // Brief delay then restart with next level
+        this.time.delayedCall(500, () => {
+          this.scene.restart({
+            level: this.currentLevel + 1,
+            score: this.score,
+            coins: this.coinCount,
+            gameMode: this.gameMode,
+            dqnTraining: true
+          })
+        })
         return
       }
 
@@ -3584,6 +4097,9 @@ export default class GameScene extends Phaser.Scene {
 
 
   update() {
+    // Block updates during world generation
+    if (this.isGeneratingWorld) return
+
     // DQN Training: Handle keyboard controls and training loop
     if (this.dqnTraining) {
       this.handleDQNKeyboardControls()
@@ -3668,6 +4184,9 @@ export default class GameScene extends Phaser.Scene {
           console.log(`🌍 Generating chunk ${Math.floor(chunkStartX / 800)} at X=${chunkStartX}`)
         }
         
+        // Explicitly reset RNG for this chunk to ensure deterministic generation
+        // This guarantees that both Host and Client generate the exact same terrain
+        this.worldGenerator.resetRngForChunk(chunkStartX)
         this.worldGenerator.generateChunk(chunkStartX)
         this.worldGenerationX += 800
 
@@ -3757,8 +4276,12 @@ export default class GameScene extends Phaser.Scene {
     const currentMeter = Math.floor(this.player.x / 100)
     const lastMeter = Math.floor((this.player.x - (this.player.body as Phaser.Physics.Arcade.Body).velocity.x * 0.016) / 100)
     if (currentMeter > lastMeter) {
-      this.uiManager.updateScore(1)
+      this.score += 1
+      this.uiManager.updateScore(this.score)
     }
+
+    // Update Boss Indicator
+    this.uiManager.updateBossIndicator(this.boss)
 
     // Health & Lives
     this.uiManager.updateHealthBar(this.playerHealth, this.maxHealth)
@@ -4355,7 +4878,8 @@ export default class GameScene extends Phaser.Scene {
       // Instantly kill enemy in debug mode
       const coinReward = enemySprite.getData('coinReward') || 10
       this.dropCoins(enemySprite.x, enemySprite.y, coinReward)
-      this.uiManager.updateScore(100)
+      this.score += 100
+      this.uiManager.updateScore(this.score)
       
       // Create death effect
       const enemyType = enemySprite.getData('enemyType') || 'alienGreen'
@@ -4905,6 +5429,17 @@ export default class GameScene extends Phaser.Scene {
         const aimSensitivity = 0.3 // Reduced for more precise aiming
         aimX = this.player.x + rightStickX * 100 * aimSensitivity
         aimY = this.player.y + rightStickY * 100 * aimSensitivity
+      } else if (this.gameMode === 'levels') {
+        // Auto-aim for gamepad in levels mode when right stick is not active
+        const autoAimTarget = this.findNearestAutoAimTarget()
+        if (autoAimTarget) {
+          aimX = autoAimTarget.x
+          aimY = autoAimTarget.y
+        } else {
+          // Default to aiming in player's facing direction
+          aimX = this.player.x + (this.player.flipX ? -100 : 100)
+          aimY = this.player.y
+        }
       } else {
         // Default to aiming in player's facing direction
         aimX = this.player.x + (this.player.flipX ? -100 : 100)
@@ -4981,6 +5516,40 @@ export default class GameScene extends Phaser.Scene {
 
     // Apply rotation directly without any clamping
     this.gun.setRotation(gunAngle)
+  }
+
+  /**
+   * Find the nearest enemy or boss for auto-aim targeting
+   * Used by gamepad users in levels mode
+   */
+  private findNearestAutoAimTarget(): { x: number; y: number } | null {
+    let nearestTarget: Phaser.Physics.Arcade.Sprite | null = null
+    let minDistance = 600 // Max auto-aim range
+
+    // Check regular enemies
+    this.enemies.getChildren().forEach((enemy: any) => {
+      if (enemy.active && enemy.getData('health') > 0) {
+        const dist = Phaser.Math.Distance.Between(this.player.x, this.player.y, enemy.x, enemy.y)
+        if (dist < minDistance) {
+          minDistance = dist
+          nearestTarget = enemy
+        }
+      }
+    })
+
+    // Also check for boss (higher priority if in range)
+    if (this.bossActive && this.boss && this.boss.active) {
+      const dist = Phaser.Math.Distance.Between(this.player.x, this.player.y, this.boss.x, this.boss.y)
+      if (dist < minDistance * 1.5) { // Boss gets 50% extra range for priority targeting
+        nearestTarget = this.boss
+      }
+    }
+
+    if (nearestTarget) {
+      return { x: nearestTarget.x, y: nearestTarget.y }
+    }
+
+    return null
   }
 
   private handleShooting() {
@@ -5162,7 +5731,8 @@ export default class GameScene extends Phaser.Scene {
               let scoreReward = 50 // small
               if (enemySize === 'medium') scoreReward = 100
               if (enemySize === 'large') scoreReward = 200
-              this.uiManager.updateScore(scoreReward)
+              this.score += scoreReward
+              this.uiManager.updateScore(this.score)
 
             // If we're in online mode, report the kill to the server and avoid spawning local coins
             const enemyId = enemySprite.getData('enemyId')
@@ -5290,10 +5860,20 @@ export default class GameScene extends Phaser.Scene {
         if (bullet) {
           bullet.setActive(true)
           bullet.setVisible(true)
-          bullet.setScale(0.5, 0.5)
-          bullet.setRotation(gunAngle)
+          
+          // LFG uses larger scale for the electric sphere
+          const isLFG = this.equippedWeapon === 'lfg'
+          if (isLFG) {
+            bullet.setScale(1.0, 1.0) // Full size - enemy sized sphere
+            bullet.setRotation(0) // Sphere doesn't need rotation
+          } else {
+            bullet.setScale(0.5, 0.5)
+            bullet.setRotation(gunAngle)
+          }
+          
           bullet.setAlpha(1)
           bullet.setData('isRocket', isRocket)
+          bullet.setData('isLFG', isLFG)
           bullet.setData('damage', damage)
 
           // Disable physics for this bullet - use data to track movement
@@ -5365,12 +5945,14 @@ export default class GameScene extends Phaser.Scene {
 
     this.spikes.children.entries.forEach((spike: any) => {
       const spikeSprite = spike as Phaser.Physics.Arcade.Sprite
-      const spikeTop = spikeSprite.y - (spikeSprite.height / 2) + 10 // Only top 10px are dangerous
+      // Spike uses bottom-center origin (0.5, 1), so y is the bottom
+      // Top of spike = y - height, danger zone is the top portion
+      const spikeTop = spikeSprite.y - spikeSprite.height + 10 // Only top 10px are dangerous
       const spikeLeft = spikeSprite.x - (spikeSprite.width / 2)
       const spikeRight = spikeSprite.x + (spikeSprite.width / 2)
 
       // Check if player's feet overlap with spike tips
-      if (playerBottom >= spikeTop && playerBottom <= spikeTop + 20 &&
+      if (playerBottom >= spikeTop && playerBottom <= spikeTop + 25 &&
         playerRight >= spikeLeft && playerLeft <= spikeRight) {
 
         // Debug mode god mode - no damage
@@ -5521,9 +6103,30 @@ export default class GameScene extends Phaser.Scene {
       sprite.x += velX * delta
       sprite.y += velY * delta
 
-      // Keep rotation locked to firing angle (no slanting)
-      const lockedAngle = sprite.getData('angle')
-      sprite.setRotation(lockedAngle)
+      // LFG electric sphere effect - pulsing and rotation
+      const isLFG = sprite.getData('isLFG')
+      if (isLFG) {
+        // Pulsing scale effect
+        const pulseScale = 1.0 + Math.sin(currentTime * 0.015) * 0.15
+        sprite.setScale(pulseScale)
+        
+        // Spinning effect for the electric sphere
+        sprite.setRotation(sprite.rotation + 0.1)
+        
+        // Tint variation for electric crackle effect
+        const tintPhase = Math.sin(currentTime * 0.02)
+        if (tintPhase > 0.7) {
+          sprite.setTint(0xffffff) // Bright flash
+        } else if (tintPhase > 0.3) {
+          sprite.setTint(0x88ffff) // Cyan
+        } else {
+          sprite.setTint(0x00ffff) // Electric blue
+        }
+      } else {
+        // Keep rotation locked to firing angle (no slanting) for regular bullets
+        const lockedAngle = sprite.getData('angle')
+        sprite.setRotation(lockedAngle)
+      }
 
       // Manual collision detection with enemies
       this.enemies.children.entries.forEach((enemy: any) => {
@@ -5531,7 +6134,9 @@ export default class GameScene extends Phaser.Scene {
         const enemySprite = enemy as Phaser.Physics.Arcade.Sprite
         const distance = Phaser.Math.Distance.Between(sprite.x, sprite.y, enemySprite.x, enemySprite.y)
 
-        if (distance < 30) { // Collision threshold
+        // LFG has larger collision radius (matches sphere size)
+        const collisionThreshold = isLFG ? 50 : 30
+        if (distance < collisionThreshold) {
           this.handleBulletEnemyCollision(sprite, enemySprite)
         }
       })
@@ -5540,7 +6145,9 @@ export default class GameScene extends Phaser.Scene {
       if (this.boss && this.boss.active && this.bossActive) {
         const distance = Phaser.Math.Distance.Between(sprite.x, sprite.y, this.boss.x, this.boss.y)
 
-        if (distance < 100) { // Boss is bigger, larger collision threshold
+        // LFG has larger collision radius
+        const bossCollisionThreshold = isLFG ? 120 : 100
+        if (distance < bossCollisionThreshold) {
           this.handleBulletBossCollision(sprite, this.boss)
         }
       }
@@ -5549,7 +6156,14 @@ export default class GameScene extends Phaser.Scene {
       if (age >= fadeStartTime) {
         const fadeProgress = (age - fadeStartTime) / (bulletLifetime - fadeStartTime)
         sprite.setAlpha(1 - fadeProgress)
-        sprite.setScale(sprite.getData('initialScaleX') * (1 - fadeProgress * 0.7), 0.5)
+        
+        // LFG keeps uniform scale while shrinking, regular bullets use different x/y scale
+        if (isLFG) {
+          const shrinkScale = 1.0 * (1 - fadeProgress * 0.7)
+          sprite.setScale(shrinkScale)
+        } else {
+          sprite.setScale(sprite.getData('initialScaleX') * (1 - fadeProgress * 0.7), 0.5)
+        }
       }
 
       // Destroy after lifetime
@@ -5558,6 +6172,11 @@ export default class GameScene extends Phaser.Scene {
         const isRocket = sprite.getData('isRocket')
         if (isRocket) {
           this.createExplosion(sprite.x, sprite.y)
+        }
+        
+        // LFG creates electric discharge effect at end of lifetime
+        if (isLFG) {
+          this.createElectricDischarge(sprite.x, sprite.y)
         }
 
         sprite.setActive(false)
@@ -5706,7 +6325,8 @@ export default class GameScene extends Phaser.Scene {
       let scoreReward = 50 // small
       if (enemySize === 'medium') scoreReward = 100
       if (enemySize === 'large') scoreReward = 200
-      this.uiManager.updateScore(scoreReward)
+      this.score += scoreReward
+      this.uiManager.updateScore(this.score)
 
       // Death animation
       if (enemySprite.body) {
@@ -6096,18 +6716,53 @@ export default class GameScene extends Phaser.Scene {
     rocketGraphics.generateTexture('rocket', 28, 16)
     rocketGraphics.destroy()
 
-    // Create LFG Projectile (Large Red/Gold Beam)
+    // Create LFG Projectile (Large Electric Sphere - enemy-sized)
     const lfgProjGraphics = this.make.graphics({ x: 0, y: 0 })
-    // Core beam
-    lfgProjGraphics.fillStyle(0xff0000, 1)
-    lfgProjGraphics.fillRect(0, 4, 48, 8)
-    // Inner core
+    const sphereRadius = 32 // 64px diameter - size of an enemy
+    const centerX = sphereRadius
+    const centerY = sphereRadius
+    
+    // Outer electric glow (cyan/blue)
+    lfgProjGraphics.fillStyle(0x00ffff, 0.3)
+    lfgProjGraphics.fillCircle(centerX, centerY, sphereRadius)
+    
+    // Middle electric ring (electric blue)
+    lfgProjGraphics.fillStyle(0x4488ff, 0.5)
+    lfgProjGraphics.fillCircle(centerX, centerY, sphereRadius * 0.75)
+    
+    // Inner core (bright white/cyan)
+    lfgProjGraphics.fillStyle(0x88ffff, 0.8)
+    lfgProjGraphics.fillCircle(centerX, centerY, sphereRadius * 0.5)
+    
+    // Hot center (white)
     lfgProjGraphics.fillStyle(0xffffff, 1)
-    lfgProjGraphics.fillRect(0, 6, 48, 4)
-    // Energy aura
-    lfgProjGraphics.lineStyle(2, 0xFFD700, 0.8)
-    lfgProjGraphics.strokeRect(0, 4, 48, 8)
-    lfgProjGraphics.generateTexture('lfgProjectile', 48, 16)
+    lfgProjGraphics.fillCircle(centerX, centerY, sphereRadius * 0.25)
+    
+    // Electric arcs around the sphere
+    lfgProjGraphics.lineStyle(2, 0x00ffff, 0.9)
+    for (let i = 0; i < 6; i++) {
+      const angle = (Math.PI * 2 / 6) * i
+      const innerRadius = sphereRadius * 0.4
+      const outerRadius = sphereRadius * 0.95
+      lfgProjGraphics.beginPath()
+      lfgProjGraphics.moveTo(
+        centerX + Math.cos(angle) * innerRadius,
+        centerY + Math.sin(angle) * innerRadius
+      )
+      // Jagged electric arc
+      const midAngle = angle + 0.2
+      lfgProjGraphics.lineTo(
+        centerX + Math.cos(midAngle) * (innerRadius + outerRadius) / 2,
+        centerY + Math.sin(midAngle) * (innerRadius + outerRadius) / 2
+      )
+      lfgProjGraphics.lineTo(
+        centerX + Math.cos(angle) * outerRadius,
+        centerY + Math.sin(angle) * outerRadius
+      )
+      lfgProjGraphics.strokePath()
+    }
+    
+    lfgProjGraphics.generateTexture('lfgProjectile', 64, 64)
     lfgProjGraphics.destroy()
 
     // Create LFG Weapon (Heavy Machine Gun - matching shop design)
@@ -6551,7 +7206,8 @@ export default class GameScene extends Phaser.Scene {
         let scoreReward = 50
         if (enemySize === 'medium') scoreReward = 100
         if (enemySize === 'large') scoreReward = 200
-        this.uiManager.updateScore(scoreReward)
+        this.score += scoreReward
+        this.uiManager.updateScore(this.score)
 
         enemySprite.setVelocity(0, 0)
         enemySprite.setTint(0xff00ff)
@@ -6634,6 +7290,18 @@ export default class GameScene extends Phaser.Scene {
   }
 
   shutdown() {
+    // Workaround for Phaser GamepadPlugin bug: ensure pads array exists
+    // This prevents "Cannot read properties of undefined (reading 'removeAllListeners')"
+    // when shutting down a scene before any gamepad was connected
+    try {
+      const gamepadPlugin = this.input?.gamepad as any
+      if (gamepadPlugin && !gamepadPlugin.pads) {
+        gamepadPlugin.pads = []
+      }
+    } catch (e) {
+      // Ignore - plugin may not exist
+    }
+    
     // Stop and clean up music when scene shuts down using MusicManager
     this.musicManager.stopMusic()
     
@@ -6799,7 +7467,8 @@ export default class GameScene extends Phaser.Scene {
     let scoreReward = 50
     if (enemySize === 'medium') scoreReward = 100
     if (enemySize === 'large') scoreReward = 200
-    this.uiManager.updateScore(scoreReward)
+    this.score += scoreReward
+    this.uiManager.updateScore(this.score)
 
     // Death animation
     enemySprite.setVelocity(0, 0)

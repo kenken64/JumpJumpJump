@@ -855,10 +855,6 @@ describe('GameScene', () => {
     it('should initialize coinDropCounter to 0', () => {
       expect((scene as any).coinDropCounter).toBe(0)
     })
-
-    it('should initialize powerUpCounter to 0', () => {
-      expect((scene as any).powerUpCounter).toBe(0)
-    })
   })
 
   describe('recording state', () => {
