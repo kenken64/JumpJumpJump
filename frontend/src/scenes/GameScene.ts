@@ -37,7 +37,8 @@ import { OnlinePlayerManager } from '../utils/OnlinePlayerManager'
 import { OnlineCoopService, NetworkGameState, NetworkEnemyState, NetworkCoinState, NetworkPowerUpState } from '../services/OnlineCoopService'
 import { WEAPON_CONFIGS } from '../types/GameTypes'
 import { VirtualGamepad } from '../utils/VirtualGamepad'
-import { UIManager } from '../managers/UIManager';
+import { UIManager } from '../managers/UIManager'
+import { decompressState, calculateEnemyScoreReward, EnemySize } from '../utils/GameLogic'
 
 /**
  * Main gameplay scene containing all game logic
@@ -2210,10 +2211,11 @@ export default class GameScene extends Phaser.Scene {
           const demosToSave = this.recordedDemonstrations.slice(-maxDemos)
           
           // Compress data by rounding floats to 2 decimal places
+          // Note: DQNState has different fields than FullState, so we compress inline
           const compressedDemos = demosToSave.map(d => ({
-            s: this.compressState(d.state),
+            s: this.compressDQNState(d.state),
             a: d.action,
-            ns: this.compressState(d.nextState),
+            ns: this.compressDQNState(d.nextState),
             r: Math.round(d.reward * 100) / 100,
             d: d.done ? 1 : 0
           }))
@@ -2245,42 +2247,35 @@ export default class GameScene extends Phaser.Scene {
     }
   }
 
-  // Compress state to reduce storage size
-  private compressState(state: any) {
+  // Compress DQNState for recording (different fields than FullState)
+  private compressDQNState(state: DQNState) {
     return {
       px: Math.round(state.playerX),
       py: Math.round(state.playerY),
       vx: Math.round(state.velocityX * 10) / 10,
       vy: Math.round(state.velocityY * 10) / 10,
       og: state.onGround ? 1 : 0,
-      np: Math.round(state.nearestPlatformX),
-      npy: Math.round(state.nearestPlatformY),
-      ne: Math.round(state.nearestEnemyX),
-      ney: Math.round(state.nearestEnemyY),
-      ns: Math.round(state.nearestSpikeX),
+      npd: Math.round(state.nearestPlatformDistance),
+      nph: Math.round(state.nearestPlatformHeight),
+      ned: Math.round(state.nearestEnemyDistance),
+      nsd: Math.round(state.nearestSpikeDistance),
+      hga: state.hasGroundAhead ? 1 : 0,
+      ga: state.gapAhead ? 1 : 0,
       ba: state.bossActive ? 1 : 0,
       bd: Math.round(state.bossDistance),
-      bh: Math.round(state.bossHealth)
+      bh: Math.round(state.bossHealth),
+      ncd: Math.round(state.nearestCoinDistance),
+      ncx: Math.round(state.nearestCoinX),
+      ncy: Math.round(state.nearestCoinY),
+      npud: Math.round(state.nearestPowerUpDistance),
+      npux: Math.round(state.nearestPowerUpX),
+      npuy: Math.round(state.nearestPowerUpY)
     }
   }
 
-  // Decompress state back to full format
+  // Decompress state back to full format - delegates to GameLogic utility
   private decompressState(s: any) {
-    return {
-      playerX: s.px,
-      playerY: s.py,
-      velocityX: s.vx,
-      velocityY: s.vy,
-      onGround: s.og === 1,
-      nearestPlatformX: s.np,
-      nearestPlatformY: s.npy,
-      nearestEnemyX: s.ne,
-      nearestEnemyY: s.ney,
-      nearestSpikeX: s.ns,
-      bossActive: s.ba === 1,
-      bossDistance: s.bd,
-      bossHealth: s.bh
-    }
+    return decompressState(s)
   }
 
   private showRecordingStatus() {
@@ -6321,10 +6316,8 @@ export default class GameScene extends Phaser.Scene {
 
       // Award score for defeating enemy
       this.enemiesDefeated++
-      const enemySize = enemySprite.getData('enemySize')
-      let scoreReward = 50 // small
-      if (enemySize === 'medium') scoreReward = 100
-      if (enemySize === 'large') scoreReward = 200
+      const enemySize = (enemySprite.getData('enemySize') || 'small') as EnemySize
+      const scoreReward = calculateEnemyScoreReward(enemySize)
       this.score += scoreReward
       this.uiManager.updateScore(this.score)
 
