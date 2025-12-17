@@ -554,4 +554,210 @@ describe('DQNAgent', () => {
       expect(agent.getBufferSize()).toBe(1)
     })
   })
+
+  describe('stuck mode behavior', () => {
+    it('should enter stuck retreat mode when no progress while moving right', () => {
+      const state = createMockState({ playerX: 100 })
+      
+      // Simulate being stuck moving right
+      for (let i = 0; i < 15; i++) {
+        agent.calculateReward(state, false, 0, 2) // Moving right with no progress
+      }
+      
+      expect((agent as any).stuckCounter).toBeGreaterThan(0)
+    })
+
+    it('should activate retreat mode with platform too high', () => {
+      const state = createMockState({ 
+        playerX: 100, 
+        nearestPlatformHeight: -100, 
+        nearestPlatformDistance: 200 
+      })
+      
+      // Simulate being stuck at high platform
+      for (let i = 0; i < 15; i++) {
+        agent.calculateReward(state, false, 0, 2) // Moving right
+      }
+      
+      expect((agent as any).stuckRetreatMode).toBe(true)
+      expect((agent as any).needsDoubleJump).toBe(true)
+    })
+
+    it('should clear stuck state when making progress', () => {
+      const state = createMockState({ playerX: 100 })
+      
+      // First get stuck
+      for (let i = 0; i < 12; i++) {
+        agent.calculateReward(state, false, 0, 2)
+      }
+      
+      // Then make progress
+      const progressState = createMockState({ playerX: 200 })
+      agent.calculateReward(progressState, false, 0, 2)
+      
+      expect((agent as any).stuckCounter).toBe(0)
+      expect((agent as any).stuckRetreatMode).toBe(false)
+    })
+
+    it('should force random exploration when completely stuck', () => {
+      const state = createMockState({ playerX: 100 })
+      
+      // Simulate being stuck for a very long time (180+ frames)
+      for (let i = 0; i < 200; i++) {
+        agent.calculateReward(state, false, 0, 2)
+      }
+      
+      expect((agent as any).forceRandomExploration).toBe(true)
+    })
+
+    it('should exit random exploration after enough frames', async () => {
+      const state = createMockState({ playerX: 100 })
+      
+      // Set up random exploration mode
+      ;(agent as any).forceRandomExploration = true
+      ;(agent as any).randomExplorationFrames = 45 // Beyond the 40 frame threshold
+      
+      await agent.selectAction(state)
+      
+      expect((agent as any).forceRandomExploration).toBe(false)
+      expect((agent as any).randomExplorationFrames).toBe(0)
+    })
+
+    it('should reduce stuck counter when trying non-right actions', () => {
+      const state = createMockState({ playerX: 100 })
+      
+      // Build up stuck counter
+      for (let i = 0; i < 5; i++) {
+        agent.calculateReward(state, false, 0, 2) // Moving right
+      }
+      
+      const counterBefore = (agent as any).stuckCounter
+      
+      // Try left action
+      agent.calculateReward(state, false, 0, 1) // Moving left
+      
+      expect((agent as any).stuckCounter).toBeLessThan(counterBefore)
+    })
+  })
+
+  describe('retreat behavior in selectAction', () => {
+    it('should execute retreat sequence when in retreat mode', async () => {
+      const state = createMockState()
+      
+      // Set up retreat mode
+      ;(agent as any).stuckRetreatMode = true
+      ;(agent as any).retreatFrames = 10 // Within first retreat phase
+      ;(agent as any).needsDoubleJump = false
+      
+      const action = await agent.selectAction(state)
+      
+      expect(action.moveLeft).toBe(true) // Should move left in retreat
+    })
+
+    it('should perform double jump sequence when platform too high', async () => {
+      const state = createMockState()
+      
+      // Set up double jump retreat mode
+      ;(agent as any).stuckRetreatMode = true
+      ;(agent as any).retreatFrames = 55 // In speed building phase
+      ;(agent as any).needsDoubleJump = true
+      
+      const action = await agent.selectAction(state)
+      
+      expect(action.moveRight).toBe(true) // Should move right to build speed
+    })
+
+    it('should execute jump in double jump sequence', async () => {
+      const state = createMockState()
+      
+      // Set up double jump execution phase
+      ;(agent as any).stuckRetreatMode = true
+      ;(agent as any).retreatFrames = 75 // In double jump execution phase
+      ;(agent as any).needsDoubleJump = true
+      
+      const action = await agent.selectAction(state)
+      
+      expect(action.jump).toBe(true) // Should jump
+      expect(action.moveRight).toBe(true)
+    })
+
+    it('should reset after double jump sequence completes', async () => {
+      const state = createMockState()
+      
+      // Set up end of double jump sequence
+      ;(agent as any).stuckRetreatMode = true
+      ;(agent as any).retreatFrames = 115 // Beyond all phases
+      ;(agent as any).needsDoubleJump = true
+      
+      await agent.selectAction(state)
+      
+      expect((agent as any).stuckRetreatMode).toBe(false)
+      expect((agent as any).retreatFrames).toBe(0)
+      expect((agent as any).needsDoubleJump).toBe(false)
+    })
+
+    it('should alternate left+jump in regular retreat', async () => {
+      const state = createMockState()
+      
+      // Set up regular retreat jump phase
+      ;(agent as any).stuckRetreatMode = true
+      ;(agent as any).retreatFrames = 35 // In alternating phase
+      ;(agent as any).needsDoubleJump = false
+      
+      const action = await agent.selectAction(state)
+      
+      expect(action.moveLeft).toBe(true)
+    })
+  })
+
+  describe('reward shaping edge cases', () => {
+    it('should reward elevated platform landings', () => {
+      const state = createMockState({ onGround: true, playerY: 300 })
+      agent.calculateReward(state, false, 0, 0) // Initialize
+      
+      // Moving up and forward
+      ;(agent as any).lastY = 400 // Was lower
+      ;(agent as any).lastX = 80 // Was behind
+      const progressState = createMockState({ onGround: true, playerY: 300, playerX: 150 })
+      const reward = agent.calculateReward(progressState, false, 0, 0)
+      
+      expect(reward).toBeGreaterThan(0)
+    })
+
+    it('should apply extreme position penalty', () => {
+      const state = createMockState({ playerY: 50 }) // Too high
+      agent.calculateReward(state, false, 0, 0) // Initialize
+      
+      const reward = agent.calculateReward(state, false, 0, 0)
+      
+      expect(reward).toBeLessThan(0.5) // Should have penalty applied
+    })
+
+    it('should reward jumping when stuck', () => {
+      const state = createMockState({ playerX: 100 })
+      
+      // Build up stuck frames
+      for (let i = 0; i < 35; i++) {
+        agent.calculateReward(state, false, 0, 2) // Moving right with no progress
+      }
+      
+      // Jump when stuck should get bonus
+      const reward = agent.calculateReward(state, false, 0, 3) // Jump action
+      
+      // Should have some positive component for trying to escape
+      expect(reward).toBeGreaterThan(-5)
+    })
+
+    it('should penalize avoiding boss when boss active', () => {
+      const initialState = createMockState({ bossActive: true, bossDistance: 200, playerX: 100 })
+      agent.calculateReward(initialState, false, 0, 0) // Initialize
+      
+      // Move far right away from boss
+      const runAwayState = createMockState({ bossActive: true, bossDistance: 600, playerX: 200 })
+      const reward = agent.calculateReward(runAwayState, false, 0, 2)
+      
+      expect(reward).toBeLessThan(1) // Should have penalty for rushing away
+    })
+  })
 })
+

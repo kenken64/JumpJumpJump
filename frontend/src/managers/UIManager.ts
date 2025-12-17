@@ -762,6 +762,13 @@ export class UIManager {
   }
 
   public showLevelComplete(level: number, score: number, coins: number) {
+    // Safety check: Level 110 is the final level - should go to EndingScene instead
+    if (level >= 110 && this.scene.gameMode === 'levels') {
+      console.log(`🏆 Level ${level} complete - transitioning to Ending Scene`);
+      this.scene.scene.start('EndingScene');
+      return;
+    }
+
     this.scene.physics.pause();
 
     // Overlay
@@ -873,6 +880,7 @@ export class UIManager {
                   level: nextLevel, 
                   score: score,
                   coins: coins,
+                  lives: this.scene.playerLives,
                   gameMode: this.scene.gameMode
                 });
                 return;

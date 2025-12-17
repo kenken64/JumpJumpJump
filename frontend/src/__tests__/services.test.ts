@@ -48,6 +48,48 @@ describe('GameAPI', () => {
 
       await expect(GameAPI.getLeaderboard()).rejects.toThrow('Network error')
     })
+
+    it('should throw Not Found error on 404 status', async () => {
+      mockFetch.mockResolvedValueOnce({
+        ok: false,
+        status: 404,
+        statusText: 'Not Found'
+      })
+
+      await expect(GameAPI.getAllBosses()).rejects.toThrow('Not Found')
+    })
+
+    it('should not log 404 errors to console', async () => {
+      const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+      mockFetch.mockResolvedValueOnce({
+        ok: false,
+        status: 404,
+        statusText: 'Not Found'
+      })
+
+      try {
+        await GameAPI.getAllBosses()
+      } catch {
+        // Expected to throw
+      }
+
+      expect(consoleSpy).not.toHaveBeenCalled()
+      consoleSpy.mockRestore()
+    })
+
+    it('should log non-404 errors to console', async () => {
+      const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+      mockFetch.mockRejectedValueOnce(new Error('Network error'))
+
+      try {
+        await GameAPI.getAllBosses()
+      } catch {
+        // Expected to throw
+      }
+
+      expect(consoleSpy).toHaveBeenCalledWith('API request failed:', expect.any(Error))
+      consoleSpy.mockRestore()
+    })
   })
 
   describe('submitScore', () => {
@@ -97,6 +139,145 @@ describe('GameAPI', () => {
       expect(result.id).toBe(1)
       expect(result.rank).toBe(5)
       expect(result.player_name).toBe('TestPlayer')
+    })
+  })
+
+  describe('saveGame', () => {
+    const mockSaveData = {
+      player_name: 'TestPlayer',
+      level: 3,
+      score: 1500,
+      lives: 2,
+      health: 80,
+      coins: 50,
+      weapon: 'laser'
+    }
+
+    it('should save game with POST method', async () => {
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ message: 'Game saved successfully' })
+      })
+
+      const result = await GameAPI.saveGame(mockSaveData)
+
+      expect(mockFetch).toHaveBeenCalledWith(
+        expect.stringContaining('/api/save_game'),
+        expect.objectContaining({
+          method: 'POST',
+          body: JSON.stringify(mockSaveData)
+        })
+      )
+      expect(result).toEqual({ message: 'Game saved successfully' })
+    })
+
+    it('should handle save game error', async () => {
+      mockFetch.mockResolvedValueOnce({
+        ok: false,
+        statusText: 'Bad Request'
+      })
+
+      await expect(GameAPI.saveGame(mockSaveData)).rejects.toThrow('API error: Bad Request')
+    })
+  })
+
+  describe('loadGame', () => {
+    const mockLoadedData = {
+      player_name: 'TestPlayer',
+      level: 3,
+      score: 1500,
+      lives: 2,
+      health: 80,
+      coins: 50,
+      weapon: 'laser'
+    }
+
+    it('should load game by player name', async () => {
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: async () => mockLoadedData
+      })
+
+      const result = await GameAPI.loadGame('TestPlayer')
+
+      expect(mockFetch).toHaveBeenCalledWith(
+        expect.stringContaining('/api/load_game/TestPlayer'),
+        expect.any(Object)
+      )
+      expect(result).toEqual(mockLoadedData)
+    })
+
+    it('should encode player name with spaces in URL', async () => {
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: async () => mockLoadedData
+      })
+
+      await GameAPI.loadGame('Test Player')
+
+      expect(mockFetch).toHaveBeenCalledWith(
+        expect.stringContaining('/api/load_game/Test%20Player'),
+        expect.any(Object)
+      )
+    })
+
+    it('should encode special characters in player name', async () => {
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: async () => mockLoadedData
+      })
+
+      await GameAPI.loadGame('Player@#$%')
+
+      expect(mockFetch).toHaveBeenCalledWith(
+        expect.stringContaining('/api/load_game/Player%40%23%24%25'),
+        expect.any(Object)
+      )
+    })
+  })
+
+  describe('deleteSave', () => {
+    it('should delete save with DELETE method', async () => {
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ message: 'Save deleted successfully' })
+      })
+
+      const result = await GameAPI.deleteSave('TestPlayer')
+
+      expect(mockFetch).toHaveBeenCalledWith(
+        expect.stringContaining('/api/save_game/TestPlayer'),
+        expect.objectContaining({
+          method: 'DELETE'
+        })
+      )
+      expect(result).toEqual({ message: 'Save deleted successfully' })
+    })
+
+    it('should encode player name with spaces in URL', async () => {
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ message: 'Save deleted' })
+      })
+
+      await GameAPI.deleteSave('Test Player')
+
+      expect(mockFetch).toHaveBeenCalledWith(
+        expect.stringContaining('/api/save_game/Test%20Player'),
+        expect.objectContaining({
+          method: 'DELETE'
+        })
+      )
+    })
+
+    it('should handle delete error for non-existent save', async () => {
+      mockFetch.mockResolvedValueOnce({
+        ok: false,
+        status: 404,
+        statusText: 'Not Found'
+      })
+
+      await expect(GameAPI.deleteSave('NonExistentPlayer')).rejects.toThrow('Not Found')
     })
   })
 

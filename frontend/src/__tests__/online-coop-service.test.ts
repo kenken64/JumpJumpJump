@@ -288,6 +288,96 @@ describe('OnlineCoopService', () => {
       expect(callback).toHaveBeenCalledWith('p2', 'Player 2', 2, {})
     })
 
+    it('should handle player_left', () => {
+      const callback = vi.fn()
+      service.setCallbacks({ onPlayerLeft: callback })
+      
+      const msg = {
+        type: 'player_left',
+        player_id: 'p2',
+        player_name: 'Player 2',
+        room_info: { player_count: 1 }
+      }
+      mockWs.onmessage?.({ data: JSON.stringify(msg) })
+      
+      expect(callback).toHaveBeenCalledWith('p2', 'Player 2', { player_count: 1 })
+    })
+
+    it('should handle player_disconnected', () => {
+      const callback = vi.fn()
+      service.setCallbacks({ onPlayerDisconnected: callback })
+      
+      const msg = {
+        type: 'player_disconnected',
+        player_id: 'p2',
+        player_name: 'Player 2',
+        can_reconnect: true,
+        room_info: { player_count: 1 }
+      }
+      mockWs.onmessage?.({ data: JSON.stringify(msg) })
+      
+      expect(callback).toHaveBeenCalledWith('p2', 'Player 2', true, { player_count: 1 })
+    })
+
+    it('should handle player_reconnected', () => {
+      const callback = vi.fn()
+      service.setCallbacks({ onPlayerReconnected: callback })
+      
+      const msg = {
+        type: 'player_reconnected',
+        player_id: 'p2',
+        player_name: 'Player 2',
+        room_info: { player_count: 2 }
+      }
+      mockWs.onmessage?.({ data: JSON.stringify(msg) })
+      
+      expect(callback).toHaveBeenCalledWith('p2', 'Player 2', { player_count: 2 })
+    })
+
+    it('should handle player_ready_changed', () => {
+      const callback = vi.fn()
+      service.setCallbacks({ onPlayerReadyChanged: callback })
+      
+      const msg = {
+        type: 'player_ready_changed',
+        player_id: 'p2',
+        is_ready: true,
+        room_info: {}
+      }
+      mockWs.onmessage?.({ data: JSON.stringify(msg) })
+      
+      expect(callback).toHaveBeenCalledWith('p2', true, {})
+    })
+
+    it('should handle player_state_update', () => {
+      const callback = vi.fn()
+      service.setCallbacks({ onPlayerStateUpdate: callback })
+      
+      const msg = {
+        type: 'player_state_update',
+        player_id: 'p2',
+        state: { x: 100, y: 200 }
+      }
+      mockWs.onmessage?.({ data: JSON.stringify(msg) })
+      
+      expect(callback).toHaveBeenCalledWith('p2', { x: 100, y: 200 })
+    })
+
+    it('should handle game_action', () => {
+      const callback = vi.fn()
+      service.setCallbacks({ onGameAction: callback })
+      
+      const msg = {
+        type: 'game_action',
+        player_id: 'p2',
+        action: 'shoot',
+        data: { direction: 'right' }
+      }
+      mockWs.onmessage?.({ data: JSON.stringify(msg) })
+      
+      expect(callback).toHaveBeenCalledWith('p2', 'shoot', { direction: 'right' })
+    })
+
     it('should handle game_starting', () => {
       const callback = vi.fn()
       service.setCallbacks({ onGameStarting: callback })
@@ -299,6 +389,186 @@ describe('OnlineCoopService', () => {
       mockWs.onmessage?.({ data: JSON.stringify(msg) })
       
       expect(callback).toHaveBeenCalledWith({ level: 1 })
+    })
+
+    it('should handle item_collected', () => {
+      const callback = vi.fn()
+      service.setCallbacks({ onItemCollected: callback })
+      
+      const msg = {
+        type: 'item_collected',
+        player_id: 'p1',
+        item_type: 'coin',
+        item_id: 'c1',
+        player_coins: 50,
+        player_score: 1000
+      }
+      mockWs.onmessage?.({ data: JSON.stringify(msg) })
+      
+      expect(callback).toHaveBeenCalledWith('p1', 'coin', 'c1', 50, 1000)
+    })
+
+    it('should handle item_collected with null values', () => {
+      const callback = vi.fn()
+      service.setCallbacks({ onItemCollected: callback })
+      
+      const msg = {
+        type: 'item_collected',
+        player_id: 'p1',
+        item_type: 'powerup',
+        item_id: 'pow1'
+      }
+      mockWs.onmessage?.({ data: JSON.stringify(msg) })
+      
+      expect(callback).toHaveBeenCalledWith('p1', 'powerup', 'pow1', null, null)
+    })
+
+    it('should handle item_already_collected', () => {
+      const callback = vi.fn()
+      service.setCallbacks({ onItemAlreadyCollected: callback })
+      
+      const msg = {
+        type: 'item_already_collected',
+        item_id: 'c1'
+      }
+      mockWs.onmessage?.({ data: JSON.stringify(msg) })
+      
+      expect(callback).toHaveBeenCalledWith('c1')
+    })
+
+    it('should handle reconnected', () => {
+      const callback = vi.fn()
+      service.setCallbacks({ onReconnected: callback })
+      
+      const msg = {
+        type: 'reconnected',
+        room_id: 'room-123',
+        player_id: 'p1',
+        player_number: 1,
+        game_state: { level: 2 }
+      }
+      mockWs.onmessage?.({ data: JSON.stringify(msg) })
+      
+      expect(callback).toHaveBeenCalledWith({ level: 2 })
+      expect(service.roomId).toBe('room-123')
+      expect(service.playerId).toBe('p1')
+    })
+
+    it('should handle enemy_state_update', () => {
+      const callback = vi.fn()
+      service.setCallbacks({ onEnemyStateUpdate: callback })
+      
+      const msg = {
+        type: 'enemy_state_update',
+        enemy_id: 'e1',
+        state: { x: 500, health: 50 }
+      }
+      mockWs.onmessage?.({ data: JSON.stringify(msg) })
+      
+      expect(callback).toHaveBeenCalledWith('e1', { x: 500, health: 50 })
+    })
+
+    it('should handle enemy_spawned', () => {
+      const callback = vi.fn()
+      service.setCallbacks({ onEnemySpawned: callback })
+      
+      const msg = {
+        type: 'enemy_spawned',
+        enemy: { enemy_id: 'e1', x: 100, y: 200 }
+      }
+      mockWs.onmessage?.({ data: JSON.stringify(msg) })
+      
+      expect(callback).toHaveBeenCalledWith({ enemy_id: 'e1', x: 100, y: 200 })
+    })
+
+    it('should handle enemy_killed', () => {
+      const callback = vi.fn()
+      service.setCallbacks({ onEnemyKilled: callback })
+      
+      const msg = {
+        type: 'enemy_killed',
+        enemy_id: 'e1',
+        killed_by: 'p1'
+      }
+      mockWs.onmessage?.({ data: JSON.stringify(msg) })
+      
+      expect(callback).toHaveBeenCalledWith('e1', 'p1')
+    })
+
+    it('should handle enemy_already_dead', () => {
+      const callback = vi.fn()
+      service.setCallbacks({ onEnemyAlreadyDead: callback })
+      
+      const msg = {
+        type: 'enemy_already_dead',
+        enemy_id: 'e1'
+      }
+      mockWs.onmessage?.({ data: JSON.stringify(msg) })
+      
+      expect(callback).toHaveBeenCalledWith('e1')
+    })
+
+    it('should handle coin_spawned', () => {
+      const callback = vi.fn()
+      service.setCallbacks({ onCoinSpawned: callback })
+      
+      const msg = {
+        type: 'coin_spawned',
+        coin: { coin_id: 'c1', x: 100, y: 200 }
+      }
+      mockWs.onmessage?.({ data: JSON.stringify(msg) })
+      
+      expect(callback).toHaveBeenCalledWith({ coin_id: 'c1', x: 100, y: 200 })
+    })
+
+    it('should handle powerup_spawned', () => {
+      const callback = vi.fn()
+      service.setCallbacks({ onPowerUpSpawned: callback })
+      
+      const msg = {
+        type: 'powerup_spawned',
+        powerup: { powerup_id: 'p1', type: 'shield', x: 100, y: 200 }
+      }
+      mockWs.onmessage?.({ data: JSON.stringify(msg) })
+      
+      expect(callback).toHaveBeenCalledWith({ powerup_id: 'p1', type: 'shield', x: 100, y: 200 })
+    })
+
+    it('should handle entities_sync', () => {
+      const callback = vi.fn()
+      service.setCallbacks({ onEntitiesSync: callback })
+      
+      const msg = {
+        type: 'entities_sync',
+        enemies: [{ enemy_id: 'e1' }],
+        coins: [{ coin_id: 'c1' }],
+        sequence_id: 5
+      }
+      mockWs.onmessage?.({ data: JSON.stringify(msg) })
+      
+      expect(callback).toHaveBeenCalledWith([{ enemy_id: 'e1' }], [{ coin_id: 'c1' }], 5)
+    })
+
+    it('should handle room_left', () => {
+      // @ts-ignore
+      service._roomId = 'room-123'
+      // @ts-ignore
+      service._playerId = 'p1'
+      
+      const msg = { type: 'room_left' }
+      mockWs.onmessage?.({ data: JSON.stringify(msg) })
+      
+      expect(service.roomId).toBeNull()
+    })
+
+    it('should handle pong message', () => {
+      // pong just keeps connection alive, no callback expected
+      const msg = { type: 'pong' }
+      
+      // Should not throw
+      expect(() => {
+        mockWs.onmessage?.({ data: JSON.stringify(msg) })
+      }).not.toThrow()
     })
 
     it('should handle error message', () => {
@@ -368,6 +638,19 @@ describe('OnlineCoopService', () => {
 
     it('should handle fetch error', async () => {
       ;(global.fetch as Mock).mockRejectedValue(new Error('Network error'))
+      const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+      
+      const rooms = await OnlineCoopService.getAvailableRooms()
+      expect(rooms).toEqual([])
+      expect(consoleSpy).toHaveBeenCalled()
+    })
+
+    it('should handle non-ok response', async () => {
+      ;(global.fetch as Mock).mockResolvedValue({
+        ok: false,
+        status: 500,
+        statusText: 'Internal Server Error'
+      })
       const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
       
       const rooms = await OnlineCoopService.getAvailableRooms()
@@ -501,6 +784,214 @@ describe('OnlineCoopService', () => {
       mockWs.onmessage?.({ data: JSON.stringify(msg) })
       
       expect(callback).toHaveBeenCalledWith('p1', 'Player 1', 'Hello from Player 1', '12:00')
+    })
+  })
+
+  describe('Edge Cases', () => {
+    it('should not send when WebSocket is not connected', () => {
+      // Service has no WebSocket connection
+      const sendSpy = vi.fn()
+      
+      // Try to send without connection
+      service.setReady(true)
+      
+      // No WebSocket should mean nothing is sent (no error)
+      expect((service as any).ws).toBeNull()
+    })
+
+    it('should not send when WebSocket is closed', async () => {
+      const connectPromise = (service as any).connect('room-123')
+      mockWs = (service as any).ws
+      mockWs.onopen?.()
+      await connectPromise
+      
+      // Close WebSocket
+      mockWs.readyState = MockWebSocket.CLOSED
+      
+      service.setReady(true)
+      
+      // Message should not be sent when closed
+      expect(mockWs.send).not.toHaveBeenCalled()
+    })
+
+    it('should request time sync only when connected', async () => {
+      // No connection initially
+      service.requestTimeSync()
+      // Should not throw, just do nothing
+      
+      // Now connect
+      const connectPromise = (service as any).connect('room-123')
+      mockWs = (service as any).ws
+      mockWs.onopen?.()
+      await connectPromise
+      
+      service.requestTimeSync()
+      expect(mockWs.send).toHaveBeenCalledWith(expect.stringContaining('time_sync'))
+    })
+
+    it('should handle time sync with multiple samples', () => {
+      vi.useFakeTimers()
+      vi.setSystemTime(1000)
+      
+      ;(service as any).connect('room-123')
+      mockWs = (service as any).ws
+      mockWs.onopen?.()
+      
+      // Send multiple time sync responses to build up samples
+      for (let i = 0; i < 6; i++) {
+        vi.setSystemTime(1000 + i * 100)
+        const msg = {
+          type: 'time_sync_response',
+          client_time: 900 + i * 100,
+          server_time: 2000 + i * 100,
+          sequence_id: i + 1
+        }
+        mockWs.onmessage?.({ data: JSON.stringify(msg) })
+      }
+      
+      // Should have kept only last 5 samples
+      expect((service as any)._timeSyncSamples.length).toBeLessThanOrEqual(5)
+      vi.useRealTimers()
+    })
+
+    it('should calculate server time with offset', async () => {
+      const now = Date.now()
+      vi.spyOn(Date, 'now').mockReturnValue(now)
+      
+      ;(service as any)._serverTimeOffset = 100
+      
+      expect(service.getServerTime()).toBe(now + 100)
+    })
+
+    it('should reuse existing connection if already connected', async () => {
+      const connectPromise = (service as any).connect('room-123')
+      mockWs = (service as any).ws
+      mockWs.onopen?.()
+      await connectPromise
+      
+      // Try to connect again
+      const secondConnect = (service as any).connect('room-456')
+      
+      // Should resolve immediately without creating new WebSocket
+      await secondConnect
+      
+      // Original WebSocket should still be in use
+      expect(mockWs.url).toContain('room-123')
+    })
+
+    it('should not sync entities if not host', async () => {
+      const connectPromise = (service as any).connect('room-123')
+      mockWs = (service as any).ws
+      mockWs.onopen?.()
+      await connectPromise
+      
+      // @ts-ignore
+      service._isHost = false
+      
+      service.syncEntities([], [])
+      
+      expect(mockWs.send).not.toHaveBeenCalledWith(expect.stringContaining('sync_entities'))
+    })
+
+    it('should not spawn coin if not host', async () => {
+      const connectPromise = (service as any).connect('room-123')
+      mockWs = (service as any).ws
+      mockWs.onopen?.()
+      await connectPromise
+      
+      // @ts-ignore
+      service._isHost = false
+      
+      service.spawnCoin({ coin_id: 'c1' } as any)
+      
+      expect(mockWs.send).not.toHaveBeenCalledWith(expect.stringContaining('coin_spawn'))
+    })
+
+    it('should not spawn powerup if not host', async () => {
+      const connectPromise = (service as any).connect('room-123')
+      mockWs = (service as any).ws
+      mockWs.onopen?.()
+      await connectPromise
+      
+      // @ts-ignore
+      service._isHost = false
+      
+      service.spawnPowerUp({ powerup_id: 'p1' } as any)
+      
+      expect(mockWs.send).not.toHaveBeenCalledWith(expect.stringContaining('powerup_spawn'))
+    })
+
+    it('should get player name', () => {
+      // @ts-ignore
+      service._playerName = 'TestPlayer'
+      expect(service.playerName).toBe('TestPlayer')
+    })
+
+    it('should get room info', () => {
+      const roomInfo = { room_id: 'r1', room_name: 'Test' }
+      // @ts-ignore
+      service._roomInfo = roomInfo
+      expect(service.roomInfo).toEqual(roomInfo)
+    })
+
+    it('should update room_joined state correctly', async () => {
+      const callback = vi.fn()
+      service.setCallbacks({ onRoomJoined: callback })
+      
+      const connectPromise = (service as any).connect('room-123')
+      mockWs = (service as any).ws
+      mockWs.onopen?.()
+      await connectPromise
+      
+      const msg = {
+        type: 'room_joined',
+        room_id: 'room-123',
+        player_id: 'p2',
+        player_number: 2,
+        room_info: { room_name: 'Test Room' }
+      }
+      mockWs.onmessage?.({ data: JSON.stringify(msg) })
+      
+      expect(service.roomId).toBe('room-123')
+      expect(service.playerId).toBe('p2')
+      expect(service.playerNumber).toBe(2)
+      expect(service.isHost).toBe(false)
+      expect(callback).toHaveBeenCalledWith('room-123', 'p2', 2, { room_name: 'Test Room' })
+    })
+
+    it('should handle reconnect failure and retry', async () => {
+      vi.useFakeTimers()
+      
+      // @ts-ignore
+      service._roomId = 'room-123'
+      // @ts-ignore
+      service.reconnectAttempts = 0
+      // @ts-ignore
+      service.maxReconnectAttempts = 3
+      
+      // Spy on connect to make it fail
+      const connectSpy = vi.spyOn(service as any, 'connect').mockRejectedValue(new Error('Connection failed'))
+      
+      // Trigger attemptReconnect
+      ;(service as any).attemptReconnect()
+      
+      // First attempt
+      expect((service as any).reconnectAttempts).toBe(1)
+      
+      // Advance timer for first reconnect delay
+      await vi.advanceTimersByTimeAsync(1000)
+      
+      expect(connectSpy).toHaveBeenCalledWith('room-123')
+      
+      vi.useRealTimers()
+      connectSpy.mockRestore()
+    })
+
+    it('should handle createRoom with connection error', async () => {
+      // Mock connect to throw
+      vi.spyOn(service as any, 'connect').mockRejectedValueOnce(new Error('Connection failed'))
+      
+      await expect(service.createRoom('Test Room', 'Player1')).rejects.toThrow('Connection failed')
     })
   })
 })
