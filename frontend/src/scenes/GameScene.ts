@@ -3856,6 +3856,13 @@ export default class GameScene extends Phaser.Scene {
     this.isTransitioning = true
     this.playerIsDead = true // Stop other updates
 
+    // Check if this is the final level (110) - transition to ending instead of next level
+    if (this.gameMode === 'levels' && this.currentLevel >= 110) {
+      console.log(`🏆 LEVEL ${this.currentLevel} COMPLETE! Transitioning to Ending Scene...`)
+      this.scene.start('EndingScene')
+      return
+    }
+
     // In online mode, notify other player if we are the one triggering it
     if (this.isOnlineMode && !isRemoteTrigger) {
       OnlineCoopService.getInstance().sendGameAction('level_complete', {})
