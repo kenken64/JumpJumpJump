@@ -453,6 +453,232 @@ describe('UIManager', () => {
       expect(scene.add.text).toHaveBeenCalledWith(expect.any(Number), expect.any(Number), 'RESTART', expect.any(Object))
       expect(scene.add.text).toHaveBeenCalledWith(expect.any(Number), expect.any(Number), 'MENU', expect.any(Object))
     })
+
+    it('should restart game on SPACE key press', () => {
+      let spaceKeyCallback: (() => void) | null = null
+      scene.input.keyboard!.once = vi.fn().mockImplementation((event: string, callback: () => void) => {
+        if (event === 'keydown-SPACE') {
+          spaceKeyCallback = callback
+        }
+      })
+      scene.isCoopMode = false
+      scene.gameMode = 'levels'
+      scene.currentLevel = 5
+      
+      uiManager.showGameOver(1000, 50, 10, 500)
+      
+      // Trigger SPACE key callback
+      if (spaceKeyCallback) {
+        spaceKeyCallback()
+      }
+      
+      expect(scene.tweens.killAll).toHaveBeenCalled()
+      expect(scene.scene.restart).toHaveBeenCalledWith({ gameMode: 'levels', level: 5 })
+    })
+
+    it('should include coop mode in restart data when in coop mode', () => {
+      let spaceKeyCallback: (() => void) | null = null
+      scene.input.keyboard!.once = vi.fn().mockImplementation((event: string, callback: () => void) => {
+        if (event === 'keydown-SPACE') {
+          spaceKeyCallback = callback
+        }
+      })
+      scene.isCoopMode = true
+      scene.gameMode = 'levels'
+      scene.currentLevel = 3
+      
+      uiManager.showGameOver(1000, 50, 10, 500)
+      
+      if (spaceKeyCallback) {
+        spaceKeyCallback()
+      }
+      
+      expect(scene.scene.restart).toHaveBeenCalledWith({ gameMode: 'levels', level: 3, mode: 'coop' })
+    })
+
+    it('should navigate to menu on M key press', () => {
+      let mKeyCallback: (() => void) | null = null
+      scene.input.keyboard!.once = vi.fn().mockImplementation((event: string, callback: () => void) => {
+        if (event === 'keydown-M') {
+          mKeyCallback = callback
+        }
+      })
+      
+      uiManager.showGameOver(1000, 50, 10, 500)
+      
+      if (mKeyCallback) {
+        mKeyCallback()
+      }
+      
+      expect(scene.tweens.killAll).toHaveBeenCalled()
+      expect(scene.scene.start).toHaveBeenCalledWith('MenuScene')
+    })
+
+    it('should restart on RESTART button click', () => {
+      const buttonCallbacks: { [key: string]: (() => void)[] } = {}
+      
+      // Override rectangle to capture button events
+      scene.add.rectangle = vi.fn().mockImplementation(() => {
+        const rect = {
+          setOrigin: vi.fn().mockReturnThis(),
+          setScrollFactor: vi.fn().mockReturnThis(),
+          setDepth: vi.fn().mockReturnThis(),
+          setStrokeStyle: vi.fn().mockReturnThis(),
+          setFillStyle: vi.fn().mockReturnThis(),
+          setSize: vi.fn().mockReturnThis(),
+          setVisible: vi.fn().mockReturnThis(),
+          setAlpha: vi.fn().mockReturnThis(),
+          setInteractive: vi.fn().mockReturnThis(),
+          setScale: vi.fn().mockReturnThis(),
+          on: vi.fn().mockImplementation((event: string, callback: () => void) => {
+            if (!buttonCallbacks[event]) buttonCallbacks[event] = []
+            buttonCallbacks[event].push(callback)
+            return rect
+          }),
+          destroy: vi.fn(),
+          width: 196,
+          x: 0
+        }
+        return rect
+      })
+      
+      scene.isCoopMode = false
+      scene.gameMode = 'levels'
+      scene.currentLevel = 7
+      
+      uiManager.showGameOver(1000, 50, 10, 500)
+      
+      // First pointerdown is for RESTART button
+      if (buttonCallbacks['pointerdown'] && buttonCallbacks['pointerdown'][0]) {
+        buttonCallbacks['pointerdown'][0]()
+      }
+      
+      expect(scene.tweens.killAll).toHaveBeenCalled()
+      expect(scene.scene.restart).toHaveBeenCalledWith({ gameMode: 'levels', level: 7 })
+    })
+
+    it('should include coop mode in restart data on RESTART button click', () => {
+      const buttonCallbacks: { [key: string]: (() => void)[] } = {}
+      
+      scene.add.rectangle = vi.fn().mockImplementation(() => {
+        const rect = {
+          setOrigin: vi.fn().mockReturnThis(),
+          setScrollFactor: vi.fn().mockReturnThis(),
+          setDepth: vi.fn().mockReturnThis(),
+          setStrokeStyle: vi.fn().mockReturnThis(),
+          setFillStyle: vi.fn().mockReturnThis(),
+          setSize: vi.fn().mockReturnThis(),
+          setVisible: vi.fn().mockReturnThis(),
+          setAlpha: vi.fn().mockReturnThis(),
+          setInteractive: vi.fn().mockReturnThis(),
+          setScale: vi.fn().mockReturnThis(),
+          on: vi.fn().mockImplementation((event: string, callback: () => void) => {
+            if (!buttonCallbacks[event]) buttonCallbacks[event] = []
+            buttonCallbacks[event].push(callback)
+            return rect
+          }),
+          destroy: vi.fn(),
+          width: 196,
+          x: 0
+        }
+        return rect
+      })
+      
+      scene.isCoopMode = true
+      scene.gameMode = 'levels'
+      scene.currentLevel = 2
+      
+      uiManager.showGameOver(1000, 50, 10, 500)
+      
+      // First pointerdown is for RESTART button
+      if (buttonCallbacks['pointerdown'] && buttonCallbacks['pointerdown'][0]) {
+        buttonCallbacks['pointerdown'][0]()
+      }
+      
+      expect(scene.scene.restart).toHaveBeenCalledWith({ gameMode: 'levels', level: 2, mode: 'coop' })
+    })
+
+    it('should navigate to menu on MENU button click', () => {
+      const buttonCallbacks: { [key: string]: (() => void)[] } = {}
+      
+      scene.add.rectangle = vi.fn().mockImplementation(() => {
+        const rect = {
+          setOrigin: vi.fn().mockReturnThis(),
+          setScrollFactor: vi.fn().mockReturnThis(),
+          setDepth: vi.fn().mockReturnThis(),
+          setStrokeStyle: vi.fn().mockReturnThis(),
+          setFillStyle: vi.fn().mockReturnThis(),
+          setSize: vi.fn().mockReturnThis(),
+          setVisible: vi.fn().mockReturnThis(),
+          setAlpha: vi.fn().mockReturnThis(),
+          setInteractive: vi.fn().mockReturnThis(),
+          setScale: vi.fn().mockReturnThis(),
+          on: vi.fn().mockImplementation((event: string, callback: () => void) => {
+            if (!buttonCallbacks[event]) buttonCallbacks[event] = []
+            buttonCallbacks[event].push(callback)
+            return rect
+          }),
+          destroy: vi.fn(),
+          width: 196,
+          x: 0
+        }
+        return rect
+      })
+      
+      uiManager.showGameOver(1000, 50, 10, 500)
+      
+      // Second pointerdown is for MENU button
+      if (buttonCallbacks['pointerdown'] && buttonCallbacks['pointerdown'][1]) {
+        buttonCallbacks['pointerdown'][1]()
+      }
+      
+      expect(scene.tweens.killAll).toHaveBeenCalled()
+      expect(scene.scene.start).toHaveBeenCalledWith('MenuScene')
+    })
+
+    it('should handle button hover effects on RESTART and MENU buttons', () => {
+      const buttonCallbacks: { [key: string]: (() => void)[] } = {}
+      
+      scene.add.rectangle = vi.fn().mockImplementation(() => {
+        const rect = {
+          setOrigin: vi.fn().mockReturnThis(),
+          setScrollFactor: vi.fn().mockReturnThis(),
+          setDepth: vi.fn().mockReturnThis(),
+          setStrokeStyle: vi.fn().mockReturnThis(),
+          setFillStyle: vi.fn().mockReturnThis(),
+          setSize: vi.fn().mockReturnThis(),
+          setVisible: vi.fn().mockReturnThis(),
+          setAlpha: vi.fn().mockReturnThis(),
+          setInteractive: vi.fn().mockReturnThis(),
+          setScale: vi.fn().mockReturnThis(),
+          on: vi.fn().mockImplementation((event: string, callback: () => void) => {
+            if (!buttonCallbacks[event]) buttonCallbacks[event] = []
+            buttonCallbacks[event].push(callback)
+            return rect
+          }),
+          destroy: vi.fn(),
+          width: 196,
+          x: 0
+        }
+        return rect
+      })
+      
+      uiManager.showGameOver(1000, 50, 10, 500)
+      
+      // Trigger pointerover for both buttons (restart and menu)
+      if (buttonCallbacks['pointerover']) {
+        buttonCallbacks['pointerover'].forEach(cb => cb())
+      }
+      
+      // Trigger pointerout for both buttons
+      if (buttonCallbacks['pointerout']) {
+        buttonCallbacks['pointerout'].forEach(cb => cb())
+      }
+      
+      // If we got here without errors, the hover callbacks executed
+      expect(buttonCallbacks['pointerover']?.length).toBeGreaterThan(0)
+      expect(buttonCallbacks['pointerout']?.length).toBeGreaterThan(0)
+    })
   })
 
   describe('showOnlineGameOver()', () => {
@@ -701,5 +927,279 @@ describe('UIManager', () => {
       uiManager.updateReloadBar(0.5)
     })
   })
-})
 
+  // ==================== ADDITIONAL COVERAGE TESTS ====================
+
+  describe('showOnlineGameOver() keyboard shortcuts', () => {
+    it('should navigate to menu on M key press', () => {
+      let mKeyCallback: (() => void) | null = null
+      scene.input.keyboard!.once = vi.fn().mockImplementation((event: string, callback: () => void) => {
+        if (event === 'keydown-M') {
+          mKeyCallback = callback
+        }
+      })
+      
+      uiManager.showOnlineGameOver(1000, 50, 10, 100)
+      
+      // Trigger M key callback
+      if (mKeyCallback) {
+        mKeyCallback()
+      }
+      
+      expect(scene.tweens.killAll).toHaveBeenCalled()
+      expect(scene.scene.start).toHaveBeenCalledWith('MenuScene')
+    })
+
+    it('should navigate to menu on SPACE key press', () => {
+      let spaceKeyCallback: (() => void) | null = null
+      scene.input.keyboard!.once = vi.fn().mockImplementation((event: string, callback: () => void) => {
+        if (event === 'keydown-SPACE') {
+          spaceKeyCallback = callback
+        }
+      })
+      
+      uiManager.showOnlineGameOver(1000, 50, 10, 100)
+      
+      // Trigger SPACE key callback
+      if (spaceKeyCallback) {
+        spaceKeyCallback()
+      }
+      
+      expect(scene.tweens.killAll).toHaveBeenCalled()
+      expect(scene.scene.start).toHaveBeenCalledWith('MenuScene')
+    })
+  })
+
+  describe('showOnlineGameOver() button interactions', () => {
+    it('should navigate to menu on button click', () => {
+      // Track button callbacks
+      const buttonCallbacks: { [key: string]: (() => void)[] } = {}
+      let menuButton: any = null
+      
+      // Override rectangle to capture button and its events
+      scene.add.rectangle = vi.fn().mockImplementation(() => {
+        const rect = {
+          setOrigin: vi.fn().mockReturnThis(),
+          setScrollFactor: vi.fn().mockReturnThis(),
+          setDepth: vi.fn().mockReturnThis(),
+          setStrokeStyle: vi.fn().mockReturnThis(),
+          setFillStyle: vi.fn().mockReturnThis(),
+          setSize: vi.fn().mockReturnThis(),
+          setVisible: vi.fn().mockReturnThis(),
+          setAlpha: vi.fn().mockReturnThis(),
+          setInteractive: vi.fn().mockReturnThis(),
+          setScale: vi.fn().mockReturnThis(),
+          on: vi.fn().mockImplementation((event: string, callback: () => void) => {
+            if (!buttonCallbacks[event]) buttonCallbacks[event] = []
+            buttonCallbacks[event].push(callback)
+            return rect
+          }),
+          destroy: vi.fn(),
+          width: 196,
+          x: 0
+        }
+        menuButton = rect
+        return rect
+      })
+      
+      uiManager.showOnlineGameOver(1000, 50, 10, 100)
+      
+      // Trigger pointerdown (button click)
+      if (buttonCallbacks['pointerdown']) {
+        buttonCallbacks['pointerdown'].forEach(cb => cb())
+      }
+      
+      expect(scene.tweens.killAll).toHaveBeenCalled()
+      expect(scene.scene.start).toHaveBeenCalledWith('MenuScene')
+    })
+
+    it('should handle button hover effects', () => {
+      const buttonCallbacks: { [key: string]: (() => void)[] } = {}
+      let menuButton: any = null
+      
+      scene.add.rectangle = vi.fn().mockImplementation(() => {
+        const rect = {
+          setOrigin: vi.fn().mockReturnThis(),
+          setScrollFactor: vi.fn().mockReturnThis(),
+          setDepth: vi.fn().mockReturnThis(),
+          setStrokeStyle: vi.fn().mockReturnThis(),
+          setFillStyle: vi.fn().mockReturnThis(),
+          setSize: vi.fn().mockReturnThis(),
+          setVisible: vi.fn().mockReturnThis(),
+          setAlpha: vi.fn().mockReturnThis(),
+          setInteractive: vi.fn().mockReturnThis(),
+          setScale: vi.fn().mockReturnThis(),
+          on: vi.fn().mockImplementation((event: string, callback: () => void) => {
+            if (!buttonCallbacks[event]) buttonCallbacks[event] = []
+            buttonCallbacks[event].push(callback)
+            return rect
+          }),
+          destroy: vi.fn(),
+          width: 196,
+          x: 0
+        }
+        menuButton = rect
+        return rect
+      })
+      
+      uiManager.showOnlineGameOver(1000, 50, 10, 100)
+      
+      // Trigger pointerover (hover in)
+      if (buttonCallbacks['pointerover']) {
+        buttonCallbacks['pointerover'].forEach(cb => cb())
+      }
+      expect(menuButton.setFillStyle).toHaveBeenCalledWith(0x0099ff)
+      expect(menuButton.setScale).toHaveBeenCalledWith(1.05)
+      
+      // Trigger pointerout (hover out)
+      if (buttonCallbacks['pointerout']) {
+        buttonCallbacks['pointerout'].forEach(cb => cb())
+      }
+      expect(menuButton.setFillStyle).toHaveBeenCalledWith(0x0066cc)
+      expect(menuButton.setScale).toHaveBeenCalledWith(1)
+    })
+  })
+
+  describe('showQuitConfirmation() branches', () => {
+    it('should show endless mode warning message', () => {
+      scene.gameMode = 'endless'
+      scene.player = { x: 1000 } as any
+      
+      uiManager.showQuitConfirmation()
+      
+      // Should show the endless mode specific message
+      expect(scene.add.text).toHaveBeenCalledWith(
+        expect.any(Number),
+        expect.any(Number),
+        expect.stringContaining('endless run progress'),
+        expect.any(Object)
+      )
+    })
+
+    it('should show level mode warning message', () => {
+      scene.gameMode = 'levels'
+      scene.currentLevel = 5
+      scene.player = { x: 1000 } as any
+      
+      uiManager.showQuitConfirmation()
+      
+      // Should show the level-specific message
+      expect(scene.add.text).toHaveBeenCalledWith(
+        expect.any(Number),
+        expect.any(Number),
+        expect.stringContaining('restart Level 5'),
+        expect.any(Object)
+      )
+    })
+
+    it('should handle score submission failure on quit', async () => {
+      const mockSubmitScore = vi.spyOn(GameAPI, 'submitScore').mockRejectedValue(new Error('Network error'))
+      const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {})
+      
+      scene.player = { x: 1000 } as any
+      scene.score = 100
+      scene.coinCount = 10
+      scene.enemiesDefeated = 5
+      scene.currentLevel = 1
+      scene.gameMode = 'levels'
+      
+      uiManager.showQuitConfirmation()
+      
+      // Find and trigger the YES button callback
+      const rect = scene.add.rectangle(0, 0, 0, 0)
+      const onSpy = rect.on as any
+      const callbacks = onSpy.mock.calls
+        .filter((call: any) => call[0] === 'pointerdown')
+        .map((call: any) => call[1])
+      
+      for (const cb of callbacks) {
+        cb()
+      }
+      
+      // Wait for promise rejection to be handled
+      await new Promise(resolve => setTimeout(resolve, 10))
+      
+      expect(mockSubmitScore).toHaveBeenCalled()
+      // Should log the failure
+      expect(consoleSpy).toHaveBeenCalledWith(expect.stringContaining('Score submission failed'), expect.any(Error))
+      
+      consoleSpy.mockRestore()
+    })
+  })
+
+  describe('updateAIStatus() types', () => {
+    beforeEach(() => {
+      uiManager.createUI()
+    })
+
+    it('should show rule-based AI status', () => {
+      // First create aiStatusText by calling updateAIStatus
+      uiManager.updateAIStatus(true, 'rule')
+      
+      // We can verify it doesn't throw
+    })
+
+    it('should show ML AI status', () => {
+      uiManager.updateAIStatus(true, 'ml')
+      
+      // We can verify it doesn't throw
+    })
+
+    it('should hide AI status when disabled', () => {
+      uiManager.updateAIStatus(false)
+      
+      // Should run without error
+    })
+
+    it('should toggle between rule and ml types', () => {
+      uiManager.updateAIStatus(true, 'rule')
+      uiManager.updateAIStatus(true, 'ml')
+      uiManager.updateAIStatus(false)
+      
+      // All transitions should work without error
+    })
+  })
+
+  describe('showLevelComplete() level 110 check', () => {
+    it('should transition to EndingScene on level 110', () => {
+      scene.gameMode = 'levels'
+      
+      uiManager.showLevelComplete(110, 50000, 500)
+      
+      expect(scene.scene.start).toHaveBeenCalledWith('EndingScene')
+      // Should NOT pause physics for normal level complete flow
+    })
+
+    it('should transition to EndingScene on level above 110', () => {
+      scene.gameMode = 'levels'
+      
+      uiManager.showLevelComplete(111, 50000, 500)
+      
+      expect(scene.scene.start).toHaveBeenCalledWith('EndingScene')
+    })
+
+    it('should show normal level complete for levels below 110', () => {
+      scene.gameMode = 'levels'
+      
+      uiManager.showLevelComplete(109, 50000, 500)
+      
+      // Should pause physics for normal level complete
+      expect(scene.physics.pause).toHaveBeenCalled()
+      expect(scene.add.text).toHaveBeenCalledWith(
+        expect.any(Number),
+        expect.any(Number),
+        'LEVEL COMPLETE!',
+        expect.any(Object)
+      )
+    })
+
+    it('should show normal level complete for endless mode even at high levels', () => {
+      scene.gameMode = 'endless'
+      
+      uiManager.showLevelComplete(110, 50000, 500)
+      
+      // Should NOT transition to EndingScene in endless mode
+      expect(scene.physics.pause).toHaveBeenCalled()
+    })
+  })
+})

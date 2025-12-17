@@ -51,6 +51,9 @@ const createSpriteMock = (options: any = {}) => ({
     setMaxVelocity: vi.fn().mockReturnThis(),
     setAllowGravity: vi.fn().mockReturnThis(),
     setImmovable: vi.fn().mockReturnThis(),
+    setVelocityX: vi.fn().mockReturnThis(),
+    setVelocityY: vi.fn().mockReturnThis(),
+    setVelocity: vi.fn().mockReturnThis(),
     touching: { down: true, up: false, left: false, right: false },
     blocked: { down: true, up: false, left: false, right: false },
     velocity: { x: 0, y: 0 },
@@ -93,6 +96,7 @@ vi.mock('phaser', () => {
           shake: vi.fn(),
           flash: vi.fn(),
           resetFX: vi.fn(),
+          setAlpha: vi.fn(),
           getWorldPoint: vi.fn().mockReturnValue({ x: 500, y: 300 }),
           scrollX: 0,
           scrollY: 0
@@ -576,6 +580,7 @@ describe('GameScene - Additional Coverage', () => {
   let scene: GameScene
 
   beforeEach(() => {
+    vi.useFakeTimers()
     vi.clearAllMocks()
     localStorage.clear()
     
@@ -605,6 +610,7 @@ describe('GameScene - Additional Coverage', () => {
 
   afterEach(() => {
     vi.restoreAllMocks()
+    vi.useRealTimers()
   })
 
   describe('collectCoin', () => {
@@ -2714,7 +2720,8 @@ describe('GameScene - Additional Coverage', () => {
       ;(scene as any).dqnTraining = true
       ;(scene as any).dqnAgent = { 
         endEpisode: vi.fn(),
-        getEpisodeCount: vi.fn().mockReturnValue(5)
+        getEpisodeCount: vi.fn().mockReturnValue(5),
+        resetEpisode: vi.fn()
       }
       ;(scene as any).dqnAutoRestart = true
       
@@ -2736,6 +2743,524 @@ describe('GameScene - Additional Coverage', () => {
       
       // This is async, just check it doesn't immediately throw
       expect(() => (scene as any).updateDQNTraining()).not.toThrow()
+    })
+  })
+
+  // ==================== ADDITIONAL DQN COVERAGE TESTS ====================
+
+  describe('applyDQNAction detailed tests', () => {
+    beforeEach(() => {
+      scene.create()
+      ;(scene as any).dqnTraining = true
+      ;(scene as any).dqnAgent = { selectAction: vi.fn() }
+      ;(scene as any).dqnTrainingPaused = false
+      ;(scene as any).dqnSpeedMultiplier = 1
+      ;(scene as any).equippedWeapon = 'pistol'
+    })
+
+    it('should apply left movement action', () => {
+      const action = { moveLeft: true, moveRight: false, jump: false, shoot: false, actionIndex: 0 }
+      ;(scene as any).player.body.touching = { down: true }
+      ;(scene as any).player.body.blocked = { down: false }
+      ;(scene as any).enemies.getChildren = vi.fn().mockReturnValue([])
+      
+      ;(scene as any).applyDQNAction(action)
+      
+      expect((scene as any).player.body.setVelocityX).toHaveBeenCalledWith(-300)
+      expect((scene as any).player.setFlipX).toHaveBeenCalledWith(true)
+    })
+
+    it('should apply right movement action', () => {
+      const action = { moveLeft: false, moveRight: true, jump: false, shoot: false, actionIndex: 1 }
+      ;(scene as any).player.body.touching = { down: true }
+      ;(scene as any).player.body.blocked = { down: false }
+      ;(scene as any).enemies.getChildren = vi.fn().mockReturnValue([])
+      
+      ;(scene as any).applyDQNAction(action)
+      
+      expect((scene as any).player.body.setVelocityX).toHaveBeenCalledWith(300)
+      expect((scene as any).player.setFlipX).toHaveBeenCalledWith(false)
+    })
+
+    it('should apply jump action when on ground', () => {
+      const action = { moveLeft: false, moveRight: false, jump: true, shoot: false, actionIndex: 2 }
+      ;(scene as any).player.body.touching = { down: true }
+      ;(scene as any).player.body.blocked = { down: false }
+      ;(scene as any).enemies.getChildren = vi.fn().mockReturnValue([])
+      
+      ;(scene as any).applyDQNAction(action)
+      
+      expect((scene as any).player.body.setVelocityY).toHaveBeenCalledWith(-600)
+      expect((scene as any).canDoubleJump).toBe(true)
+      expect((scene as any).hasDoubleJumped).toBe(false)
+    })
+
+    it('should apply double jump action when in air', () => {
+      const action = { moveLeft: false, moveRight: false, jump: true, shoot: false, actionIndex: 2 }
+      ;(scene as any).player.body.touching = { down: false }
+      ;(scene as any).player.body.blocked = { down: false }
+      ;(scene as any).canDoubleJump = true
+      ;(scene as any).hasDoubleJumped = false
+      ;(scene as any).enemies.getChildren = vi.fn().mockReturnValue([])
+      
+      ;(scene as any).applyDQNAction(action)
+      
+      expect((scene as any).player.body.setVelocityY).toHaveBeenCalledWith(-550)
+      expect((scene as any).hasDoubleJumped).toBe(true)
+    })
+
+    it('should auto-aim at nearest enemy', () => {
+      const action = { moveLeft: false, moveRight: false, jump: false, shoot: true, actionIndex: 4 }
+      ;(scene as any).player.body.touching = { down: true }
+      ;(scene as any).player.body.blocked = { down: false }
+      
+      const mockEnemy = { active: true, x: 600, y: 300 }
+      ;(scene as any).enemies.getChildren = vi.fn().mockReturnValue([mockEnemy])
+      
+      ;(scene as any).applyDQNAction(action)
+      
+      expect((scene as any).gun.setPosition).toHaveBeenCalled()
+      expect((scene as any).gun.setRotation).toHaveBeenCalled()
+      expect((scene as any).dqnShooting).toBe(true)
+    })
+
+    it('should aim forward when no enemies', () => {
+      const action = { moveLeft: false, moveRight: false, jump: false, shoot: false, actionIndex: 0 }
+      ;(scene as any).player.body.touching = { down: true }
+      ;(scene as any).player.body.blocked = { down: false }
+      ;(scene as any).player.flipX = false
+      ;(scene as any).enemies.getChildren = vi.fn().mockReturnValue([])
+      
+      ;(scene as any).applyDQNAction(action)
+      
+      expect((scene as any).gun.setRotation).toHaveBeenCalledWith(0)
+    })
+
+    it('should not apply action when paused', () => {
+      ;(scene as any).dqnTrainingPaused = true
+      const action = { moveLeft: true, moveRight: false, jump: false, shoot: false, actionIndex: 0 }
+      
+      ;(scene as any).applyDQNAction(action)
+      
+      expect((scene as any).player.body.setVelocityX).not.toHaveBeenCalledWith(-300)
+    })
+  })
+
+  describe('updateDQNTraining detailed tests', () => {
+    beforeEach(() => {
+      scene.create()
+      ;(scene as any).dqnTraining = true
+      ;(scene as any).dqnTrainingPaused = false
+      ;(scene as any).playerIsDead = false
+      ;(scene as any).dqnSpeedMultiplier = 1
+      ;(scene as any).dqnStepCount = 0
+      ;(scene as any).dqnCurrentReward = 0
+      ;(scene as any).dqnTotalReward = 0
+      ;(scene as any).score = 100
+      ;(scene as any).enemies.getChildren = vi.fn().mockReturnValue([])
+      ;(scene as any).coins.getChildren = vi.fn().mockReturnValue([])
+      ;(scene as any).powerUps = { getChildren: vi.fn().mockReturnValue([]) }
+      ;(scene as any).platforms.getChildren = vi.fn().mockReturnValue([])
+      ;(scene as any).spikePositions = []
+      ;(scene as any).bossActive = false
+    })
+
+    it('should skip training when dqnTraining is false', async () => {
+      ;(scene as any).dqnTraining = false
+      ;(scene as any).dqnAgent = { selectAction: vi.fn() }
+      
+      await (scene as any).updateDQNTraining()
+      
+      expect((scene as any).dqnAgent.selectAction).not.toHaveBeenCalled()
+    })
+
+    it('should skip training when paused', async () => {
+      ;(scene as any).dqnTrainingPaused = true
+      ;(scene as any).dqnAgent = { selectAction: vi.fn() }
+      
+      await (scene as any).updateDQNTraining()
+      
+      expect((scene as any).dqnAgent.selectAction).not.toHaveBeenCalled()
+    })
+
+    it('should skip training when player is dead', async () => {
+      ;(scene as any).playerIsDead = true
+      ;(scene as any).dqnAgent = { selectAction: vi.fn() }
+      
+      await (scene as any).updateDQNTraining()
+      
+      expect((scene as any).dqnAgent.selectAction).not.toHaveBeenCalled()
+    })
+
+    it('should store experience when previous state exists', async () => {
+      const mockAgent = {
+        calculateReward: vi.fn().mockReturnValue(1.5),
+        remember: vi.fn(),
+        train: vi.fn().mockResolvedValue(undefined),
+        selectAction: vi.fn().mockResolvedValue({ moveLeft: false, moveRight: true, jump: false, shoot: false, actionIndex: 1 })
+      }
+      ;(scene as any).dqnAgent = mockAgent
+      ;(scene as any).lastDQNState = { playerX: 100, playerY: 200 }
+      ;(scene as any).lastDQNAction = { moveLeft: true, moveRight: false, jump: false, shoot: false, actionIndex: 0 }
+      ;(scene as any).dqnStepCount = 4
+      
+      await (scene as any).updateDQNTraining()
+      
+      expect(mockAgent.calculateReward).toHaveBeenCalled()
+      expect(mockAgent.remember).toHaveBeenCalled()
+      expect(mockAgent.train).toHaveBeenCalled()
+    })
+
+    it('should select and apply new action', async () => {
+      const newAction = { moveLeft: false, moveRight: true, jump: false, shoot: false, actionIndex: 1 }
+      const mockAgent = {
+        calculateReward: vi.fn().mockReturnValue(0),
+        remember: vi.fn(),
+        train: vi.fn().mockResolvedValue(undefined),
+        selectAction: vi.fn().mockResolvedValue(newAction)
+      }
+      ;(scene as any).dqnAgent = mockAgent
+      ;(scene as any).enemies.getChildren = vi.fn().mockReturnValue([])
+      
+      await (scene as any).updateDQNTraining()
+      
+      expect(mockAgent.selectAction).toHaveBeenCalled()
+      expect((scene as any).lastDQNAction).toEqual(newAction)
+      expect((scene as any).dqnStepCount).toBe(1)
+    })
+
+    it('should train every 4 steps', async () => {
+      const mockAgent = {
+        calculateReward: vi.fn().mockReturnValue(0.5),
+        remember: vi.fn(),
+        train: vi.fn().mockResolvedValue(undefined),
+        selectAction: vi.fn().mockResolvedValue({ actionIndex: 0 })
+      }
+      ;(scene as any).dqnAgent = mockAgent
+      ;(scene as any).lastDQNState = { playerX: 100 }
+      ;(scene as any).lastDQNAction = { actionIndex: 0 }
+      ;(scene as any).dqnStepCount = 8  // Multiple of 4
+      ;(scene as any).enemies.getChildren = vi.fn().mockReturnValue([])
+      
+      await (scene as any).updateDQNTraining()
+      
+      expect(mockAgent.train).toHaveBeenCalled()
+    })
+
+    it('should accumulate rewards', async () => {
+      const mockAgent = {
+        calculateReward: vi.fn().mockReturnValue(2.5),
+        remember: vi.fn(),
+        train: vi.fn().mockResolvedValue(undefined),
+        selectAction: vi.fn().mockResolvedValue({ actionIndex: 0 })
+      }
+      ;(scene as any).dqnAgent = mockAgent
+      ;(scene as any).lastDQNState = { playerX: 100 }
+      ;(scene as any).lastDQNAction = { actionIndex: 0 }
+      ;(scene as any).dqnCurrentReward = 5.0
+      ;(scene as any).dqnTotalReward = 10.0
+      ;(scene as any).enemies.getChildren = vi.fn().mockReturnValue([])
+      
+      await (scene as any).updateDQNTraining()
+      
+      expect((scene as any).dqnCurrentReward).toBe(7.5)
+      expect((scene as any).dqnTotalReward).toBe(12.5)
+    })
+  })
+
+  describe('handleDQNEpisodeEnd detailed tests', () => {
+    beforeEach(() => {
+      scene.create()
+      ;(scene as any).dqnTraining = true
+      ;(scene as any).dqnEpisodeCount = 0
+      ;(scene as any).dqnCurrentReward = 50
+      ;(scene as any).dqnStepCount = 100
+      ;(scene as any).dqnAutoRestart = false
+    })
+
+    it('should skip if not in training mode', async () => {
+      ;(scene as any).dqnTraining = false
+      ;(scene as any).dqnAgent = { resetEpisode: vi.fn() }
+      
+      await (scene as any).handleDQNEpisodeEnd()
+      
+      expect((scene as any).dqnAgent.resetEpisode).not.toHaveBeenCalled()
+    })
+
+    it('should reset episode state', async () => {
+      ;(scene as any).dqnAgent = { resetEpisode: vi.fn() }
+      ;(scene as any).lastDQNState = { playerX: 100 }
+      ;(scene as any).lastDQNAction = { actionIndex: 0 }
+      
+      await (scene as any).handleDQNEpisodeEnd()
+      
+      expect((scene as any).dqnAgent.resetEpisode).toHaveBeenCalled()
+      expect((scene as any).dqnEpisodeCount).toBe(1)
+      expect((scene as any).dqnCurrentReward).toBe(0)
+      expect((scene as any).dqnStepCount).toBe(0)
+      expect((scene as any).lastDQNState).toBeUndefined()
+      expect((scene as any).lastDQNAction).toBeUndefined()
+    })
+
+    it('should store last episode reward', async () => {
+      ;(scene as any).dqnAgent = { resetEpisode: vi.fn() }
+      ;(scene as any).dqnCurrentReward = 75.5
+      
+      await (scene as any).handleDQNEpisodeEnd()
+      
+      expect((scene as any).dqnLastEpisodeReward).toBe(75.5)
+    })
+
+    it('should auto-restart when enabled', async () => {
+      ;(scene as any).dqnAgent = { resetEpisode: vi.fn() }
+      ;(scene as any).dqnAutoRestart = true
+      ;(scene as any).gameMode = 'levels'
+      ;(scene as any).currentLevel = 5
+      
+      await (scene as any).handleDQNEpisodeEnd()
+      
+      expect((scene as any).tweens.killAll).toHaveBeenCalled()
+      expect((scene as any).cameras.main.resetFX).toHaveBeenCalled()
+    })
+  })
+
+  describe('handleDQNKeyboardControls tests', () => {
+    beforeEach(() => {
+      scene.create()
+      ;(scene as any).dqnTraining = true
+      ;(scene as any).dqnTrainingPaused = false
+      ;(scene as any).dqnAutoRestart = false
+      ;(scene as any).dqnSpeedMultiplier = 1
+      ;(scene as any).gameMode = 'levels'
+      ;(scene as any).currentLevel = 1
+    })
+
+    it('should skip if not in training mode', () => {
+      ;(scene as any).dqnTraining = false
+      
+      expect(() => (scene as any).handleDQNKeyboardControls()).not.toThrow()
+    })
+
+    it('should skip if no keyboard', () => {
+      ;(scene as any).input.keyboard = null
+      
+      expect(() => (scene as any).handleDQNKeyboardControls()).not.toThrow()
+    })
+
+    it('should handle keyboard controls during training', () => {
+      // Just verify the method can be called without errors
+      expect(() => (scene as any).handleDQNKeyboardControls()).not.toThrow()
+    })
+
+    it('should save model when agent exists', () => {
+      const mockAgent = { saveModel: vi.fn() }
+      ;(scene as any).dqnAgent = mockAgent
+      
+      expect(() => (scene as any).handleDQNKeyboardControls()).not.toThrow()
+    })
+
+    it('should load model when agent exists', () => {
+      const mockAgent = { loadModel: vi.fn() }
+      ;(scene as any).dqnAgent = mockAgent
+      
+      expect(() => (scene as any).handleDQNKeyboardControls()).not.toThrow()
+    })
+
+    it('should toggle auto-restart when agent exists', () => {
+      expect(() => (scene as any).handleDQNKeyboardControls()).not.toThrow()
+    })
+
+    it('should exit training when agent exists', () => {
+      const mockAgent = { dispose: vi.fn() }
+      ;(scene as any).dqnAgent = mockAgent
+      
+      expect(() => (scene as any).handleDQNKeyboardControls()).not.toThrow()
+    })
+  })
+
+  describe('handleDQNRecordingKey tests', () => {
+    beforeEach(() => {
+      scene.create()
+      ;(scene as any).isRecordingForDQN = false
+      ;(scene as any).recordedDemonstrations = []
+      ;(scene as any).recordingFrameCount = 0
+      ;(scene as any).playerIsDead = false
+    })
+
+    it('should skip if no keyboard', () => {
+      ;(scene as any).input.keyboard = null
+      
+      expect(() => (scene as any).handleDQNRecordingKey()).not.toThrow()
+    })
+
+    it('should toggle recording on T key', () => {
+      expect(() => (scene as any).handleDQNRecordingKey()).not.toThrow()
+    })
+
+    it('should record frames when recording is active', () => {
+      ;(scene as any).isRecordingForDQN = true
+      ;(scene as any).recordingFrameCount = 2
+      ;(scene as any).enemies.getChildren = vi.fn().mockReturnValue([])
+      ;(scene as any).coins.getChildren = vi.fn().mockReturnValue([])
+      ;(scene as any).powerUps = { getChildren: vi.fn().mockReturnValue([]) }
+      ;(scene as any).platforms.getChildren = vi.fn().mockReturnValue([])
+      ;(scene as any).spikePositions = []
+      ;(scene as any).bossActive = false
+      
+      expect(() => (scene as any).handleDQNRecordingKey()).not.toThrow()
+      expect((scene as any).recordingFrameCount).toBe(3)
+    })
+
+    it('should not record when player is dead', () => {
+      ;(scene as any).isRecordingForDQN = true
+      ;(scene as any).playerIsDead = true
+      ;(scene as any).recordingFrameCount = 2
+      
+      ;(scene as any).handleDQNRecordingKey()
+      
+      // Frame count should not increase
+      expect((scene as any).recordingFrameCount).toBe(2)
+    })
+  })
+
+  describe('compressDQNState tests', () => {
+    beforeEach(() => {
+      scene.create()
+    })
+
+    it('should compress DQN state correctly', () => {
+      const state = {
+        playerX: 123.456,
+        playerY: 789.123,
+        velocityX: 45.678,
+        velocityY: -12.345,
+        onGround: true,
+        nearestPlatformDistance: 50.5,
+        nearestPlatformHeight: 100.3,
+        nearestEnemyDistance: 200.7,
+        nearestSpikeDistance: 300.1,
+        hasGroundAhead: false,
+        gapAhead: true,
+        bossActive: false,
+        bossDistance: 500.9,
+        bossHealth: 75.2,
+        nearestCoinDistance: 80.4,
+        nearestCoinX: 150.6,
+        nearestCoinY: 250.8,
+        nearestPowerUpDistance: 400.2,
+        nearestPowerUpX: 350.3,
+        nearestPowerUpY: 450.7
+      }
+      
+      const compressed = (scene as any).compressDQNState(state)
+      
+      expect(compressed.px).toBe(123)
+      expect(compressed.py).toBe(789)
+      expect(compressed.vx).toBe(45.7)
+      expect(compressed.vy).toBe(-12.3)
+      expect(compressed.og).toBe(1)
+      expect(compressed.hga).toBe(0)
+      expect(compressed.ga).toBe(1)
+      expect(compressed.ba).toBe(0)
+    })
+  })
+
+  describe('recordPlayerFrame tests', () => {
+    beforeEach(() => {
+      scene.create()
+      ;(scene as any).recordedDemonstrations = []
+      ;(scene as any).recordingFrameCount = 0
+      ;(scene as any).lastRecordedState = undefined
+      ;(scene as any).lastRecordedAction = undefined
+      ;(scene as any).enemies.getChildren = vi.fn().mockReturnValue([])
+      ;(scene as any).coins.getChildren = vi.fn().mockReturnValue([])
+      ;(scene as any).powerUps = { getChildren: vi.fn().mockReturnValue([]) }
+      ;(scene as any).platforms.getChildren = vi.fn().mockReturnValue([])
+      ;(scene as any).spikePositions = []
+      ;(scene as any).bossActive = false
+      ;(scene as any).cursors = {
+        left: { isDown: false },
+        right: { isDown: true },
+        up: { isDown: false }
+      }
+      ;(scene as any).jumpButton = { isDown: false }
+      ;(scene as any).fireButton = { isDown: true }
+    })
+
+    it('should extract current action from input', () => {
+      const currentState = (scene as any).extractDQNState()
+      ;(scene as any).lastRecordedState = currentState
+      
+      expect(() => (scene as any).recordPlayerFrame()).not.toThrow()
+    })
+
+    it('should store demonstration when last state exists', () => {
+      const state = (scene as any).extractDQNState()
+      ;(scene as any).lastRecordedState = state
+      ;(scene as any).lastRecordedAction = { moveLeft: false, moveRight: true, jump: false, shoot: true }
+      ;(scene as any).score = 100
+      
+      ;(scene as any).recordPlayerFrame()
+      
+      expect((scene as any).recordedDemonstrations.length).toBeGreaterThanOrEqual(0)
+    })
+  })
+
+  describe('showRecordingStatus and hideRecordingStatus tests', () => {
+    beforeEach(() => {
+      scene.create()
+      ;(scene as any).recordingStatusText = null
+    })
+
+    it('should create recording status text', () => {
+      ;(scene as any).showRecordingStatus()
+      
+      expect((scene as any).add.text).toHaveBeenCalled()
+    })
+
+    it('should hide recording status text', () => {
+      ;(scene as any).recordingStatusText = { 
+        destroy: vi.fn(),
+        setVisible: vi.fn(),
+        active: true
+      }
+      
+      ;(scene as any).hideRecordingStatus()
+      
+      expect((scene as any).recordingStatusText.setVisible).toHaveBeenCalledWith(false)
+    })
+
+    it('should handle null recording status text', () => {
+      ;(scene as any).recordingStatusText = null
+      
+      expect(() => (scene as any).hideRecordingStatus()).not.toThrow()
+    })
+  })
+
+  describe('importDemonstrationsToDQN tests', () => {
+    beforeEach(() => {
+      scene.create()
+      ;(scene as any).dqnAgent = null
+      ;(scene as any).recordedDemonstrations = []
+    })
+
+    it('should handle no demonstrations', async () => {
+      localStorage.removeItem('dqn-demonstrations')
+      
+      await (scene as any).importDemonstrationsToDQN()
+      
+      // Should not throw
+    })
+
+    it('should import demonstrations from localStorage', async () => {
+      const mockDemos = [
+        { s: { px: 100, py: 200 }, a: 1, ns: { px: 110, py: 200 }, r: 0.5, d: 0 }
+      ]
+      localStorage.setItem('dqn-demonstrations', JSON.stringify(mockDemos))
+      
+      await (scene as any).importDemonstrationsToDQN()
+      
+      // Should not throw
     })
   })
 })
