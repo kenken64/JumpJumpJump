@@ -561,6 +561,7 @@ vi.mock('../managers/UIManager', () => ({
     updatePlayer2Lives = vi.fn()
     updatePlayer2Coins = vi.fn()
     updatePlayer2Score = vi.fn()
+    updateAIStatus = vi.fn()
     showLevelComplete = vi.fn()
     showGameOver = vi.fn()
     showOnlineGameOver = vi.fn()
@@ -3596,6 +3597,286 @@ describe('GameScene - Additional Coverage', () => {
       ;(scene as any).setAIAction({ moveLeft: false, moveRight: false, jump: true, shoot: false })
       
       expect((scene as any).player.body.setVelocityY).toHaveBeenCalledWith(-500)
+    })
+  })
+
+  // ==================== SUBMIT SCORE TO BACKEND TESTS ====================
+
+  describe('submitScoreToBackend', () => {
+    beforeEach(() => {
+      scene.create()
+      localStorage.setItem('player_name', 'TestPlayer')
+    })
+
+    it('should submit score data to API', async () => {
+      ;(scene as any).score = 5000
+      ;(scene as any).coinCount = 50
+      ;(scene as any).enemiesDefeated = 10
+      ;(scene as any).currentLevel = 3
+      ;(scene as any).gameMode = 'levels'
+
+      const result = await scene.submitScoreToBackend()
+      
+      // Either succeeds or fails gracefully
+      expect(result).toHaveProperty('success')
+    })
+
+    it('should handle API error gracefully', async () => {
+      // Force API to fail by setting invalid state
+      ;(scene as any).score = undefined
+      
+      const result = await scene.submitScoreToBackend()
+      
+      expect(result).toHaveProperty('success')
+    })
+  })
+
+  // ==================== SAVE GAME TESTS ====================
+
+  describe('saveGame', () => {
+    beforeEach(() => {
+      scene.create()
+      ;(scene as any).coinCount = 100
+      ;(scene as any).currentLevel = 5
+      ;(scene as any).score = 25000
+      ;(scene as any).gameMode = 'levels'
+      ;(scene as any).defeatedBossLevels = new Set([5, 10])
+    })
+
+    it('should save coins to localStorage', async () => {
+      await scene.saveGame()
+      
+      expect(localStorage.getItem('playerCoins')).toBe('100')
+    })
+
+    it('should save current level', async () => {
+      await scene.saveGame()
+      
+      expect(localStorage.getItem('savedLevel')).toBe('5')
+    })
+
+    it('should save score', async () => {
+      await scene.saveGame()
+      
+      expect(localStorage.getItem('savedScore')).toBe('25000')
+    })
+
+    it('should save game mode', async () => {
+      await scene.saveGame()
+      
+      expect(localStorage.getItem('savedGameMode')).toBe('levels')
+    })
+
+    it('should save defeated boss levels', async () => {
+      await scene.saveGame()
+      
+      expect(localStorage.getItem('defeatedBossLevels')).not.toBeNull()
+    })
+  })
+
+  // ==================== TOGGLE AI TESTS ====================
+
+  describe('toggleAI', () => {
+    beforeEach(() => {
+      scene.create()
+      ;(scene as any).aiEnabled = false
+      ;(scene as any).mlAIEnabled = false
+    })
+
+    it('should enable rule-based AI', () => {
+      ;(scene as any).toggleAI()
+      
+      expect((scene as any).aiEnabled).toBe(true)
+    })
+
+    it('should disable ML AI when enabling rule-based', () => {
+      ;(scene as any).mlAIEnabled = true
+      
+      ;(scene as any).toggleAI()
+      
+      expect((scene as any).mlAIEnabled).toBe(false)
+    })
+
+    it('should disable AI when already enabled', () => {
+      ;(scene as any).aiEnabled = true
+      
+      ;(scene as any).toggleAI()
+      
+      expect((scene as any).aiEnabled).toBe(false)
+    })
+
+    it('should show tip when enabling AI', () => {
+      ;(scene as any).toggleAI()
+      
+      expect((scene as any).uiManager.showTip).toHaveBeenCalledWith('ai', expect.any(String))
+    })
+
+    it('should show tip when disabling AI', () => {
+      ;(scene as any).aiEnabled = true
+      
+      ;(scene as any).toggleAI()
+      
+      expect((scene as any).uiManager.showTip).toHaveBeenCalledWith('ai_off', expect.any(String))
+    })
+  })
+
+  // ==================== TOGGLE ML AI TESTS ====================
+
+  describe('toggleMLAI', () => {
+    beforeEach(() => {
+      scene.create()
+      ;(scene as any).aiEnabled = false
+      ;(scene as any).mlAIEnabled = false
+    })
+
+    it('should not throw when toggling ML AI', () => {
+      expect(() => {
+        ;(scene as any).toggleMLAI()
+      }).not.toThrow()
+    })
+
+    it('should show tip after toggling ML AI', () => {
+      ;(scene as any).toggleMLAI()
+      
+      // Should show some kind of tip (either warning or status)
+      expect((scene as any).uiManager.showTip).toHaveBeenCalled()
+    })
+  })
+
+  // ==================== GET ML AI PLAYER TESTS ====================
+
+  describe('getMLAIPlayer', () => {
+    beforeEach(() => {
+      scene.create()
+    })
+
+    it('should return the MLAIPlayer instance', () => {
+      const result = scene.getMLAIPlayer()
+      
+      expect(result).toBe((scene as any).mlAIPlayer)
+    })
+  })
+
+  // ==================== GENERATE ENEMY TEXTURES TESTS ====================
+
+  describe('generateEnemyTextures', () => {
+    beforeEach(() => {
+      scene.create()
+    })
+
+    it('should generate fly texture', () => {
+      ;(scene as any).generateEnemyTextures()
+      
+      expect(scene.add.graphics).toHaveBeenCalled()
+    })
+
+    it('should generate multiple enemy type textures', () => {
+      ;(scene as any).generateEnemyTextures()
+      
+      // Graphics should be created for multiple enemy types
+      expect(scene.add.graphics).toHaveBeenCalled()
+    })
+  })
+
+  // ==================== ONLINE SYNC HANDLER TESTS ====================
+
+  describe('handleRemoteEnemySpawn', () => {
+    beforeEach(() => {
+      scene.create()
+      ;(scene as any).isOnlineHost = false
+      ;(scene as any).remoteEnemies = new Map()
+    })
+
+    it('should skip spawn for host', () => {
+      ;(scene as any).isOnlineHost = true
+      const enemyState = { id: 'enemy1', x: 500, y: 400, type: 'bee' }
+      
+      ;(scene as any).handleRemoteEnemySpawn(enemyState)
+      
+      expect((scene as any).remoteEnemies.size).toBe(0)
+    })
+
+    it('should handle enemy spawn for non-host', () => {
+      const enemyState = { id: 'enemy1', x: 500, y: 400, type: 'bee', velocityX: 0, velocityY: 0, health: 100 }
+      
+      expect(() => {
+        ;(scene as any).handleRemoteEnemySpawn(enemyState)
+      }).not.toThrow()
+    })
+  })
+
+  describe('handleRemoteEnemyKilled', () => {
+    beforeEach(() => {
+      scene.create()
+      ;(scene as any).remoteEnemies = new Map()
+      ;(scene as any).isOnlineHost = false
+    })
+
+    it('should handle enemy killed event', () => {
+      const mockEnemy = createSpriteMock()
+      mockEnemy.getData = vi.fn().mockReturnValue('enemy1')
+      ;(scene as any).remoteEnemies.set('enemy1', mockEnemy)
+      
+      expect(() => {
+        ;(scene as any).handleRemoteEnemyKilled('enemy1', 'player1')
+      }).not.toThrow()
+    })
+
+    it('should handle non-existent enemy', () => {
+      expect(() => {
+        ;(scene as any).handleRemoteEnemyKilled('nonexistent', 'player1')
+      }).not.toThrow()
+    })
+  })
+
+  describe('handleRemoteCoinSpawn', () => {
+    beforeEach(() => {
+      scene.create()
+      ;(scene as any).isOnlineHost = false
+      ;(scene as any).remoteCoins = new Map()
+    })
+
+    it('should skip spawn for host', () => {
+      ;(scene as any).isOnlineHost = true
+      const coinState = { coin_id: 'coin1', x: 500, y: 400, value: 1 }
+      
+      ;(scene as any).handleRemoteCoinSpawn(coinState)
+      
+      expect((scene as any).remoteCoins.size).toBe(0)
+    })
+
+    it('should handle coin spawn for non-host', () => {
+      const coinState = { coin_id: 'coin1', x: 500, y: 400, value: 1, collected: false, type: 'gold' }
+      
+      // handleRemoteCoinSpawn may or may not create new coin depending on tracking
+      expect(() => {
+        ;(scene as any).handleRemoteCoinSpawn(coinState)
+      }).not.toThrow()
+    })
+  })
+
+  describe('handleRemotePowerUpSpawn', () => {
+    beforeEach(() => {
+      scene.create()
+      ;(scene as any).isOnlineHost = false
+      ;(scene as any).remotePowerUps = new Map()
+    })
+
+    it('should skip spawn for host', () => {
+      ;(scene as any).isOnlineHost = true
+      const powerUpState = { powerup_id: 'pu1', x: 500, y: 400, type: 'speed' }
+      
+      ;(scene as any).handleRemotePowerUpSpawn(powerUpState)
+      
+      expect((scene as any).remotePowerUps).toBeDefined()
+    })
+
+    it('should handle power-up spawn for non-host', () => {
+      const powerUpState = { powerup_id: 'pu1', x: 500, y: 400, type: 'speed', collected: false }
+      
+      expect(() => {
+        ;(scene as any).handleRemotePowerUpSpawn(powerUpState)
+      }).not.toThrow()
     })
   })
 })

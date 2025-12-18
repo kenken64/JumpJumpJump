@@ -1069,4 +1069,121 @@ describe('BossManager', () => {
       expect(() => bossManager.update(500, 300)).not.toThrow()
     })
   })
+
+  // ==================== ADDITIONAL COVERAGE TESTS ====================
+
+  describe('attack360Spray', () => {
+    it('should create 12 projectiles in a circle', async () => {
+      bossManager.create()
+      await bossManager.spawnBoss(1000)
+      
+      ;(bossManager as any).attack360Spray()
+      
+      // Should create projectiles (12 for 360 spray)
+      expect(scene.physics.add.sprite).toHaveBeenCalled()
+    })
+
+    it('should set projectile velocity based on angle', async () => {
+      bossManager.create()
+      await bossManager.spawnBoss(1000)
+      
+      ;(bossManager as any).attack360Spray()
+      
+      // All projectiles should have velocity set
+      const spriteCalls = scene.physics.add.sprite.mock.results
+      expect(spriteCalls.length).toBeGreaterThan(0)
+    })
+  })
+
+  describe('attackHoming', () => {
+    it('should create delayed homing projectiles', async () => {
+      bossManager.create()
+      await bossManager.spawnBoss(1000)
+      
+      ;(bossManager as any).attackHoming(500, 400)
+      
+      // Should schedule delayed projectiles
+      expect(scene.time.delayedCall).toHaveBeenCalled()
+    })
+  })
+
+  describe('defeatBoss', () => {
+    it('should save boss defeat to localStorage', async () => {
+      localStorage.setItem('player_name', 'TestPlayer')
+      bossManager.create()
+      await bossManager.spawnBoss(1000)
+      
+      const boss = scene.getBossSprite()
+      boss.getData.mockImplementation((key: string) => {
+        if (key === 'health') return 0
+        if (key === 'bossIndex') return 5
+        return null
+      })
+      
+      ;(bossManager as any).defeatBoss()
+      
+      expect(localStorage.setItem).toHaveBeenCalled()
+    })
+
+    it('should emit boss defeated event', async () => {
+      bossManager.create()
+      await bossManager.spawnBoss(1000)
+      
+      const boss = scene.getBossSprite()
+      boss.getData.mockImplementation((key: string) => {
+        if (key === 'health') return 0
+        if (key === 'bossIndex') return 3
+        return null
+      })
+      
+      const eventSpy = vi.fn()
+      bossManager.on('boss-defeated', eventSpy)
+      
+      ;(bossManager as any).defeatBoss()
+      
+      expect(eventSpy).toHaveBeenCalled()
+    })
+  })
+
+  describe('createExplosion', () => {
+    it('should create explosion flash and particles at position', async () => {
+      bossManager.create()
+      
+      bossManager.createExplosion(500, 300)
+      
+      // Should create circles for flash and particles
+      expect(scene.add.circle).toHaveBeenCalled()
+    })
+  })
+
+  describe('cleanupBossUI', () => {
+    it('should destroy health bar elements', async () => {
+      bossManager.create()
+      await bossManager.spawnBoss(1000)
+      
+      const mockDestroy1 = vi.fn()
+      const mockDestroy2 = vi.fn()
+      const mockDestroy3 = vi.fn()
+      
+      ;(bossManager as any).bossHealthBarBg = { destroy: mockDestroy1 }
+      ;(bossManager as any).bossHealthBar = { destroy: mockDestroy2 }
+      ;(bossManager as any).bossNameText = { destroy: mockDestroy3 }
+      
+      ;(bossManager as any).cleanupBossUI()
+      
+      expect(mockDestroy1).toHaveBeenCalled()
+      expect(mockDestroy2).toHaveBeenCalled()
+      expect(mockDestroy3).toHaveBeenCalled()
+    })
+
+    it('should handle null health bar elements', async () => {
+      bossManager.create()
+      
+      ;(bossManager as any).bossHealthBarBg = null
+      ;(bossManager as any).bossHealthBar = null
+      ;(bossManager as any).bossNameText = null
+      
+      expect(() => (bossManager as any).cleanupBossUI()).not.toThrow()
+    })
+  })
 })

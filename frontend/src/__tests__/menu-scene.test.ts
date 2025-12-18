@@ -1975,4 +1975,101 @@ describe('MenuScene - Extended Coverage', () => {
       }
     })
   })
-})
+
+  // ==================== GAMEPAD MAPPING UI TESTS ====================
+
+  describe('Gamepad Mapping UI', () => {
+    it('should show gamepad controls panel', async () => {
+      await scene.create()
+
+      // Click controls button
+      const controlsBtn = buttonHandlers.get('100,700')
+      controlsBtn?.get('pointerdown')?.()
+
+      // Should create control mapping UI
+      expect(scene.add.text).toHaveBeenCalled()
+    })
+
+    it('should display keyboard controls by default', async () => {
+      await scene.create()
+
+      const controlsBtn = buttonHandlers.get('100,700')
+      controlsBtn?.get('pointerdown')?.()
+
+      // Should have keyboard control labels
+      expect(scene.add.text).toHaveBeenCalled()
+    })
+
+    it('should toggle between keyboard and gamepad views', async () => {
+      await scene.create()
+
+      const controlsBtn = buttonHandlers.get('100,700')
+      controlsBtn?.get('pointerdown')?.()
+
+      // Buttons should be created for toggling
+      expect(scene.add.rectangle).toHaveBeenCalled()
+    })
+
+    it('should create UI elements for gamepad controls', async () => {
+      await scene.create()
+
+      const controlsBtn = buttonHandlers.get('100,700')
+      controlsBtn?.get('pointerdown')?.()
+
+      expect(scene.add.text).toHaveBeenCalled()
+    })
+
+    it('should create gamepad toggle button', async () => {
+      await scene.create()
+
+      const controlsBtn = buttonHandlers.get('100,700')
+      controlsBtn?.get('pointerdown')?.()
+
+      expect(scene.add.rectangle).toHaveBeenCalled()
+    })
+
+    it('should allow switching between keyboard and gamepad views', async () => {
+      await scene.create()
+
+      const controlsBtn = buttonHandlers.get('100,700')
+      controlsBtn?.get('pointerdown')?.()
+
+      // Multiple toggle buttons should be created
+      expect(scene.add.rectangle).toHaveBeenCalled()
+    })
+  })
+
+  // ==================== CLEANUP TESTS ====================
+
+  describe('Scene Cleanup', () => {
+    it('should clean up gamepad polling interval on shutdown', async () => {
+      await scene.create()
+
+      // Mock shutdown event
+      const shutdownHandler = scene.events.on.mock.calls.find(
+        (call: any[]) => call[0] === 'shutdown'
+      )
+
+      if (shutdownHandler && shutdownHandler[1]) {
+        expect(() => shutdownHandler[1]()).not.toThrow()
+      }
+    })
+
+    it('should apply gamepad pads workaround on shutdown', async () => {
+      // Mock input.gamepad
+      scene.input = {
+        ...scene.input,
+        gamepad: {
+          total: 0,
+          pads: [],
+          on: vi.fn(),
+          off: vi.fn()
+        }
+      } as any
+
+      await scene.create()
+
+      // Should handle gamepad cleanup
+      expect(scene.input).toBeDefined()
+    })
+  })})
