@@ -11,6 +11,19 @@ export default defineConfig({
   },
   build: {
     outDir: 'dist',
-    sourcemap: true
+    sourcemap: true,
+    chunkSizeWarningLimit: 1600, // Phaser and TensorFlow are large but unavoidable
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          // Phaser is the largest dependency - split it out
+          phaser: ['phaser'],
+          // React ecosystem
+          react: ['react', 'react-dom'],
+          // TensorFlow for ML/AI features
+          tensorflow: ['@tensorflow/tfjs']
+        }
+      }
+    }
   }
 })

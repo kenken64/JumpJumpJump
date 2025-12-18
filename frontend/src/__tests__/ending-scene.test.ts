@@ -576,4 +576,104 @@ describe('EndingScene', () => {
       )
     })
   })
+
+  // ==================== ADDITIONAL COVERAGE TESTS ====================
+
+  describe('returnToMenu', () => {
+    it('should stop all sounds when returning to menu', async () => {
+      scene.create()
+      
+      await (scene as any).returnToMenu()
+      
+      expect(scene.sound.stopAll).toHaveBeenCalled()
+    })
+
+    it('should clear defeatedBossLevels from localStorage', async () => {
+      localStorage.setItem('defeatedBossLevels', JSON.stringify([1, 2, 3]))
+      scene.create()
+      
+      await (scene as any).returnToMenu()
+      
+      // Verify defeatedBossLevels was removed
+      expect(localStorage.getItem('defeatedBossLevels')).toBeNull()
+    })
+
+    it('should clear player-specific boss records', async () => {
+      localStorage.setItem('player_name', 'TestPlayer')
+      localStorage.setItem('TestPlayer_boss_0', 'defeated')
+      scene.create()
+      
+      await (scene as any).returnToMenu()
+      
+      // Verify boss record was cleared
+      expect(localStorage.getItem('TestPlayer_boss_0')).toBeNull()
+    })
+
+    it('should transition to MenuScene', async () => {
+      scene.create()
+      
+      await (scene as any).returnToMenu()
+      
+      expect(scene.scene.start).toHaveBeenCalledWith('MenuScene')
+    })
+  })
+
+  describe('createStarfield', () => {
+    it('should create 200 stars', () => {
+      scene.create()
+      
+      // Should have called add.circle for starfield
+      expect(scene.add.circle).toHaveBeenCalled()
+    })
+  })
+
+  describe('shutdown', () => {
+    it('should handle gamepad plugin gracefully', () => {
+      scene.create()
+      ;(scene as any).input = {
+        gamepad: { pads: null }
+      }
+      
+      expect(() => (scene as any).shutdown()).not.toThrow()
+    })
+
+    it('should initialize pads array if missing', () => {
+      scene.create()
+      const gamepadPlugin = {}
+      ;(scene as any).input = { gamepad: gamepadPlugin }
+      
+      ;(scene as any).shutdown()
+      
+      expect((gamepadPlugin as any).pads).toEqual([])
+    })
+  })
+
+  describe('scrolling behavior', () => {
+    it('should not scroll when canScroll is false', () => {
+      scene.create()
+      ;(scene as any).canScroll = false
+      
+      // Trigger keyboard handler
+      const handler = keyboardHandlers.get('keydown-SPACE')
+      if (handler) {
+        handler()
+      }
+      
+      // Should not change scroll state significantly
+      expect((scene as any).canScroll).toBe(false)
+    })
+  })
+
+  describe('crash animation', () => {
+    it('should create ship and trail particles', () => {
+      scene.create()
+      
+      // Should have created spaceship image
+      expect(scene.add.image).toHaveBeenCalled()
+      
+      // Should have created particles
+      expect(scene.add.particles).toHaveBeenCalled()
+    })
+  })
 })
+

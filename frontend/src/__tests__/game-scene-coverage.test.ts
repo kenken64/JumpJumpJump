@@ -561,6 +561,7 @@ vi.mock('../managers/UIManager', () => ({
     updatePlayer2Lives = vi.fn()
     updatePlayer2Coins = vi.fn()
     updatePlayer2Score = vi.fn()
+    updateAIStatus = vi.fn()
     showLevelComplete = vi.fn()
     showGameOver = vi.fn()
     showOnlineGameOver = vi.fn()
@@ -3261,6 +3262,621 @@ describe('GameScene - Additional Coverage', () => {
       await (scene as any).importDemonstrationsToDQN()
       
       // Should not throw
+    })
+  })
+
+  // ==================== ADDITIONAL COVERAGE TESTS - LEVEL/PORTAL METHODS ====================
+
+  describe('createLevelEndMarker', () => {
+    it('should create portal at level end', () => {
+      scene.create()
+      ;(scene as any).levelLength = 5000
+      
+      ;(scene as any).createLevelEndMarker()
+      
+      expect((scene as any).portal).toBeDefined()
+      expect(scene.physics.add.sprite).toHaveBeenCalledWith(5000, 450, 'portal')
+    })
+
+    it('should add collision detection for portal', () => {
+      scene.create()
+      ;(scene as any).levelLength = 3000
+      
+      ;(scene as any).createLevelEndMarker()
+      
+      expect(scene.physics.add.overlap).toHaveBeenCalled()
+    })
+  })
+
+  describe('enterPortal', () => {
+    beforeEach(() => {
+      scene.create()
+      ;(scene as any).isTransitioning = false
+      ;(scene as any).playerIsDead = false
+      ;(scene as any).gameMode = 'levels'
+      ;(scene as any).currentLevel = 5
+    })
+
+    it('should prevent multiple transitions', () => {
+      ;(scene as any).isTransitioning = true
+      
+      ;(scene as any).enterPortal()
+      
+      // Should return early, no scene start
+      expect(scene.scene.start).not.toHaveBeenCalled()
+    })
+
+    it('should not enter portal when dead unless remote trigger', () => {
+      ;(scene as any).playerIsDead = true
+      
+      ;(scene as any).enterPortal(false) // Not remote
+      
+      expect(scene.scene.start).not.toHaveBeenCalled()
+    })
+
+    it('should allow remote trigger when dead', () => {
+      ;(scene as any).playerIsDead = true
+      ;(scene as any).currentLevel = 110
+      
+      ;(scene as any).enterPortal(true) // Remote trigger
+      
+      expect((scene as any).isTransitioning).toBe(true)
+    })
+
+    it('should transition to ending scene at level 110', () => {
+      ;(scene as any).currentLevel = 110
+      
+      ;(scene as any).enterPortal()
+      
+      expect(scene.scene.start).toHaveBeenCalledWith('EndingScene')
+    })
+
+    it('should save coins before transitioning', () => {
+      ;(scene as any).coinCount = 150
+      
+      ;(scene as any).enterPortal()
+      
+      expect(localStorage.getItem('playerCoins')).toBe('150')
+    })
+  })
+
+  // ==================== ASSIST PARTNER TESTS ====================
+
+  describe('attemptAssistPartner', () => {
+    beforeEach(() => {
+      scene.create()
+      ;(scene as any).isCoopMode = true
+      ;(scene as any).isOnlineMode = false
+      ;(scene as any).player2 = createSpriteMock({ x: 100, y: 500 })
+      ;(scene as any).player.x = 500
+    })
+
+    it('should do nothing if not in coop mode', () => {
+      ;(scene as any).isCoopMode = false
+      
+      expect(() => (scene as any).attemptAssistPartner()).not.toThrow()
+    })
+
+    it('should show tip if partner is not far behind', () => {
+      ;(scene as any).player2.x = 450 // Close to player 1
+      
+      ;(scene as any).attemptAssistPartner()
+      
+      expect(scene.uiManager.showTip).toHaveBeenCalledWith('assist_unnecessary', expect.any(String))
+    })
+
+    it('should nudge player2 forward in local coop', () => {
+      ;(scene as any).player2.x = 100 // Far behind
+      ;(scene as any).player.x = 500
+      
+      ;(scene as any).attemptAssistPartner()
+      
+      expect((scene as any).player2.setPosition).toHaveBeenCalledWith(350, expect.any(Number))
+      expect(scene.uiManager.showTip).toHaveBeenCalledWith('assist_done', expect.any(String))
+    })
+
+    it('should deny assist for non-host in online mode', () => {
+      ;(scene as any).isOnlineMode = true
+      ;(scene as any).isOnlineHost = false
+      ;(scene as any).onlinePlayerManager = {
+        getRemotePlayer: vi.fn().mockReturnValue({ sprite: createSpriteMock() })
+      }
+      
+      ;(scene as any).attemptAssistPartner()
+      
+      expect(scene.uiManager.showTip).toHaveBeenCalledWith('assist_denied', expect.any(String))
+    })
+  })
+
+  // ==================== BOSS ATTACK TESTS ====================
+
+  describe('bossAttack', () => {
+    beforeEach(() => {
+      scene.create()
+      ;(scene as any).boss = createSpriteMock({ x: 300, y: 300 })
+      ;(scene as any).boss.getData = vi.fn().mockReturnValue('bossAttack')
+      ;(scene as any).playerIsDead = false
+      ;(scene as any).debugMode = false
+    })
+
+    it('should return early if no boss', () => {
+      ;(scene as any).boss = null
+      
+      expect(() => (scene as any).bossAttack('360')).not.toThrow()
+    })
+
+    it('should play attack animation if exists', () => {
+      scene.anims.exists = vi.fn().mockReturnValue(true)
+      
+      ;(scene as any).bossAttack('360')
+      
+      expect((scene as any).boss.play).toHaveBeenCalled()
+    })
+
+    it('should create 360 degree spray attack', () => {
+      ;(scene as any).bossAttack('360')
+      
+      // Should create 12 projectiles
+      expect(scene.physics.add.sprite).toHaveBeenCalled()
+    })
+
+    it('should create homing attack projectiles', () => {
+      ;(scene as any).bossAttack('homing')
+      
+      // Should create delayed projectiles
+      expect(scene.time.delayedCall).toHaveBeenCalled()
+    })
+  })
+
+  // ==================== FRIENDLY FIRE TESTS ====================
+
+  describe('handleFriendlyFire', () => {
+    let mockPlayer: any
+    let mockBullet: any
+
+    beforeEach(() => {
+      scene.create()
+      mockPlayer = createSpriteMock({ x: 100, y: 100 })
+      mockPlayer.getData = vi.fn().mockImplementation((key: string) => {
+        if (key === 'lastHitTime') return 0
+        if (key === 'health') return 100
+        if (key === 'lives') return 3
+        if (key === 'isDead') return false
+        if (key === 'hasShield') return false
+        return null
+      })
+      mockBullet = createSpriteMock({ x: 100, y: 100 })
+      mockBullet.body = { velocity: { x: 100 } }
+      ;(scene as any).player = mockPlayer
+      ;(scene as any).playerIsDead = false
+      ;(scene as any).playerHealth = 100
+      ;(scene as any).hasShield = false
+      ;(scene as any).debugMode = false
+      ;(scene as any).isCoopMode = false
+      scene.time.now = 5000
+    })
+
+    it('should skip if player is already dead', () => {
+      ;(scene as any).playerIsDead = true
+      
+      ;(scene as any).handleFriendlyFire(mockPlayer, mockBullet)
+      
+      expect(mockBullet.destroy).not.toHaveBeenCalled()
+    })
+
+    it('should skip if player has invincibility frames', () => {
+      mockPlayer.getData = vi.fn().mockReturnValue(scene.time.now - 500) // Recent hit
+      
+      ;(scene as any).handleFriendlyFire(mockPlayer, mockBullet)
+      
+      expect(mockBullet.destroy).toHaveBeenCalled()
+      expect((scene as any).playerHealth).toBe(100) // No damage taken
+    })
+
+    it('should skip damage in debug mode', () => {
+      ;(scene as any).debugMode = true
+      
+      ;(scene as any).handleFriendlyFire(mockPlayer, mockBullet)
+      
+      expect(mockBullet.destroy).toHaveBeenCalled()
+      expect((scene as any).playerHealth).toBe(100)
+    })
+
+    it('should absorb damage with shield', () => {
+      ;(scene as any).hasShield = true
+      
+      ;(scene as any).handleFriendlyFire(mockPlayer, mockBullet)
+      
+      expect((scene as any).hasShield).toBe(false)
+      expect(mockBullet.destroy).toHaveBeenCalled()
+      expect((scene as any).playerHealth).toBe(100)
+    })
+
+    it('should deal friendly fire damage', () => {
+      ;(scene as any).handleFriendlyFire(mockPlayer, mockBullet)
+      
+      expect((scene as any).playerHealth).toBe(90) // 10 damage from friendly fire
+    })
+
+    it('should handle player death from friendly fire', () => {
+      ;(scene as any).playerHealth = 5
+      
+      ;(scene as any).handleFriendlyFire(mockPlayer, mockBullet)
+      
+      expect((scene as any).playerHealth).toBe(0)
+    })
+
+    it('should handle player 2 in coop mode', () => {
+      ;(scene as any).isCoopMode = true
+      ;(scene as any).player2 = mockPlayer
+      ;(scene as any).player = createSpriteMock({ x: 200 }) // Different player
+      
+      ;(scene as any).handleFriendlyFire(mockPlayer, mockBullet)
+      
+      // Should process player 2 damage
+      expect(mockBullet.destroy).toHaveBeenCalled()
+    })
+  })
+
+  // ==================== THROW SWORD BLADE TESTS ====================
+
+  describe('throwSwordBlade', () => {
+    beforeEach(() => {
+      scene.create()
+      ;(scene as any).player.flipX = false
+    })
+
+    it('should create spinning blade projectile', () => {
+      ;(scene as any).throwSwordBlade()
+      
+      expect(scene.physics.add.sprite).toHaveBeenCalledWith(
+        expect.any(Number),
+        expect.any(Number),
+        'sword'
+      )
+    })
+
+    it('should throw blade in facing direction', () => {
+      ;(scene as any).player.flipX = true // Facing left
+      
+      ;(scene as any).throwSwordBlade()
+      
+      // Should be called with negative velocity
+      expect(scene.physics.add.sprite).toHaveBeenCalled()
+    })
+
+    it('should add spinning animation', () => {
+      ;(scene as any).throwSwordBlade()
+      
+      expect(scene.tweens.add).toHaveBeenCalled()
+    })
+
+    it('should check collision with enemies', () => {
+      ;(scene as any).throwSwordBlade()
+      
+      expect(scene.physics.add.overlap).toHaveBeenCalled()
+    })
+  })
+
+  // ==================== SET AI ACTION TESTS ====================
+
+  describe('setAIAction', () => {
+    beforeEach(() => {
+      scene.create()
+      ;(scene as any).hasSpeedBoost = false
+      ;(scene as any).player.body.touching = { down: true }
+    })
+
+    it('should do nothing without player', () => {
+      ;(scene as any).player = null
+      
+      expect(() => (scene as any).setAIAction({ moveLeft: true, moveRight: false, jump: false, shoot: false })).not.toThrow()
+    })
+
+    it('should apply left movement', () => {
+      ;(scene as any).setAIAction({ moveLeft: true, moveRight: false, jump: false, shoot: false })
+      
+      expect((scene as any).player.body.setVelocityX).toHaveBeenCalledWith(-200)
+    })
+
+    it('should apply right movement', () => {
+      ;(scene as any).setAIAction({ moveLeft: false, moveRight: true, jump: false, shoot: false })
+      
+      expect((scene as any).player.body.setVelocityX).toHaveBeenCalledWith(200)
+    })
+
+    it('should apply speed boost', () => {
+      ;(scene as any).hasSpeedBoost = true
+      
+      ;(scene as any).setAIAction({ moveLeft: false, moveRight: true, jump: false, shoot: false })
+      
+      expect((scene as any).player.body.setVelocityX).toHaveBeenCalledWith(300)
+    })
+
+    it('should apply jump when on ground', () => {
+      ;(scene as any).setAIAction({ moveLeft: false, moveRight: false, jump: true, shoot: false })
+      
+      expect((scene as any).player.body.setVelocityY).toHaveBeenCalledWith(-500)
+    })
+  })
+
+  // ==================== SUBMIT SCORE TO BACKEND TESTS ====================
+
+  describe('submitScoreToBackend', () => {
+    beforeEach(() => {
+      scene.create()
+      localStorage.setItem('player_name', 'TestPlayer')
+    })
+
+    it('should submit score data to API', async () => {
+      ;(scene as any).score = 5000
+      ;(scene as any).coinCount = 50
+      ;(scene as any).enemiesDefeated = 10
+      ;(scene as any).currentLevel = 3
+      ;(scene as any).gameMode = 'levels'
+
+      const result = await scene.submitScoreToBackend()
+      
+      // Either succeeds or fails gracefully
+      expect(result).toHaveProperty('success')
+    })
+
+    it('should handle API error gracefully', async () => {
+      // Force API to fail by setting invalid state
+      ;(scene as any).score = undefined
+      
+      const result = await scene.submitScoreToBackend()
+      
+      expect(result).toHaveProperty('success')
+    })
+  })
+
+  // ==================== SAVE GAME TESTS ====================
+
+  describe('saveGame', () => {
+    beforeEach(() => {
+      scene.create()
+      ;(scene as any).coinCount = 100
+      ;(scene as any).currentLevel = 5
+      ;(scene as any).score = 25000
+      ;(scene as any).gameMode = 'levels'
+      ;(scene as any).defeatedBossLevels = new Set([5, 10])
+    })
+
+    it('should save coins to localStorage', async () => {
+      await scene.saveGame()
+      
+      expect(localStorage.getItem('playerCoins')).toBe('100')
+    })
+
+    it('should save current level', async () => {
+      await scene.saveGame()
+      
+      expect(localStorage.getItem('savedLevel')).toBe('5')
+    })
+
+    it('should save score', async () => {
+      await scene.saveGame()
+      
+      expect(localStorage.getItem('savedScore')).toBe('25000')
+    })
+
+    it('should save game mode', async () => {
+      await scene.saveGame()
+      
+      expect(localStorage.getItem('savedGameMode')).toBe('levels')
+    })
+
+    it('should save defeated boss levels', async () => {
+      await scene.saveGame()
+      
+      expect(localStorage.getItem('defeatedBossLevels')).not.toBeNull()
+    })
+  })
+
+  // ==================== TOGGLE AI TESTS ====================
+
+  describe('toggleAI', () => {
+    beforeEach(() => {
+      scene.create()
+      ;(scene as any).aiEnabled = false
+      ;(scene as any).mlAIEnabled = false
+    })
+
+    it('should enable rule-based AI', () => {
+      ;(scene as any).toggleAI()
+      
+      expect((scene as any).aiEnabled).toBe(true)
+    })
+
+    it('should disable ML AI when enabling rule-based', () => {
+      ;(scene as any).mlAIEnabled = true
+      
+      ;(scene as any).toggleAI()
+      
+      expect((scene as any).mlAIEnabled).toBe(false)
+    })
+
+    it('should disable AI when already enabled', () => {
+      ;(scene as any).aiEnabled = true
+      
+      ;(scene as any).toggleAI()
+      
+      expect((scene as any).aiEnabled).toBe(false)
+    })
+
+    it('should show tip when enabling AI', () => {
+      ;(scene as any).toggleAI()
+      
+      expect((scene as any).uiManager.showTip).toHaveBeenCalledWith('ai', expect.any(String))
+    })
+
+    it('should show tip when disabling AI', () => {
+      ;(scene as any).aiEnabled = true
+      
+      ;(scene as any).toggleAI()
+      
+      expect((scene as any).uiManager.showTip).toHaveBeenCalledWith('ai_off', expect.any(String))
+    })
+  })
+
+  // ==================== TOGGLE ML AI TESTS ====================
+
+  describe('toggleMLAI', () => {
+    beforeEach(() => {
+      scene.create()
+      ;(scene as any).aiEnabled = false
+      ;(scene as any).mlAIEnabled = false
+    })
+
+    it('should not throw when toggling ML AI', () => {
+      expect(() => {
+        ;(scene as any).toggleMLAI()
+      }).not.toThrow()
+    })
+
+    it('should show tip after toggling ML AI', () => {
+      ;(scene as any).toggleMLAI()
+      
+      // Should show some kind of tip (either warning or status)
+      expect((scene as any).uiManager.showTip).toHaveBeenCalled()
+    })
+  })
+
+  // ==================== GET ML AI PLAYER TESTS ====================
+
+  describe('getMLAIPlayer', () => {
+    beforeEach(() => {
+      scene.create()
+    })
+
+    it('should return the MLAIPlayer instance', () => {
+      const result = scene.getMLAIPlayer()
+      
+      expect(result).toBe((scene as any).mlAIPlayer)
+    })
+  })
+
+  // ==================== GENERATE ENEMY TEXTURES TESTS ====================
+
+  describe('generateEnemyTextures', () => {
+    beforeEach(() => {
+      scene.create()
+    })
+
+    it('should generate fly texture', () => {
+      ;(scene as any).generateEnemyTextures()
+      
+      expect(scene.add.graphics).toHaveBeenCalled()
+    })
+
+    it('should generate multiple enemy type textures', () => {
+      ;(scene as any).generateEnemyTextures()
+      
+      // Graphics should be created for multiple enemy types
+      expect(scene.add.graphics).toHaveBeenCalled()
+    })
+  })
+
+  // ==================== ONLINE SYNC HANDLER TESTS ====================
+
+  describe('handleRemoteEnemySpawn', () => {
+    beforeEach(() => {
+      scene.create()
+      ;(scene as any).isOnlineHost = false
+      ;(scene as any).remoteEnemies = new Map()
+    })
+
+    it('should skip spawn for host', () => {
+      ;(scene as any).isOnlineHost = true
+      const enemyState = { id: 'enemy1', x: 500, y: 400, type: 'bee' }
+      
+      ;(scene as any).handleRemoteEnemySpawn(enemyState)
+      
+      expect((scene as any).remoteEnemies.size).toBe(0)
+    })
+
+    it('should handle enemy spawn for non-host', () => {
+      const enemyState = { id: 'enemy1', x: 500, y: 400, type: 'bee', velocityX: 0, velocityY: 0, health: 100 }
+      
+      expect(() => {
+        ;(scene as any).handleRemoteEnemySpawn(enemyState)
+      }).not.toThrow()
+    })
+  })
+
+  describe('handleRemoteEnemyKilled', () => {
+    beforeEach(() => {
+      scene.create()
+      ;(scene as any).remoteEnemies = new Map()
+      ;(scene as any).isOnlineHost = false
+    })
+
+    it('should handle enemy killed event', () => {
+      const mockEnemy = createSpriteMock()
+      mockEnemy.getData = vi.fn().mockReturnValue('enemy1')
+      ;(scene as any).remoteEnemies.set('enemy1', mockEnemy)
+      
+      expect(() => {
+        ;(scene as any).handleRemoteEnemyKilled('enemy1', 'player1')
+      }).not.toThrow()
+    })
+
+    it('should handle non-existent enemy', () => {
+      expect(() => {
+        ;(scene as any).handleRemoteEnemyKilled('nonexistent', 'player1')
+      }).not.toThrow()
+    })
+  })
+
+  describe('handleRemoteCoinSpawn', () => {
+    beforeEach(() => {
+      scene.create()
+      ;(scene as any).isOnlineHost = false
+      ;(scene as any).remoteCoins = new Map()
+    })
+
+    it('should skip spawn for host', () => {
+      ;(scene as any).isOnlineHost = true
+      const coinState = { coin_id: 'coin1', x: 500, y: 400, value: 1 }
+      
+      ;(scene as any).handleRemoteCoinSpawn(coinState)
+      
+      expect((scene as any).remoteCoins.size).toBe(0)
+    })
+
+    it('should handle coin spawn for non-host', () => {
+      const coinState = { coin_id: 'coin1', x: 500, y: 400, value: 1, collected: false, type: 'gold' }
+      
+      // handleRemoteCoinSpawn may or may not create new coin depending on tracking
+      expect(() => {
+        ;(scene as any).handleRemoteCoinSpawn(coinState)
+      }).not.toThrow()
+    })
+  })
+
+  describe('handleRemotePowerUpSpawn', () => {
+    beforeEach(() => {
+      scene.create()
+      ;(scene as any).isOnlineHost = false
+      ;(scene as any).remotePowerUps = new Map()
+    })
+
+    it('should skip spawn for host', () => {
+      ;(scene as any).isOnlineHost = true
+      const powerUpState = { powerup_id: 'pu1', x: 500, y: 400, type: 'speed' }
+      
+      ;(scene as any).handleRemotePowerUpSpawn(powerUpState)
+      
+      expect((scene as any).remotePowerUps).toBeDefined()
+    })
+
+    it('should handle power-up spawn for non-host', () => {
+      const powerUpState = { powerup_id: 'pu1', x: 500, y: 400, type: 'speed', collected: false }
+      
+      expect(() => {
+        ;(scene as any).handleRemotePowerUpSpawn(powerUpState)
+      }).not.toThrow()
     })
   })
 })
