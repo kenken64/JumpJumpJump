@@ -3263,4 +3263,339 @@ describe('GameScene - Additional Coverage', () => {
       // Should not throw
     })
   })
+
+  // ==================== ADDITIONAL COVERAGE TESTS - LEVEL/PORTAL METHODS ====================
+
+  describe('createLevelEndMarker', () => {
+    it('should create portal at level end', () => {
+      scene.create()
+      ;(scene as any).levelLength = 5000
+      
+      ;(scene as any).createLevelEndMarker()
+      
+      expect((scene as any).portal).toBeDefined()
+      expect(scene.physics.add.sprite).toHaveBeenCalledWith(5000, 450, 'portal')
+    })
+
+    it('should add collision detection for portal', () => {
+      scene.create()
+      ;(scene as any).levelLength = 3000
+      
+      ;(scene as any).createLevelEndMarker()
+      
+      expect(scene.physics.add.overlap).toHaveBeenCalled()
+    })
+  })
+
+  describe('enterPortal', () => {
+    beforeEach(() => {
+      scene.create()
+      ;(scene as any).isTransitioning = false
+      ;(scene as any).playerIsDead = false
+      ;(scene as any).gameMode = 'levels'
+      ;(scene as any).currentLevel = 5
+    })
+
+    it('should prevent multiple transitions', () => {
+      ;(scene as any).isTransitioning = true
+      
+      ;(scene as any).enterPortal()
+      
+      // Should return early, no scene start
+      expect(scene.scene.start).not.toHaveBeenCalled()
+    })
+
+    it('should not enter portal when dead unless remote trigger', () => {
+      ;(scene as any).playerIsDead = true
+      
+      ;(scene as any).enterPortal(false) // Not remote
+      
+      expect(scene.scene.start).not.toHaveBeenCalled()
+    })
+
+    it('should allow remote trigger when dead', () => {
+      ;(scene as any).playerIsDead = true
+      ;(scene as any).currentLevel = 110
+      
+      ;(scene as any).enterPortal(true) // Remote trigger
+      
+      expect((scene as any).isTransitioning).toBe(true)
+    })
+
+    it('should transition to ending scene at level 110', () => {
+      ;(scene as any).currentLevel = 110
+      
+      ;(scene as any).enterPortal()
+      
+      expect(scene.scene.start).toHaveBeenCalledWith('EndingScene')
+    })
+
+    it('should save coins before transitioning', () => {
+      ;(scene as any).coinCount = 150
+      
+      ;(scene as any).enterPortal()
+      
+      expect(localStorage.getItem('playerCoins')).toBe('150')
+    })
+  })
+
+  // ==================== ASSIST PARTNER TESTS ====================
+
+  describe('attemptAssistPartner', () => {
+    beforeEach(() => {
+      scene.create()
+      ;(scene as any).isCoopMode = true
+      ;(scene as any).isOnlineMode = false
+      ;(scene as any).player2 = createSpriteMock({ x: 100, y: 500 })
+      ;(scene as any).player.x = 500
+    })
+
+    it('should do nothing if not in coop mode', () => {
+      ;(scene as any).isCoopMode = false
+      
+      expect(() => (scene as any).attemptAssistPartner()).not.toThrow()
+    })
+
+    it('should show tip if partner is not far behind', () => {
+      ;(scene as any).player2.x = 450 // Close to player 1
+      
+      ;(scene as any).attemptAssistPartner()
+      
+      expect(scene.uiManager.showTip).toHaveBeenCalledWith('assist_unnecessary', expect.any(String))
+    })
+
+    it('should nudge player2 forward in local coop', () => {
+      ;(scene as any).player2.x = 100 // Far behind
+      ;(scene as any).player.x = 500
+      
+      ;(scene as any).attemptAssistPartner()
+      
+      expect((scene as any).player2.setPosition).toHaveBeenCalledWith(350, expect.any(Number))
+      expect(scene.uiManager.showTip).toHaveBeenCalledWith('assist_done', expect.any(String))
+    })
+
+    it('should deny assist for non-host in online mode', () => {
+      ;(scene as any).isOnlineMode = true
+      ;(scene as any).isOnlineHost = false
+      ;(scene as any).onlinePlayerManager = {
+        getRemotePlayer: vi.fn().mockReturnValue({ sprite: createSpriteMock() })
+      }
+      
+      ;(scene as any).attemptAssistPartner()
+      
+      expect(scene.uiManager.showTip).toHaveBeenCalledWith('assist_denied', expect.any(String))
+    })
+  })
+
+  // ==================== BOSS ATTACK TESTS ====================
+
+  describe('bossAttack', () => {
+    beforeEach(() => {
+      scene.create()
+      ;(scene as any).boss = createSpriteMock({ x: 300, y: 300 })
+      ;(scene as any).boss.getData = vi.fn().mockReturnValue('bossAttack')
+      ;(scene as any).playerIsDead = false
+      ;(scene as any).debugMode = false
+    })
+
+    it('should return early if no boss', () => {
+      ;(scene as any).boss = null
+      
+      expect(() => (scene as any).bossAttack('360')).not.toThrow()
+    })
+
+    it('should play attack animation if exists', () => {
+      scene.anims.exists = vi.fn().mockReturnValue(true)
+      
+      ;(scene as any).bossAttack('360')
+      
+      expect((scene as any).boss.play).toHaveBeenCalled()
+    })
+
+    it('should create 360 degree spray attack', () => {
+      ;(scene as any).bossAttack('360')
+      
+      // Should create 12 projectiles
+      expect(scene.physics.add.sprite).toHaveBeenCalled()
+    })
+
+    it('should create homing attack projectiles', () => {
+      ;(scene as any).bossAttack('homing')
+      
+      // Should create delayed projectiles
+      expect(scene.time.delayedCall).toHaveBeenCalled()
+    })
+  })
+
+  // ==================== FRIENDLY FIRE TESTS ====================
+
+  describe('handleFriendlyFire', () => {
+    let mockPlayer: any
+    let mockBullet: any
+
+    beforeEach(() => {
+      scene.create()
+      mockPlayer = createSpriteMock({ x: 100, y: 100 })
+      mockPlayer.getData = vi.fn().mockImplementation((key: string) => {
+        if (key === 'lastHitTime') return 0
+        if (key === 'health') return 100
+        if (key === 'lives') return 3
+        if (key === 'isDead') return false
+        if (key === 'hasShield') return false
+        return null
+      })
+      mockBullet = createSpriteMock({ x: 100, y: 100 })
+      mockBullet.body = { velocity: { x: 100 } }
+      ;(scene as any).player = mockPlayer
+      ;(scene as any).playerIsDead = false
+      ;(scene as any).playerHealth = 100
+      ;(scene as any).hasShield = false
+      ;(scene as any).debugMode = false
+      ;(scene as any).isCoopMode = false
+      scene.time.now = 5000
+    })
+
+    it('should skip if player is already dead', () => {
+      ;(scene as any).playerIsDead = true
+      
+      ;(scene as any).handleFriendlyFire(mockPlayer, mockBullet)
+      
+      expect(mockBullet.destroy).not.toHaveBeenCalled()
+    })
+
+    it('should skip if player has invincibility frames', () => {
+      mockPlayer.getData = vi.fn().mockReturnValue(scene.time.now - 500) // Recent hit
+      
+      ;(scene as any).handleFriendlyFire(mockPlayer, mockBullet)
+      
+      expect(mockBullet.destroy).toHaveBeenCalled()
+      expect((scene as any).playerHealth).toBe(100) // No damage taken
+    })
+
+    it('should skip damage in debug mode', () => {
+      ;(scene as any).debugMode = true
+      
+      ;(scene as any).handleFriendlyFire(mockPlayer, mockBullet)
+      
+      expect(mockBullet.destroy).toHaveBeenCalled()
+      expect((scene as any).playerHealth).toBe(100)
+    })
+
+    it('should absorb damage with shield', () => {
+      ;(scene as any).hasShield = true
+      
+      ;(scene as any).handleFriendlyFire(mockPlayer, mockBullet)
+      
+      expect((scene as any).hasShield).toBe(false)
+      expect(mockBullet.destroy).toHaveBeenCalled()
+      expect((scene as any).playerHealth).toBe(100)
+    })
+
+    it('should deal friendly fire damage', () => {
+      ;(scene as any).handleFriendlyFire(mockPlayer, mockBullet)
+      
+      expect((scene as any).playerHealth).toBe(90) // 10 damage from friendly fire
+    })
+
+    it('should handle player death from friendly fire', () => {
+      ;(scene as any).playerHealth = 5
+      
+      ;(scene as any).handleFriendlyFire(mockPlayer, mockBullet)
+      
+      expect((scene as any).playerHealth).toBe(0)
+    })
+
+    it('should handle player 2 in coop mode', () => {
+      ;(scene as any).isCoopMode = true
+      ;(scene as any).player2 = mockPlayer
+      ;(scene as any).player = createSpriteMock({ x: 200 }) // Different player
+      
+      ;(scene as any).handleFriendlyFire(mockPlayer, mockBullet)
+      
+      // Should process player 2 damage
+      expect(mockBullet.destroy).toHaveBeenCalled()
+    })
+  })
+
+  // ==================== THROW SWORD BLADE TESTS ====================
+
+  describe('throwSwordBlade', () => {
+    beforeEach(() => {
+      scene.create()
+      ;(scene as any).player.flipX = false
+    })
+
+    it('should create spinning blade projectile', () => {
+      ;(scene as any).throwSwordBlade()
+      
+      expect(scene.physics.add.sprite).toHaveBeenCalledWith(
+        expect.any(Number),
+        expect.any(Number),
+        'sword'
+      )
+    })
+
+    it('should throw blade in facing direction', () => {
+      ;(scene as any).player.flipX = true // Facing left
+      
+      ;(scene as any).throwSwordBlade()
+      
+      // Should be called with negative velocity
+      expect(scene.physics.add.sprite).toHaveBeenCalled()
+    })
+
+    it('should add spinning animation', () => {
+      ;(scene as any).throwSwordBlade()
+      
+      expect(scene.tweens.add).toHaveBeenCalled()
+    })
+
+    it('should check collision with enemies', () => {
+      ;(scene as any).throwSwordBlade()
+      
+      expect(scene.physics.add.overlap).toHaveBeenCalled()
+    })
+  })
+
+  // ==================== SET AI ACTION TESTS ====================
+
+  describe('setAIAction', () => {
+    beforeEach(() => {
+      scene.create()
+      ;(scene as any).hasSpeedBoost = false
+      ;(scene as any).player.body.touching = { down: true }
+    })
+
+    it('should do nothing without player', () => {
+      ;(scene as any).player = null
+      
+      expect(() => (scene as any).setAIAction({ moveLeft: true, moveRight: false, jump: false, shoot: false })).not.toThrow()
+    })
+
+    it('should apply left movement', () => {
+      ;(scene as any).setAIAction({ moveLeft: true, moveRight: false, jump: false, shoot: false })
+      
+      expect((scene as any).player.body.setVelocityX).toHaveBeenCalledWith(-200)
+    })
+
+    it('should apply right movement', () => {
+      ;(scene as any).setAIAction({ moveLeft: false, moveRight: true, jump: false, shoot: false })
+      
+      expect((scene as any).player.body.setVelocityX).toHaveBeenCalledWith(200)
+    })
+
+    it('should apply speed boost', () => {
+      ;(scene as any).hasSpeedBoost = true
+      
+      ;(scene as any).setAIAction({ moveLeft: false, moveRight: true, jump: false, shoot: false })
+      
+      expect((scene as any).player.body.setVelocityX).toHaveBeenCalledWith(300)
+    })
+
+    it('should apply jump when on ground', () => {
+      ;(scene as any).setAIAction({ moveLeft: false, moveRight: false, jump: true, shoot: false })
+      
+      expect((scene as any).player.body.setVelocityY).toHaveBeenCalledWith(-500)
+    })
+  })
 })
