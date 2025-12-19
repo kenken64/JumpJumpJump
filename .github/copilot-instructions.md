@@ -63,6 +63,18 @@ All game assets are from Kenney asset packs, organized in `frontend/assets/`:
   - Deleting data from the SQLite database requires explicit permission from the user.
   - **DO NOT DROP** any table without explicit permission from the user.
 
+### 9. Token Conservation
+- **DO NOT read files** from these directories unless explicitly required by a tool or user request:
+  - `node_modules/` - Third-party packages (use documentation instead)
+  - `.git/` - Git internals
+  - `coverage/` - Test coverage reports
+  - `dist/` or `build/` - Build outputs
+  - `playwright-report/` - E2E test reports
+  - `test-results/` - Test artifacts
+- **Prefer semantic search** over reading many files sequentially
+- **Read larger chunks** instead of multiple small reads
+- **Use grep_search** to find specific patterns rather than reading entire files
+
 ## Common Commands
 
 ### Development
