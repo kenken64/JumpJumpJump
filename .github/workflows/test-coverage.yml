@@ -11,22 +11,13 @@ permissions:
   pull-requests: write
   issues: write
 
-env:
-  # Increase Node.js memory limit for large test suites
-  NODE_OPTIONS: '--max-old-space-size=6144'
-
 jobs:
-  test:
+  # Run lightweight tests first (fast feedback)
+  test-light:
     runs-on: ubuntu-latest
-
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
-
-      - name: Setup swap space
-        uses: pierotofy/set-swap-space@master
-        with:
-          swap-size-gb: 10
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -53,21 +44,123 @@ jobs:
 
       - name: Install dependencies
         working-directory: frontend
-        run: pnpm install
+        run: pnpm install --no-frozen-lockfile
 
       - name: Run TypeScript type check
         working-directory: frontend
         run: pnpm run type-check
 
-      - name: Run tests with coverage (with memory optimization)
+      - name: Run lightweight tests (exclude heavy coverage tests)
         working-directory: frontend
         env:
-          # Reduce memory limit to leave room for coverage processing
-          NODE_OPTIONS: '--max-old-space-size=4096 --expose-gc'
+          NODE_OPTIONS: '--max-old-space-size=4096'
           CI: 'true'
         run: |
-          # Run tests sequentially with single worker to minimize memory
-          pnpm run test:coverage -- --no-file-parallelism --reporter=basic
+          pnpm vitest run --exclude='**/game-scene-coverage.test.ts' --reporter=basic
+
+  # Run heavy coverage test separately with more resources
+  test-coverage-heavy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup swap space
+        uses: pierotofy/set-swap-space@master
+        with:
+          swap-size-gb: 12
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v2
+        with:
+          version: 8
+
+      - name: Get pnpm store directory
+        shell: bash
+        run: |
+          echo "STORE_PATH=$(pnpm store path --silent)" >> $GITHUB_ENV
+
+      - name: Setup pnpm cache
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.STORE_PATH }}
+          key: ${{ runner.os }}-pnpm-store-${{ hashFiles('**/pnpm-lock.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-pnpm-store-
+
+      - name: Install dependencies
+        working-directory: frontend
+        run: pnpm install --no-frozen-lockfile
+
+      - name: Run heavy coverage test
+        working-directory: frontend
+        env:
+          NODE_OPTIONS: '--max-old-space-size=6144 --expose-gc'
+          CI: 'true'
+        run: |
+          # Run only the heavy test file with coverage, single threaded
+          pnpm vitest run src/__tests__/game-scene-coverage.test.ts --coverage --pool=forks --poolOptions.forks.singleFork --reporter=basic
+
+      - name: Upload heavy test coverage
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-heavy
+          path: frontend/coverage/
+          retention-days: 7
+
+  # Generate full coverage report
+  coverage-report:
+    runs-on: ubuntu-latest
+    needs: [test-light, test-coverage-heavy]
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup swap space
+        uses: pierotofy/set-swap-space@master
+        with:
+          swap-size-gb: 12
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v2
+        with:
+          version: 8
+
+      - name: Get pnpm store directory
+        shell: bash
+        run: |
+          echo "STORE_PATH=$(pnpm store path --silent)" >> $GITHUB_ENV
+
+      - name: Setup pnpm cache
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.STORE_PATH }}
+          key: ${{ runner.os }}-pnpm-store-${{ hashFiles('**/pnpm-lock.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-pnpm-store-
+
+      - name: Install dependencies
+        working-directory: frontend
+        run: pnpm install --no-frozen-lockfile
+
+      - name: Run full test suite with coverage
+        working-directory: frontend
+        env:
+          NODE_OPTIONS: '--max-old-space-size=6144 --expose-gc'
+          CI: 'true'
+        run: |
+          # Run all tests except the heavy one for coverage
+          pnpm vitest run --exclude='**/game-scene-coverage.test.ts' --coverage --pool=forks --poolOptions.forks.singleFork --reporter=basic
 
       - name: Upload coverage report
         uses: actions/upload-artifact@v4

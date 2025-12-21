@@ -1,0 +1,6 @@
+# act configuration file
+# Use medium-sized Docker image (good balance of compatibility and size)
+-P ubuntu-latest=catthehacker/ubuntu:act-latest
+
+# Reuse containers between runs for faster iteration
+--reuse
