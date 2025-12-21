@@ -6,6 +6,11 @@ WORKDIR /app
 RUN groupadd -r -g 1001 appgroup && \
     useradd -r -u 1001 -g appgroup appuser
 
+# Update system packages to fix vulnerabilities (including zlib1g)
+RUN apt-get update && \
+    apt-get upgrade -y && \
+    rm -rf /var/lib/apt/lists/*
+
 # Install dependencies
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt

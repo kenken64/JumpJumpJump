@@ -1,7 +1,7 @@
 # Multi-stage build for optimized production image
 
 # Stage 1: Build the application
-FROM node:20-alpine3.19 AS builder
+FROM node:20-alpine3.20 AS builder
 
 # Install pnpm
 RUN npm install -g pnpm
@@ -40,6 +40,9 @@ RUN mkdir -p /app/dist/assets && \
 
 # Stage 2: Production server with nginx
 FROM nginx:1.27-alpine3.20
+
+# Upgrade system packages to fix vulnerabilities
+RUN apk update && apk upgrade --no-cache
 
 # Remove default nginx user and create non-root user
 RUN addgroup -g 1001 -S appgroup && \
