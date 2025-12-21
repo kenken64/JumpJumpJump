@@ -20,14 +20,14 @@ export default defineConfig({
       forks: {
         // Use less memory in CI to avoid OOM
         execArgv: isCI 
-          ? ['--max-old-space-size=3072']
+          ? ['--max-old-space-size=6144']
           : ['--max-old-space-size=8192'],
         // Single worker in CI to minimize memory pressure
         maxForks: isCI ? 1 : undefined,
         minForks: isCI ? 1 : undefined,
         // Isolate each test file to free memory between files
         isolate: true,
-        singleFork: isCI,
+        singleFork: false,
       }
     },
     // Longer timeouts for CI where resources are constrained
