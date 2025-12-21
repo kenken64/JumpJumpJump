@@ -1,0 +1,26 @@
+name: Semgrep Security Scan
+
+on:
+  push:
+    branches: [ "main", "master", "multiplayer" ]
+  pull_request:
+    branches: [ "main", "master", "multiplayer" ]
+  schedule:
+    - cron: '30 0 * * 1'
+
+jobs:
+  semgrep:
+    name: Semgrep Scan
+    runs-on: ubuntu-latest
+    container:
+      image: returntocorp/semgrep
+    if: (github.actor != 'dependabot[bot]')
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Run Semgrep
+        # Scan the entire repository (frontend and backend)
+        # --config=auto will automatically detect Python (backend) and TypeScript/React (frontend)
+        # and apply relevant security rules.
+        run: semgrep scan --config=auto
