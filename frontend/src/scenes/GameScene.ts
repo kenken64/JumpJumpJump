@@ -1286,8 +1286,8 @@ export default class GameScene extends Phaser.Scene {
     // Initialize gamepad support
     if (this.input.gamepad) {
       // Check for already connected gamepads using native API (Safari fix)
-      const nativeGamepads = navigator.getGamepads ? navigator.getGamepads() : []
-      const activeNativeGamepad = Array.from(nativeGamepads).find(gp => gp !== null && gp?.connected)
+      const nativeGamepads = navigator.getGamepads ? navigator.getGamepads() : null
+      const activeNativeGamepad = nativeGamepads ? Array.from(nativeGamepads).find(gp => gp !== null && gp?.connected) : null
       
       if (activeNativeGamepad) {
         // Native API shows a gamepad - use Phaser's pad
