@@ -121,31 +121,29 @@ import ShopScene from '../scenes/ShopScene'
 describe('ShopScene', () => {
   let scene: ShopScene
   let localStorageMock: { [key: string]: string }
-  let originalLocalStorage: Storage
 
   beforeEach(() => {
-    // Setup localStorage mock - save original and replace entirely
+    // Setup localStorage mock using spyOn which works reliably across environments
     localStorageMock = {}
-    originalLocalStorage = global.localStorage
     
-    const mockStorage = {
-      getItem: vi.fn((key: string) => localStorageMock[key] ?? null),
-      setItem: vi.fn((key: string, value: string) => {
-        localStorageMock[key] = value
-      }),
-      removeItem: vi.fn((key: string) => {
-        delete localStorageMock[key]
-      }),
-      clear: vi.fn(() => {
-        localStorageMock = {}
-      }),
-      length: 0,
-      key: vi.fn(() => null)
-    }
+    // Create a storage object that we can control
+    const storage: { [key: string]: string } = {}
     
-    Object.defineProperty(global, 'localStorage', {
-      value: mockStorage,
-      writable: true
+    // Use Object.defineProperty on window.localStorage for jsdom compatibility
+    vi.spyOn(Storage.prototype, 'getItem').mockImplementation((key: string) => {
+      return localStorageMock[key] ?? null
+    })
+    
+    vi.spyOn(Storage.prototype, 'setItem').mockImplementation((key: string, value: string) => {
+      localStorageMock[key] = value
+    })
+    
+    vi.spyOn(Storage.prototype, 'removeItem').mockImplementation((key: string) => {
+      delete localStorageMock[key]
+    })
+    
+    vi.spyOn(Storage.prototype, 'clear').mockImplementation(() => {
+      Object.keys(localStorageMock).forEach(key => delete localStorageMock[key])
     })
 
     scene = new ShopScene()
@@ -153,10 +151,6 @@ describe('ShopScene', () => {
 
   afterEach(() => {
     vi.restoreAllMocks()
-    Object.defineProperty(global, 'localStorage', {
-      value: originalLocalStorage,
-      writable: true
-    })
   })
 
   describe('constructor', () => {

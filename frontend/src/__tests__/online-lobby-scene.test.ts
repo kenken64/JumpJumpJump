@@ -143,7 +143,7 @@ describe('OnlineLobbyScene', () => {
     
     // Setup localStorage mock
     localStorageMock = {}
-    vi.spyOn(Storage.prototype, 'getItem').mockImplementation((key) => localStorageMock[key] || null)
+    vi.spyOn(Storage.prototype, 'getItem').mockImplementation((key) => localStorageMock[key] ?? null)
     vi.spyOn(Storage.prototype, 'setItem').mockImplementation((key, value) => {
       localStorageMock[key] = value
     })
