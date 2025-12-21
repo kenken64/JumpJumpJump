@@ -965,4 +965,42 @@ describe('OnlineLobbyScene', () => {
       expect(isReady2).toBe(true)
     })
   })
+
+  describe('gamepad plugin workaround', () => {
+    it('should handle shutdown when gamepad plugin exists without pads', () => {
+      scene.create()
+      
+      scene.input = {
+        gamepad: {}
+      } as any
+      
+      expect(() => scene.shutdown()).not.toThrow()
+      expect((scene.input.gamepad as any).pads).toEqual([])
+    })
+    
+    it('should handle shutdown when input is undefined', () => {
+      scene.create()
+      ;(scene as any).input = undefined
+      
+      expect(() => scene.shutdown()).not.toThrow()
+    })
+    
+    it('should cleanup all input fields on shutdown', () => {
+      scene.create()
+      
+      const mockRoomNameInput = { remove: vi.fn() }
+      const mockRoomCodeInput = { remove: vi.fn() }
+      const mockChatInput = { remove: vi.fn() }
+      
+      ;(scene as any).roomNameInput = mockRoomNameInput
+      ;(scene as any).roomCodeInput = mockRoomCodeInput
+      ;(scene as any).chatInput = mockChatInput
+      
+      scene.shutdown()
+      
+      expect(mockRoomNameInput.remove).toHaveBeenCalled()
+      expect(mockRoomCodeInput.remove).toHaveBeenCalled()
+      expect(mockChatInput.remove).toHaveBeenCalled()
+    })
+  })
 })

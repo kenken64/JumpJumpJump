@@ -315,5 +315,44 @@ describe('CreditScene', () => {
       
       expect((scene.input.gamepad as any).pads).toBe(existingPads)
     })
+    
+    it('should handle shutdown when input is undefined', () => {
+      ;(scene as any).input = undefined
+      
+      expect(() => scene.shutdown()).not.toThrow()
+    })
+  })
+
+  describe('back button interactions', () => {
+    it('should handle back button hover', () => {
+      let pointeroverHandler: Function | undefined
+      let pointeroutHandler: Function | undefined
+      
+      const mockButton = {
+        setOrigin: vi.fn().mockReturnThis(),
+        setInteractive: vi.fn().mockReturnThis(),
+        setScale: vi.fn().mockReturnThis(),
+        setColor: vi.fn().mockReturnThis(),
+        on: vi.fn().mockImplementation((event: string, handler: Function) => {
+          if (event === 'pointerover') pointeroverHandler = handler
+          if (event === 'pointerout') pointeroutHandler = handler
+          return mockButton
+        })
+      }
+      
+      vi.mocked(scene.add.text).mockReturnValueOnce(mockButton as any)
+      
+      scene.create()
+      
+      // Hover should scale up and change color
+      if (pointeroverHandler) {
+        expect(() => pointeroverHandler()).not.toThrow()
+      }
+      
+      // Hover out should reset
+      if (pointeroutHandler) {
+        expect(() => pointeroutHandler()).not.toThrow()
+      }
+    })
   })
 })

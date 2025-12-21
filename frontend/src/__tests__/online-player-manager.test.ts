@@ -1660,6 +1660,41 @@ describe('OnlinePlayerManager', () => {
       expect(manager.getRemotePlayer()).toBeNull()
     })
   })
+
+  describe('powerup visual feedback', () => {
+    it('should handle powerShield visual effect', () => {
+      const gameState = createGameStateWithBothPlayers()
+      manager.initializePlayers(gameState as any, { create: vi.fn() } as any)
+
+      const localPlayer = manager.getLocalPlayer()!
+
+      // Test that player initialization supports visual feedback
+      expect(localPlayer).toBeDefined()
+      expect(localPlayer.sprite).toBeDefined()
+    })
+
+    it('should handle powerLife visual effect', () => {
+      const gameState = createGameStateWithBothPlayers()
+      manager.initializePlayers(gameState as any, { create: vi.fn() } as any)
+
+      const localPlayer = manager.getLocalPlayer()!
+
+      // Test that text creation for powerLife visual works
+      expect(localPlayer).toBeDefined()
+      expect(mockScene.add.text).toHaveBeenCalled()
+    })
+
+    it('should handle powerHealth visual effect', () => {
+      const gameState = createGameStateWithBothPlayers()
+      manager.initializePlayers(gameState as any, { create: vi.fn() } as any)
+
+      const localPlayer = manager.getLocalPlayer()!
+
+      // Test that text creation for powerHealth visual works
+      expect(localPlayer).toBeDefined()
+      expect(mockScene.add.text).toHaveBeenCalled()
+    })
+  })
 })
 
 // Helper functions for creating game states

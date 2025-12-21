@@ -208,8 +208,8 @@ export class WorldGenerator {
 
       this.scene.physics.add.existing(floor, true)
       const body = floor.body as Phaser.Physics.Arcade.StaticBody
-      // Metal tiles are flat; dirt/stone have zigzag peaks - hitbox at flat center
-      const hitboxYOffset = tileBiome === 'metal' ? 10 : 20
+      // Metal tiles are flat (offset 10); dirt/stone spike peaks need hitbox pushed up (offset -10)
+      const hitboxYOffset = tileBiome === 'metal' ? 10 : -10
       body.setSize(groundHitboxWidth, groundHitboxHeight)
       body.setOffset((floor.width - groundHitboxWidth) / 2, hitboxYOffset)
       body.updateFromGameObject()
@@ -370,9 +370,9 @@ export class WorldGenerator {
 
             this.scene.physics.add.existing(block, true)
             const blockBody = block.body as Phaser.Physics.Arcade.StaticBody
-            // Metal tiles are flat; dirt/stone have zigzag peaks
+            // Metal tiles are flat (offset 10); dirt/stone spike peaks need hitbox pushed up (offset -10)
             const tileBiome = this.getBiomeForX(currentX + i * tileSize)
-            const hitboxYOffset = tileBiome === 'metal' ? 10 : 20
+            const hitboxYOffset = tileBiome === 'metal' ? 10 : -10
             blockBody.setSize(groundHitboxWidth, groundHitboxHeight)
             blockBody.setOffset((block.width - groundHitboxWidth) / 2, hitboxYOffset)
             blockBody.updateFromGameObject()

@@ -648,4 +648,48 @@ describe('BossGalleryScene', () => {
       expect(mockPageText.text).toBe('Page 1 / 0')
     })
   })
+
+  describe('pagination cleanup edge cases', () => {
+    it('should handle createPaginationControls when elements do not exist', async () => {
+      await scene.create()
+      
+      // Force pagination elements to undefined to test false paths
+      ;(scene as any).pageText = undefined
+      ;(scene as any).prevButton = undefined
+      ;(scene as any).prevButtonText = undefined
+      ;(scene as any).nextButton = undefined
+      ;(scene as any).nextButtonText = undefined
+      
+      // Call createPaginationControls - should not throw
+      expect(() => (scene as any).createPaginationControls()).not.toThrow()
+    })
+    
+    it('should handle createPaginationControls when elements exist but have no scene', async () => {
+      await scene.create()
+      
+      // Set scene to false on elements (already destroyed)
+      if ((scene as any).pageText) (scene as any).pageText.scene = false
+      if ((scene as any).prevButton) (scene as any).prevButton.scene = false
+      if ((scene as any).prevButtonText) (scene as any).prevButtonText.scene = false
+      if ((scene as any).nextButton) (scene as any).nextButton.scene = false
+      if ((scene as any).nextButtonText) (scene as any).nextButtonText.scene = false
+      
+      // Call createPaginationControls - should skip destroy calls
+      expect(() => (scene as any).createPaginationControls()).not.toThrow()
+    })
+  })
+
+  describe('gamepad plugin edge cases', () => {
+    it('should handle shutdown when input.gamepad is undefined', () => {
+      scene.input = {} as any
+      
+      expect(() => scene.shutdown()).not.toThrow()
+    })
+    
+    it('should handle shutdown when input is undefined', () => {
+      ;(scene as any).input = undefined
+      
+      expect(() => scene.shutdown()).not.toThrow()
+    })
+  })
 })

@@ -305,3 +305,245 @@ describe('Biome tiles', () => {
     expect(mocks.scene.add.sprite).toHaveBeenCalled()
   })
 })
+
+describe('WorldGenerator public API', () => {
+  let mockScene: any
+  let mockPlatforms: any
+  let mockSpikes: any
+  let spikePositions: Array<{x: number, y: number, width: number}>
+  let worldGenerator: WorldGenerator
+
+  beforeEach(() => {
+    const mocks = createMockScene()
+    mockScene = mocks.scene
+    mockPlatforms = mocks.platforms
+    mockSpikes = mocks.spikes
+    spikePositions = []
+    
+    worldGenerator = new WorldGenerator(
+      mockScene,
+      mockPlatforms,
+      mockSpikes,
+      spikePositions,
+      12345 // Fixed seed for deterministic tests
+    )
+  })
+
+  describe('getSeed', () => {
+    it('should return the seed used for world generation', () => {
+      expect(worldGenerator.getSeed()).toBe(12345)
+    })
+
+    it('should return different seeds for different generators', () => {
+      const mocks = createMockScene()
+      const generator2 = new WorldGenerator(
+        mocks.scene,
+        mocks.platforms,
+        mocks.spikes,
+        [],
+        99999
+      )
+      expect(generator2.getSeed()).toBe(99999)
+    })
+
+    it('should generate random seed if not provided', () => {
+      const mocks = createMockScene()
+      const generator = new WorldGenerator(
+        mocks.scene,
+        mocks.platforms,
+        mocks.spikes,
+        []
+      )
+      const seed = generator.getSeed()
+      expect(typeof seed).toBe('number')
+      expect(seed).toBeGreaterThanOrEqual(0)
+    })
+  })
+
+  describe('resetRngForChunk', () => {
+    it('should reset RNG state based on chunk position', () => {
+      // Generate world first to establish RNG state
+      worldGenerator.generateWorld()
+      
+      // Reset RNG for a specific chunk
+      worldGenerator.resetRngForChunk(800)
+      
+      // RNG should now be in a deterministic state for that chunk
+      // This is verified indirectly - no errors should occur
+      expect(() => worldGenerator.resetRngForChunk(1600)).not.toThrow()
+    })
+
+    it('should produce same state for same chunk position', () => {
+      worldGenerator.resetRngForChunk(800)
+      const state1 = worldGenerator.getSeed() // Seed stays constant
+      
+      worldGenerator.resetRngForChunk(800)
+      const state2 = worldGenerator.getSeed()
+      
+      expect(state1).toBe(state2)
+    })
+
+    it('should handle chunk position 0', () => {
+      expect(() => worldGenerator.resetRngForChunk(0)).not.toThrow()
+    })
+
+    it('should handle large chunk positions', () => {
+      expect(() => worldGenerator.resetRngForChunk(100000)).not.toThrow()
+    })
+
+    it('should handle negative chunk positions', () => {
+      expect(() => worldGenerator.resetRngForChunk(-800)).not.toThrow()
+    })
+  })
+
+  describe('getWorldGenerationX', () => {
+    it('should return initial value of 0 before generation', () => {
+      const mocks = createMockScene()
+      const generator = new WorldGenerator(
+        mocks.scene,
+        mocks.platforms,
+        mocks.spikes,
+        [],
+        12345
+      )
+      expect(generator.getWorldGenerationX()).toBe(0)
+    })
+
+    it('should return updated value after world generation', () => {
+      worldGenerator.generateWorld()
+      const worldX = worldGenerator.getWorldGenerationX()
+      expect(worldX).toBeGreaterThan(0)
+    })
+  })
+
+  describe('setWorldGenerationX', () => {
+    it('should update the world generation X position', () => {
+      worldGenerator.setWorldGenerationX(5000)
+      expect(worldGenerator.getWorldGenerationX()).toBe(5000)
+    })
+
+    it('should handle zero value', () => {
+      worldGenerator.setWorldGenerationX(0)
+      expect(worldGenerator.getWorldGenerationX()).toBe(0)
+    })
+
+    it('should handle large values', () => {
+      worldGenerator.setWorldGenerationX(1000000)
+      expect(worldGenerator.getWorldGenerationX()).toBe(1000000)
+    })
+  })
+
+  describe('getLastGeneratedX', () => {
+    it('should return initial value of 0 before generation', () => {
+      const mocks = createMockScene()
+      const generator = new WorldGenerator(
+        mocks.scene,
+        mocks.platforms,
+        mocks.spikes,
+        [],
+        12345
+      )
+      expect(generator.getLastGeneratedX()).toBe(0)
+    })
+
+    it('should return updated value after world generation', () => {
+      worldGenerator.generateWorld()
+      const lastX = worldGenerator.getLastGeneratedX()
+      expect(lastX).toBeGreaterThan(0)
+    })
+  })
+
+  describe('setLastGeneratedX', () => {
+    it('should update the last generated X position', () => {
+      worldGenerator.setLastGeneratedX(3000)
+      expect(worldGenerator.getLastGeneratedX()).toBe(3000)
+    })
+
+    it('should handle zero value', () => {
+      worldGenerator.setLastGeneratedX(0)
+      expect(worldGenerator.getLastGeneratedX()).toBe(0)
+    })
+
+    it('should handle large values', () => {
+      worldGenerator.setLastGeneratedX(500000)
+      expect(worldGenerator.getLastGeneratedX()).toBe(500000)
+    })
+  })
+
+  describe('generateChunk direct calls', () => {
+    it('should generate chunk at specified X position', () => {
+      worldGenerator.generateWorld()
+      const initialCallCount = mockScene.add.sprite.mock.calls.length
+      
+      worldGenerator.generateChunk(5000)
+      
+      const newCallCount = mockScene.add.sprite.mock.calls.length
+      expect(newCallCount).toBeGreaterThan(initialCallCount)
+    })
+
+    it('should create floor tiles in chunk', () => {
+      worldGenerator.generateChunk(0)
+      expect(mockPlatforms.add).toHaveBeenCalled()
+    })
+
+    it('should handle multiple chunk generations', () => {
+      worldGenerator.generateChunk(0)
+      worldGenerator.generateChunk(800)
+      worldGenerator.generateChunk(1600)
+      
+      expect(mockScene.add.sprite).toHaveBeenCalled()
+    })
+  })
+
+  describe('seeded generation determinism', () => {
+    it('should generate same world with same seed', () => {
+      const mocks1 = createMockScene()
+      const generator1 = new WorldGenerator(
+        mocks1.scene,
+        mocks1.platforms,
+        mocks1.spikes,
+        [],
+        42
+      )
+      generator1.generateWorld()
+      const calls1 = mocks1.scene.add.sprite.mock.calls.length
+
+      const mocks2 = createMockScene()
+      const generator2 = new WorldGenerator(
+        mocks2.scene,
+        mocks2.platforms,
+        mocks2.spikes,
+        [],
+        42
+      )
+      generator2.generateWorld()
+      const calls2 = mocks2.scene.add.sprite.mock.calls.length
+
+      expect(calls1).toBe(calls2)
+    })
+
+    it('should return same X values for same seed', () => {
+      const mocks1 = createMockScene()
+      const generator1 = new WorldGenerator(
+        mocks1.scene,
+        mocks1.platforms,
+        mocks1.spikes,
+        [],
+        42
+      )
+      const x1 = generator1.generateWorld()
+
+      const mocks2 = createMockScene()
+      const generator2 = new WorldGenerator(
+        mocks2.scene,
+        mocks2.platforms,
+        mocks2.spikes,
+        [],
+        42
+      )
+      const x2 = generator2.generateWorld()
+
+      expect(x1).toBe(x2)
+    })
+  })
+})

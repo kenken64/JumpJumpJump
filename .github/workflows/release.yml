@@ -1,0 +1,482 @@
+name: Release and Package
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to release (e.g., v1.0.0)'
+        required: true
+        type: string
+      prerelease:
+        description: 'Mark as pre-release'
+        required: false
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+  packages: write
+
+env:
+  NODE_VERSION: '20'
+  PYTHON_VERSION: '3.11'
+  PNPM_VERSION: '8'
+
+jobs:
+  # ===========================================
+  # Build Frontend
+  # ===========================================
+  build-frontend:
+    name: Build Frontend
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v2
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'pnpm'
+          cache-dependency-path: frontend/pnpm-lock.yaml
+
+      - name: Install dependencies
+        working-directory: frontend
+        run: pnpm install --frozen-lockfile
+
+      - name: Run tests
+        working-directory: frontend
+        run: pnpm test
+
+      - name: Build frontend
+        working-directory: frontend
+        run: pnpm build
+
+      - name: Get version
+        id: version
+        run: |
+          if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
+            echo "version=${{ github.event.inputs.version }}" >> $GITHUB_OUTPUT
+          else
+            echo "version=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Create frontend package
+        working-directory: frontend
+        run: |
+          mkdir -p ../release
+          tar -czvf ../release/jumpjumpjump-frontend-${{ steps.version.outputs.version }}.tar.gz -C dist .
+          cd dist && zip -r ../../release/jumpjumpjump-frontend-${{ steps.version.outputs.version }}.zip .
+
+      - name: Upload frontend artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-build
+          path: release/
+          retention-days: 7
+
+  # ===========================================
+  # Build Backend
+  # ===========================================
+  build-backend:
+    name: Build Backend
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: 'pip'
+          cache-dependency-path: backend/requirements.txt
+
+      - name: Install dependencies
+        working-directory: backend
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Get version
+        id: version
+        run: |
+          if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
+            echo "version=${{ github.event.inputs.version }}" >> $GITHUB_OUTPUT
+          else
+            echo "version=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Create backend package
+        working-directory: backend
+        run: |
+          mkdir -p ../release
+          tar -czvf ../release/jumpjumpjump-backend-${{ steps.version.outputs.version }}.tar.gz \
+            --exclude='__pycache__' \
+            --exclude='*.pyc' \
+            --exclude='.env' \
+            --exclude='*.db' \
+            .
+          zip -r ../release/jumpjumpjump-backend-${{ steps.version.outputs.version }}.zip . \
+            -x '__pycache__/*' \
+            -x '*.pyc' \
+            -x '.env' \
+            -x '*.db'
+
+      - name: Upload backend artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-build
+          path: release/
+          retention-days: 7
+
+  # ===========================================
+  # Build Docker Images
+  # ===========================================
+  build-docker:
+    name: Build Docker Images
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Get version
+        id: version
+        run: |
+          if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
+            echo "version=${{ github.event.inputs.version }}" >> $GITHUB_OUTPUT
+            echo "version_short=$(echo ${{ github.event.inputs.version }} | sed 's/^v//')" >> $GITHUB_OUTPUT
+          else
+            echo "version=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+            echo "version_short=$(echo ${GITHUB_REF#refs/tags/} | sed 's/^v//')" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push frontend image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./frontend
+          file: ./frontend/Dockerfile
+          push: true
+          tags: |
+            ghcr.io/${{ github.repository }}/frontend:${{ steps.version.outputs.version_short }}
+            ghcr.io/${{ github.repository }}/frontend:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Build and push backend image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./backend
+          file: ./backend/Dockerfile
+          push: true
+          tags: |
+            ghcr.io/${{ github.repository }}/backend:${{ steps.version.outputs.version_short }}
+            ghcr.io/${{ github.repository }}/backend:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  # ===========================================
+  # Generate Release Notes
+  # ===========================================
+  generate-release-notes:
+    name: Generate Release Notes
+    runs-on: ubuntu-latest
+    outputs:
+      release_notes: ${{ steps.generate.outputs.notes }}
+      changelog: ${{ steps.changelog.outputs.changelog }}
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Get version info
+        id: version
+        run: |
+          if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
+            VERSION="${{ github.event.inputs.version }}"
+          else
+            VERSION="${GITHUB_REF#refs/tags/}"
+          fi
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          
+          # Get previous tag
+          PREV_TAG=$(git describe --tags --abbrev=0 HEAD^ 2>/dev/null || echo "")
+          echo "prev_tag=$PREV_TAG" >> $GITHUB_OUTPUT
+
+      - name: Generate changelog
+        id: changelog
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          PREV_TAG="${{ steps.version.outputs.prev_tag }}"
+          
+          echo "## Changelog" > CHANGELOG_SECTION.md
+          echo "" >> CHANGELOG_SECTION.md
+          
+          if [ -n "$PREV_TAG" ]; then
+            RANGE="$PREV_TAG..HEAD"
+            echo "### Changes since $PREV_TAG" >> CHANGELOG_SECTION.md
+          else
+            RANGE="HEAD"
+            echo "### All Changes" >> CHANGELOG_SECTION.md
+          fi
+          
+          echo "" >> CHANGELOG_SECTION.md
+          
+          # Features
+          FEATURES=$(git log $RANGE --pretty=format:"- %s (%h)" --grep="^feat" --grep="^feature" --grep="^add" -i 2>/dev/null || echo "")
+          if [ -n "$FEATURES" ]; then
+            echo "#### ✨ Features" >> CHANGELOG_SECTION.md
+            echo "$FEATURES" >> CHANGELOG_SECTION.md
+            echo "" >> CHANGELOG_SECTION.md
+          fi
+          
+          # Bug Fixes
+          FIXES=$(git log $RANGE --pretty=format:"- %s (%h)" --grep="^fix" --grep="^bug" -i 2>/dev/null || echo "")
+          if [ -n "$FIXES" ]; then
+            echo "#### 🐛 Bug Fixes" >> CHANGELOG_SECTION.md
+            echo "$FIXES" >> CHANGELOG_SECTION.md
+            echo "" >> CHANGELOG_SECTION.md
+          fi
+          
+          # Performance
+          PERF=$(git log $RANGE --pretty=format:"- %s (%h)" --grep="^perf" --grep="^optimize" -i 2>/dev/null || echo "")
+          if [ -n "$PERF" ]; then
+            echo "#### ⚡ Performance" >> CHANGELOG_SECTION.md
+            echo "$PERF" >> CHANGELOG_SECTION.md
+            echo "" >> CHANGELOG_SECTION.md
+          fi
+          
+          # Documentation
+          DOCS=$(git log $RANGE --pretty=format:"- %s (%h)" --grep="^doc" --grep="^readme" -i 2>/dev/null || echo "")
+          if [ -n "$DOCS" ]; then
+            echo "#### 📚 Documentation" >> CHANGELOG_SECTION.md
+            echo "$DOCS" >> CHANGELOG_SECTION.md
+            echo "" >> CHANGELOG_SECTION.md
+          fi
+          
+          # Other changes
+          echo "#### 🔄 Other Changes" >> CHANGELOG_SECTION.md
+          git log $RANGE --pretty=format:"- %s (%h)" --no-merges | head -20 >> CHANGELOG_SECTION.md
+          echo "" >> CHANGELOG_SECTION.md
+          
+          # Store changelog
+          {
+            echo 'changelog<<EOF'
+            cat CHANGELOG_SECTION.md
+            echo 'EOF'
+          } >> $GITHUB_OUTPUT
+
+      - name: Generate release notes
+        id: generate
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          
+          cat << 'NOTES' > RELEASE_NOTES.md
+          # 🎮 JumpJumpJump $VERSION
+          
+          A web-based platformer game built with React, Phaser, and FastAPI.
+          
+          ## 📦 Packages
+          
+          | Package | Description |
+          |---------|-------------|
+          | `jumpjumpjump-frontend-$VERSION.tar.gz` | Frontend build (tar.gz) |
+          | `jumpjumpjump-frontend-$VERSION.zip` | Frontend build (zip) |
+          | `jumpjumpjump-backend-$VERSION.tar.gz` | Backend source (tar.gz) |
+          | `jumpjumpjump-backend-$VERSION.zip` | Backend source (zip) |
+          
+          ## 🐳 Docker Images
+          
+          ```bash
+          # Pull frontend
+          docker pull ghcr.io/${{ github.repository }}/frontend:$VERSION
+          
+          # Pull backend
+          docker pull ghcr.io/${{ github.repository }}/backend:$VERSION
+          ```
+          
+          ## 🚀 Quick Start
+          
+          ### Using Docker Compose
+          
+          ```bash
+          # Clone the repository
+          git clone https://github.com/${{ github.repository }}.git
+          cd JumpJumpJump
+          
+          # Start services
+          docker-compose up -d
+          ```
+          
+          ### Manual Installation
+          
+          **Frontend:**
+          ```bash
+          cd frontend
+          pnpm install
+          pnpm dev
+          ```
+          
+          **Backend:**
+          ```bash
+          cd backend
+          python -m venv venv
+          source venv/bin/activate  # On Windows: .\venv\Scripts\activate
+          pip install -r requirements.txt
+          uvicorn main:app --reload
+          ```
+          
+          ## 🎯 Features
+          
+          - 🕹️ Single-player and Co-op modes
+          - 🌐 Online multiplayer support
+          - 🤖 AI player with DQN training
+          - 🎨 Multiple boss battles
+          - 🏪 In-game shop system
+          - 📊 Leaderboard system
+          
+          NOTES
+          
+          # Replace version placeholder
+          sed -i "s/\$VERSION/$VERSION/g" RELEASE_NOTES.md
+          
+          # Append changelog
+          cat CHANGELOG_SECTION.md >> RELEASE_NOTES.md
+          
+          # Add contributors section
+          echo "" >> RELEASE_NOTES.md
+          echo "## 👥 Contributors" >> RELEASE_NOTES.md
+          echo "" >> RELEASE_NOTES.md
+          git log --format='- @%aN' | sort -u | head -10 >> RELEASE_NOTES.md
+          
+          # Add footer
+          echo "" >> RELEASE_NOTES.md
+          echo "---" >> RELEASE_NOTES.md
+          echo "" >> RELEASE_NOTES.md
+          echo "**Full Changelog**: https://github.com/${{ github.repository }}/compare/${{ steps.version.outputs.prev_tag }}...$VERSION" >> RELEASE_NOTES.md
+          
+          # Store notes
+          {
+            echo 'notes<<EOF'
+            cat RELEASE_NOTES.md
+            echo 'EOF'
+          } >> $GITHUB_OUTPUT
+
+      - name: Upload release notes
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-notes
+          path: RELEASE_NOTES.md
+          retention-days: 7
+
+  # ===========================================
+  # Create GitHub Release
+  # ===========================================
+  create-release:
+    name: Create Release
+    runs-on: ubuntu-latest
+    needs: [build-frontend, build-backend, build-docker, generate-release-notes]
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Get version
+        id: version
+        run: |
+          if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
+            echo "version=${{ github.event.inputs.version }}" >> $GITHUB_OUTPUT
+            echo "prerelease=${{ github.event.inputs.prerelease }}" >> $GITHUB_OUTPUT
+          else
+            VERSION="${GITHUB_REF#refs/tags/}"
+            echo "version=$VERSION" >> $GITHUB_OUTPUT
+            # Check if version contains alpha, beta, rc for prerelease
+            if [[ "$VERSION" == *"-alpha"* ]] || [[ "$VERSION" == *"-beta"* ]] || [[ "$VERSION" == *"-rc"* ]]; then
+              echo "prerelease=true" >> $GITHUB_OUTPUT
+            else
+              echo "prerelease=false" >> $GITHUB_OUTPUT
+            fi
+          fi
+
+      - name: Download frontend artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: frontend-build
+          path: release/
+
+      - name: Download backend artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: backend-build
+          path: release/
+
+      - name: Download release notes
+        uses: actions/download-artifact@v4
+        with:
+          name: release-notes
+          path: ./
+
+      - name: List release artifacts
+        run: ls -la release/
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: ${{ steps.version.outputs.version }}
+          name: "🎮 JumpJumpJump ${{ steps.version.outputs.version }}"
+          body_path: RELEASE_NOTES.md
+          draft: false
+          prerelease: ${{ steps.version.outputs.prerelease }}
+          files: |
+            release/jumpjumpjump-frontend-${{ steps.version.outputs.version }}.tar.gz
+            release/jumpjumpjump-frontend-${{ steps.version.outputs.version }}.zip
+            release/jumpjumpjump-backend-${{ steps.version.outputs.version }}.tar.gz
+            release/jumpjumpjump-backend-${{ steps.version.outputs.version }}.zip
+          generate_release_notes: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Release Summary
+        run: |
+          echo "## 🎉 Release Created Successfully!" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Version:** ${{ steps.version.outputs.version }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Pre-release:** ${{ steps.version.outputs.prerelease }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### 📦 Artifacts" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          ls -lh release/ | awk 'NR>1 {print "- " $9 " (" $5 ")"}' >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### 🐳 Docker Images" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "- \`ghcr.io/${{ github.repository }}/frontend:${{ steps.version.outputs.version }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "- \`ghcr.io/${{ github.repository }}/backend:${{ steps.version.outputs.version }}\`" >> $GITHUB_STEP_SUMMARY

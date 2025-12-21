@@ -672,4 +672,90 @@ describe('ShopScene', () => {
       expect((scene as any).purchasedItems.has('bazooka')).toBe(false)
     })
   })
+
+  describe('pagination cleanup edge cases', () => {
+    it('should handle createPaginationControls when elements do not exist', () => {
+      scene.init({})
+      scene.preload()
+      scene.create()
+      
+      // Force pagination elements to undefined
+      ;(scene as any).pageText = undefined
+      ;(scene as any).prevButton = undefined
+      ;(scene as any).prevButtonText = undefined
+      ;(scene as any).nextButton = undefined
+      ;(scene as any).nextButtonText = undefined
+      
+      // Should not throw
+      expect(() => (scene as any).createPaginationControls()).not.toThrow()
+    })
+    
+    it('should handle createPaginationControls when elements have no scene', () => {
+      scene.init({})
+      scene.preload()
+      scene.create()
+      
+      // Set scene to false on elements (already destroyed)
+      if ((scene as any).pageText) (scene as any).pageText.scene = false
+      if ((scene as any).prevButton) (scene as any).prevButton.scene = false
+      if ((scene as any).prevButtonText) (scene as any).prevButtonText.scene = false
+      if ((scene as any).nextButton) (scene as any).nextButton.scene = false
+      if ((scene as any).nextButtonText) (scene as any).nextButtonText.scene = false
+      
+      // Should skip destroy calls
+      expect(() => (scene as any).createPaginationControls()).not.toThrow()
+    })
+  })
+
+  describe('extraLife consumable purchase', () => {
+    it('should increment purchasedLives when buying extraLife', () => {
+      localStorageMock['playerCoins'] = '100'
+      localStorageMock['purchasedLives'] = '2'
+      scene.init({})
+      scene.preload()
+      scene.create()
+
+      const extraLife = (scene as any).shopItems.find((item: any) => item.id === 'extraLife')
+      if (extraLife) {
+        ;(scene as any).purchaseItem(extraLife)
+        expect(localStorageMock['purchasedLives']).toBe('3')
+      }
+    })
+    
+    it('should handle extraLife when purchasedLives is not set', () => {
+      localStorageMock['playerCoins'] = '100'
+      delete localStorageMock['purchasedLives']
+      scene.init({})
+      scene.preload()
+      scene.create()
+
+      const extraLife = (scene as any).shopItems.find((item: any) => item.id === 'extraLife')
+      if (extraLife) {
+        ;(scene as any).purchaseItem(extraLife)
+        expect(localStorageMock['purchasedLives']).toBe('1')
+      }
+    })
+  })
+
+  describe('gamepad plugin workaround', () => {
+    it('should handle shutdown when gamepad plugin exists without pads', () => {
+      scene.init({})
+      scene.preload()
+      scene.create()
+      
+      scene.input = {
+        gamepad: {}
+      } as any
+      
+      expect(() => scene.shutdown()).not.toThrow()
+      expect((scene.input.gamepad as any).pads).toEqual([])
+    })
+    
+    it('should handle shutdown when input is undefined', () => {
+      scene.init({})
+      ;(scene as any).input = undefined
+      
+      expect(() => scene.shutdown()).not.toThrow()
+    })
+  })
 })
