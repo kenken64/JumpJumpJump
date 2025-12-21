@@ -624,14 +624,6 @@ export default class GameScene extends Phaser.Scene {
     
     // === SEED VERIFICATION LOGGING ===
     if (this.isOnlineMode) {
-      console.log('═══════════════════════════════════════════════════════════')
-      console.log('🌍 ONLINE GAME SEED VERIFICATION')
-      console.log('═══════════════════════════════════════════════════════════')
-      console.log('🎯 Player Number:', this.onlinePlayerNumber)
-      console.log('📦 onlineGameState exists:', !!this.onlineGameState)
-      console.log('🌱 Server Seed (raw):', rawSeed)
-      console.log('🔢 worldSeed passed to WorldGenerator:', worldSeed)
-      
       // CRITICAL: Verify we have a valid seed for online mode
       if (worldSeed === undefined || worldSeed === null) {
         console.error('❌❌❌ CRITICAL ERROR: No seed received for online mode! ❌❌❌')
@@ -639,16 +631,13 @@ export default class GameScene extends Phaser.Scene {
         // Create an obvious visual error indicator
         this.add.text(400, 300, 'ERROR: No sync seed!', { fontSize: '48px', color: '#ff0000' })
       }
-      console.log('═══════════════════════════════════════════════════════════')
     }
     
-    console.log('🌐 GameScene - Online mode:', this.isOnlineMode, 'World seed:', worldSeed)
     this.worldGenerator = new WorldGenerator(this, this.platforms, this.spikes, this.spikePositions, worldSeed)
     
     // Verify the WorldGenerator got the correct seed
     if (this.isOnlineMode) {
       const actualSeed = this.worldGenerator.getSeed()
-      console.log('✅ WorldGenerator seed verification:', actualSeed, '(expected:', worldSeed, ')')
       if (actualSeed !== worldSeed) {
         console.error('❌❌❌ SEED MISMATCH! WorldGenerator did not receive correct seed! ❌❌❌')
       }
@@ -664,28 +653,23 @@ export default class GameScene extends Phaser.Scene {
     }
     
     this.onlineRngState = this.onlineSeed + 1000000 // Offset to get different sequence from world gen
-    console.log('🎲 Entity RNG initialized with seed:', this.onlineSeed, 'RNG state:', this.onlineRngState)
       
     // Log first few random values to verify sync
     const testState = this.onlineRngState
-    console.log('📊 RNG Verification - first 5 values:')
     for (let i = 0; i < 5; i++) {
       this.onlineRngState += 0x6D2B79F5
       let t = this.onlineRngState
       t = Math.imul(t ^ (t >>> 15), t | 1)
-      t ^= t + Math.imul(t ^ (t >>> 7), t | 61)
-      const val = ((t ^ (t >>> 14)) >>> 0) / 4294967296
-      console.log(`  Value ${i+1}: ${val.toFixed(6)}`)
+      t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+      // Advance RNG state but ignore value
+      void (((t ^ (t >>> 14)) >>> 0) / 4294967296)
     }
     // Reset to correct state
     this.onlineRngState = testState
-
-    console.log('Generating world...')
     
     // For 'levels' mode (including online co-op), pre-generate the entire level
     // This ensures all entities exist from the start, preventing desync issues
     if (this.gameMode === 'levels') {
-      console.log(`🌍 Pre-generating entire level (${this.levelLength}px) for stability...`)
       
       // Initialize generation state
       this.isGeneratingWorld = true
@@ -737,7 +721,6 @@ export default class GameScene extends Phaser.Scene {
       this.worldGenerationX = this.worldGenerator.generateWorld()
     }
     
-    console.log('Platforms created:', this.platforms.getChildren().length)
 
     // Create player animations FIRST before creating the player sprite
     // Create animations for equipped skin
@@ -765,15 +748,10 @@ export default class GameScene extends Phaser.Scene {
     })
 
     // Create player with equipped skin
-    console.log('=== PLAYER CREATION ===')
     this.player = this.physics.add.sprite(400, 550, `${this.equippedSkin}_stand`)
     this.player.setBounce(0.1)
     this.player.setCollideWorldBounds(true)
     this.player.setGravityY(0) // Start with no gravity
-
-    console.log('Player created at:', this.player.x, this.player.y)
-    console.log('Floor is at Y:', 650)
-    console.log('Player is', 650 - 550, 'pixels above floor')
 
     // Ensure physics body is enabled and properly sized
     if (this.player.body) {
@@ -782,15 +760,6 @@ export default class GameScene extends Phaser.Scene {
       // Adjust body size to match sprite (alien sprites are about 70x90)
       body.setSize(50, 80)
       body.setOffset(10, 10)
-      console.log('Player body:', {
-        width: body.width,
-        height: body.height,
-        x: body.x,
-        y: body.y,
-        gravityY: body.gravity.y,
-        enable: body.enable,
-        type: 'dynamic'
-      })
     } else {
       console.error('ERROR: Player has no body!')
     }
@@ -800,13 +769,7 @@ export default class GameScene extends Phaser.Scene {
     // Enable gravity after a short delay to ensure platforms are loaded
     this.time.delayedCall(100, () => {
       if (this.player && this.player.body) {
-        console.log('=== ENABLING PLAYER GRAVITY ===')
-        console.log('Player position before gravity:', this.player.x, this.player.y)
-        console.log('Platforms in world:', this.platforms.getChildren().length)
         this.player.setGravityY(200)
-        console.log('Player gravity set to:', (this.player.body as Phaser.Physics.Arcade.Body).gravity.y)
-        console.log('World gravity:', this.physics.world.gravity.y)
-        console.log('Total player gravity:', (this.player.body as Phaser.Physics.Arcade.Body).gravity.y + this.physics.world.gravity.y)
       }
     })
 
@@ -1110,7 +1073,6 @@ export default class GameScene extends Phaser.Scene {
     // Reset RNG state before initial enemy spawn for consistency
     if (this.isOnlineMode && this.onlineGameState) {
       this.onlineRngState = this.onlineGameState.seed * 11 + 99999  // Unique offset for initial enemies
-      console.log(`👾 Initial enemy RNG reset, seed state: ${this.onlineRngState}`)
     }
     
     // In online mode, only the HOST spawns enemies - non-host receives them via network
@@ -1119,23 +1081,11 @@ export default class GameScene extends Phaser.Scene {
     
     if (shouldSpawnEnemies) {
       const numEnemies = 15
-      console.log('═══════════════════════════════════════════════════════════')
-      console.log('👾 ENEMY SPAWN - Host spawning enemies locally')
-      console.log('═══════════════════════════════════════════════════════════')
       for (let i = 0; i < numEnemies; i++) {
-        const rngBefore = this.onlineRngState
         const x = this.isOnlineMode ? this.onlineSeededBetween(300, 3000) : Phaser.Math.Between(300, 3000)
         const y = this.isOnlineMode ? this.onlineSeededBetween(200, 900) : Phaser.Math.Between(200, 900)
-        if (this.isOnlineMode) {
-          console.log(`👾 Enemy ${i}: pos=(${x}, ${y}) rngBefore=${rngBefore}`)
-        }
         this.spawnRandomEnemy(x, y, 1.0, -1, i)  // Use -1 for chunk index to indicate initial spawn
       }
-      if (this.isOnlineMode) {
-        console.log('═══════════════════════════════════════════════════════════')
-      }
-    } else {
-      console.log('👾 Non-host: Waiting for enemy spawn messages from host...')
     }
 
     // Create block fragments group
@@ -1193,7 +1143,6 @@ export default class GameScene extends Phaser.Scene {
             })
           })
 
-          console.log(`🌐 Host: syncing ${enemiesPayload.length} enemies and ${coinsPayload.length} coins to server`)
           this.onlinePlayerManager?.syncEntities(enemiesPayload, coinsPayload)
         } catch (e) {
           console.warn('Failed to sync initial entities to server', e)
@@ -1202,21 +1151,6 @@ export default class GameScene extends Phaser.Scene {
     }
 
     // Setup collisions
-    console.log('=== COLLISION SETUP ===')
-    console.log('Player:', this.player)
-    console.log('Player body:', this.player.body)
-    console.log('Platforms count:', this.platforms.getChildren().length)
-    console.log('Platforms children:', this.platforms.getChildren().map((p: any) => ({
-      x: p.x,
-      y: p.y,
-      hasBody: !!p.body,
-      bodyType: p.body ? p.body.constructor.name : 'none'
-    })))
-
-    // CRITICAL: Enable physics debugging to see collision bodies
-    console.log('=== ENABLING COLLISIONS ===')
-    console.log('Physics world running:', this.physics.world.isPaused)
-    console.log('Platforms in group:', this.platforms.getChildren().length)
 
     // Verify all platforms have bodies
     const platformsWithBodies = this.platforms.getChildren().filter((p: any) => p.body !== null)
@@ -1286,8 +1220,8 @@ export default class GameScene extends Phaser.Scene {
     // Initialize gamepad support
     if (this.input.gamepad) {
       // Check for already connected gamepads using native API (Safari fix)
-      const nativeGamepads = navigator.getGamepads ? navigator.getGamepads() : []
-      const activeNativeGamepad = Array.from(nativeGamepads).find(gp => gp !== null && gp?.connected)
+      const nativeGamepads = navigator.getGamepads ? navigator.getGamepads() : null
+      const activeNativeGamepad = nativeGamepads ? Array.from(nativeGamepads).find(gp => gp !== null && gp?.connected) : null
       
       if (activeNativeGamepad) {
         // Native API shows a gamepad - use Phaser's pad
@@ -1587,7 +1521,6 @@ export default class GameScene extends Phaser.Scene {
   private spawnCoins() {
     // In online mode, both Host and Client spawn coins deterministically
     // This prevents duplicate coins and ensures immediate availability
-    console.log(`🪙 COIN DEBUG: spawnCoins() called - isOnlineMode=${this.isOnlineMode}, isHost=${this.isOnlineHost}`)
     
     // Spawn coins at various positions throughout the world (Y values are above floor at 650)
     const coinPositions = [
@@ -1646,7 +1579,6 @@ export default class GameScene extends Phaser.Scene {
 
       // Only host reports to server - non-host generates same coins locally
       if (!this.isOnlineMode || this.isOnlineHost) {
-        console.log(`🪙 COIN DEBUG: Initial coin ${coin.getData('coinId')} at (${pos.x}, ${pos.y}) - reporting to server`)
         this.reportCoinSpawnToServer(coin)
       }
     })
@@ -2690,10 +2622,8 @@ export default class GameScene extends Phaser.Scene {
   private dropCoins(x: number, y: number, count: number) {
     // In online mode, only host spawns dropped coins - non-host receives via network
     if (this.isOnlineMode && !this.isOnlineHost) {
-      console.log(`🪙 COIN DEBUG: Non-host skipping dropCoins(${Math.floor(x)}, ${Math.floor(y)}, ${count})`)
       return
     }
-    console.log(`🪙 COIN DEBUG: dropCoins(${Math.floor(x)}, ${Math.floor(y)}, ${count}) - isHost=${this.isOnlineHost}`)
 
     // Drop coins at the enemy's position
     // In online mode, use deterministic positions based on enemy position
@@ -2767,7 +2697,6 @@ export default class GameScene extends Phaser.Scene {
   private spawnCoinsInArea(startX: number, endX: number) {
     // In online mode, both Host and Client spawn coins deterministically
     // This ensures they are available immediately without waiting for network messages
-    console.log(`🪙 COIN DEBUG: spawnCoinsInArea(${startX}, ${endX}) - isHost=${this.isOnlineHost}`)
     
     // Reset RNG for this chunk to ensure deterministic coin spawning in online mode
     // Use a unique formula to differentiate from enemy RNG
@@ -7573,9 +7502,7 @@ export default class GameScene extends Phaser.Scene {
    * Handle remote coin spawn from network
    */
   private handleRemoteCoinSpawn(coinState: NetworkCoinState) {
-    console.log(`🪙 COIN DEBUG: handleRemoteCoinSpawn received - id=${coinState.coin_id}, isHost=${this.isOnlineHost}`)
     if (this.isOnlineHost) {
-      console.log(`🪙 COIN DEBUG: Host skipping handleRemoteCoinSpawn`)
       return // Host already spawned this coin
     }
 

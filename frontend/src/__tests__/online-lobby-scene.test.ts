@@ -138,12 +138,15 @@ describe('OnlineLobbyScene', () => {
   let documentBodyMock: HTMLElement[]
 
   beforeEach(() => {
+    // First, restore any existing mocks to ensure clean slate
+    vi.restoreAllMocks()
+    
     // Reset mocks
     vi.clearAllMocks()
     
-    // Setup localStorage mock
+    // Setup localStorage mock - ensure fresh spies each time
     localStorageMock = {}
-    vi.spyOn(Storage.prototype, 'getItem').mockImplementation((key) => localStorageMock[key] || null)
+    vi.spyOn(Storage.prototype, 'getItem').mockImplementation((key) => localStorageMock[key] ?? null)
     vi.spyOn(Storage.prototype, 'setItem').mockImplementation((key, value) => {
       localStorageMock[key] = value
     })

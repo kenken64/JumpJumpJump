@@ -165,7 +165,6 @@ export class OnlinePlayerManager {
       },
       
       onEnemySpawned: (enemy: NetworkEnemyState) => {
-        console.log('👾 Remote enemy spawned:', enemy.enemy_id, enemy.enemy_type)
         this.onEnemySpawnedCallback?.(enemy)
         // If we are host and the spawn corresponds to our local enemy, ensure it is tracked
         if (this.isHost() && enemy.enemy_id && !this.trackedEnemies.has(enemy.enemy_id)) {
@@ -180,7 +179,6 @@ export class OnlinePlayerManager {
       },
       
       onEnemyKilled: (enemyId: string, killedBy: string) => {
-        console.log('💀 Remote enemy killed:', enemyId, 'by', killedBy)
         // Remove tracked enemy if present
         if (this.trackedEnemies.has(enemyId)) {
           this.trackedEnemies.delete(enemyId)
@@ -188,28 +186,24 @@ export class OnlinePlayerManager {
         this.onEnemyKilledCallback?.(enemyId, killedBy)
       },
       
-      onEnemyAlreadyDead: (enemyId: string) => {
-        console.log('⚠️ Enemy already dead:', enemyId)
+      onEnemyAlreadyDead: (_enemyId: string) => {
         // Enemy was killed by other player before our request arrived
       },
       
       // Coin sync callbacks
       onCoinSpawned: (coin: NetworkCoinState) => {
-        console.log('🪙 Remote coin spawned:', coin.coin_id)
         this.onCoinSpawnedCallback?.(coin)
       },
       
       // PowerUp sync callbacks
       onPowerUpSpawned: (powerup: NetworkPowerUpState) => {
-        console.log('🎁 Remote powerup spawned:', powerup.powerup_id)
         this.onPowerUpSpawnedCallback?.(powerup)
       },
       
       // Full entity sync
       
       // Full entity sync
-      onEntitiesSync: (enemies: NetworkEnemyState[], coins: NetworkCoinState[], sequenceId: number) => {
-        console.log('🔄 Entities sync received, seq:', sequenceId, 'enemies:', enemies.length, 'coins:', coins.length)
+      onEntitiesSync: (enemies: NetworkEnemyState[], coins: NetworkCoinState[], _sequenceId: number) => {
         this.onEntitiesSyncCallback?.(enemies, coins)
       }
     })

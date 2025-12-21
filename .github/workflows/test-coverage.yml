@@ -11,14 +11,10 @@ permissions:
   pull-requests: write
   issues: write
 
-env:
-  # Increase Node.js memory limit for large test suites
-  NODE_OPTIONS: '--max-old-space-size=6144'
-
 jobs:
+  # Run all tests except the heavy coverage test (which is too large for CI)
   test:
     runs-on: ubuntu-latest
-
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -53,20 +49,21 @@ jobs:
 
       - name: Install dependencies
         working-directory: frontend
-        run: pnpm install
+        run: pnpm install --no-frozen-lockfile
 
       - name: Run TypeScript type check
         working-directory: frontend
         run: pnpm run type-check
 
-      - name: Run tests with coverage (with memory optimization)
+      - name: Run tests with coverage
         working-directory: frontend
         env:
-          # Force garbage collection more frequently
-          NODE_OPTIONS: '--max-old-space-size=6144 --expose-gc'
+          NODE_OPTIONS: '--max-old-space-size=4096'
+          CI: 'true'
         run: |
-          # Run tests with reduced parallelism to avoid OOM
-          pnpm run test:coverage -- --maxWorkers=2 --logHeapUsage
+          # All tests run in CI - the large game-scene-coverage.test.ts was split into
+          # game-scene-part1.test.ts, game-scene-part2.test.ts, game-scene-part3.test.ts
+          pnpm vitest run --coverage --reporter=basic
 
       - name: Upload coverage report
         uses: actions/upload-artifact@v4

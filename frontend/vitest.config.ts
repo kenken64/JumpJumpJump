@@ -18,24 +18,29 @@ export default defineConfig({
     pool: 'forks',
     poolOptions: {
       forks: {
-        // Use less memory in CI, more locally
+        // Use less memory in CI to avoid OOM
         execArgv: isCI 
-          ? ['--max-old-space-size=4096']
+          ? ['--max-old-space-size=3072']
           : ['--max-old-space-size=8192'],
-        // Limit concurrent workers in CI to reduce memory pressure
-        maxForks: isCI ? 2 : undefined,
+        // Single worker in CI to minimize memory pressure
+        maxForks: isCI ? 1 : undefined,
         minForks: isCI ? 1 : undefined,
+        // Isolate each test file to free memory between files
+        isolate: true,
+        singleFork: isCI,
       }
     },
     // Longer timeouts for CI where resources are constrained
-    testTimeout: isCI ? 60000 : 30000,
-    hookTimeout: isCI ? 60000 : 30000,
+    testTimeout: isCI ? 120000 : 30000,
+    hookTimeout: isCI ? 120000 : 30000,
     // Retry failed tests in CI (may fail due to resource constraints)
     retry: isCI ? 1 : 0,
     // Reduce memory by running tests sequentially in large files
     sequence: {
       shuffle: false,
     },
+    // Force isolation between test files to free memory
+    fileParallelism: !isCI,
     coverage: {
       provider: 'v8',
       reporter: ['text', 'json', 'json-summary', 'html'],

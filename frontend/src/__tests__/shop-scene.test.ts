@@ -121,13 +121,33 @@ import ShopScene from '../scenes/ShopScene'
 describe('ShopScene', () => {
   let scene: ShopScene
   let localStorageMock: { [key: string]: string }
+  let getItemSpy: ReturnType<typeof vi.spyOn>
+  let setItemSpy: ReturnType<typeof vi.spyOn>
+  let removeItemSpy: ReturnType<typeof vi.spyOn>
+  let clearSpy: ReturnType<typeof vi.spyOn>
 
   beforeEach(() => {
-    // Setup localStorage mock
+    // First, restore any existing mocks to ensure clean slate
+    vi.restoreAllMocks()
+    
+    // Setup localStorage mock using spyOn which works reliably across environments
     localStorageMock = {}
-    vi.spyOn(Storage.prototype, 'getItem').mockImplementation((key) => localStorageMock[key] || null)
-    vi.spyOn(Storage.prototype, 'setItem').mockImplementation((key, value) => {
+    
+    // Use Object.defineProperty on window.localStorage for jsdom compatibility
+    getItemSpy = vi.spyOn(Storage.prototype, 'getItem').mockImplementation((key: string) => {
+      return localStorageMock[key] ?? null
+    })
+    
+    setItemSpy = vi.spyOn(Storage.prototype, 'setItem').mockImplementation((key: string, value: string) => {
       localStorageMock[key] = value
+    })
+    
+    removeItemSpy = vi.spyOn(Storage.prototype, 'removeItem').mockImplementation((key: string) => {
+      delete localStorageMock[key]
+    })
+    
+    clearSpy = vi.spyOn(Storage.prototype, 'clear').mockImplementation(() => {
+      Object.keys(localStorageMock).forEach(key => delete localStorageMock[key])
     })
 
     scene = new ShopScene()
