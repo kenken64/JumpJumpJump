@@ -121,13 +121,31 @@ import ShopScene from '../scenes/ShopScene'
 describe('ShopScene', () => {
   let scene: ShopScene
   let localStorageMock: { [key: string]: string }
+  let originalLocalStorage: Storage
 
   beforeEach(() => {
-    // Setup localStorage mock
+    // Setup localStorage mock - save original and replace entirely
     localStorageMock = {}
-    vi.spyOn(Storage.prototype, 'getItem').mockImplementation((key) => localStorageMock[key] || null)
-    vi.spyOn(Storage.prototype, 'setItem').mockImplementation((key, value) => {
-      localStorageMock[key] = value
+    originalLocalStorage = global.localStorage
+    
+    const mockStorage = {
+      getItem: vi.fn((key: string) => localStorageMock[key] ?? null),
+      setItem: vi.fn((key: string, value: string) => {
+        localStorageMock[key] = value
+      }),
+      removeItem: vi.fn((key: string) => {
+        delete localStorageMock[key]
+      }),
+      clear: vi.fn(() => {
+        localStorageMock = {}
+      }),
+      length: 0,
+      key: vi.fn(() => null)
+    }
+    
+    Object.defineProperty(global, 'localStorage', {
+      value: mockStorage,
+      writable: true
     })
 
     scene = new ShopScene()
@@ -135,6 +153,10 @@ describe('ShopScene', () => {
 
   afterEach(() => {
     vi.restoreAllMocks()
+    Object.defineProperty(global, 'localStorage', {
+      value: originalLocalStorage,
+      writable: true
+    })
   })
 
   describe('constructor', () => {
