@@ -109,7 +109,7 @@ jobs:
             | Functions | ${total.functions.pct}% | ${total.functions.covered}/${total.functions.total} |
             | Branches | ${total.branches.pct}% | ${total.branches.covered}/${total.branches.total} |
             
-📁 [Download full coverage report](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})`;
+            📁 [Download full coverage report](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})`;
               
               github.rest.issues.createComment({
                 issue_number: context.issue.number,
