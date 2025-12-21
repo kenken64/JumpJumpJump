@@ -40,6 +40,7 @@ const createSpriteMock = (options: any = {}) => ({
   y: options.y || 550,
   width: 70,
   height: 90,
+  scaleX: 1,
   flipX: false,
   texture: { key: 'test' },
   anims: {
