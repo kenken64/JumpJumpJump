@@ -55,15 +55,15 @@ jobs:
         working-directory: frontend
         run: pnpm run type-check
 
-      - name: Run tests with coverage (excluding heavy test file)
+      - name: Run tests with coverage
         working-directory: frontend
         env:
           NODE_OPTIONS: '--max-old-space-size=4096'
           CI: 'true'
         run: |
-          # Skip game-scene-coverage.test.ts (414 tests) - too large for CI memory limits
-          # This test should be run locally before major releases
-          pnpm vitest run --exclude='**/game-scene-coverage.test.ts' --coverage --reporter=basic
+          # All tests run in CI - the large game-scene-coverage.test.ts was split into
+          # game-scene-part1.test.ts, game-scene-part2.test.ts, game-scene-part3.test.ts
+          pnpm vitest run --coverage --reporter=basic
 
       - name: Upload coverage report
         uses: actions/upload-artifact@v4
@@ -76,8 +76,6 @@ jobs:
         working-directory: frontend
         run: |
           echo "## Test Coverage Report" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "⚠️ Note: game-scene-coverage.test.ts (414 tests) excluded from CI due to memory limits" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           if [ -f coverage/coverage-summary.json ]; then
             echo "| Metric | Coverage |" >> $GITHUB_STEP_SUMMARY
@@ -111,9 +109,7 @@ jobs:
             | Functions | ${total.functions.pct}% | ${total.functions.covered}/${total.functions.total} |
             | Branches | ${total.branches.pct}% | ${total.branches.covered}/${total.branches.total} |
             
-            ⚠️ *Note: game-scene-coverage.test.ts (414 tests) excluded from CI due to memory limits*
-            
-            📁 [Download full coverage report](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})`;
+📁 [Download full coverage report](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})`;
               
               github.rest.issues.createComment({
                 issue_number: context.issue.number,

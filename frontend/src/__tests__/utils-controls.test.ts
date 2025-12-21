@@ -12,6 +12,9 @@ describe('ControlManager', () => {
   let mockStorage: { [key: string]: string } = {}
   
   beforeEach(() => {
+    // First, restore any existing mocks to ensure clean slate
+    vi.restoreAllMocks()
+    
     mockStorage = {}
     vi.spyOn(Storage.prototype, 'getItem').mockImplementation((key) => mockStorage[key] || null)
     vi.spyOn(Storage.prototype, 'setItem').mockImplementation((key, value) => {
