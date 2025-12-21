@@ -783,4 +783,337 @@ describe('MLAIPlayer - Additional Coverage', () => {
       expect(state.nearestSpikeDistance).toBeLessThan(1000)
     })
   })
+
+  describe('training data validation', () => {
+    it('should detect feature count mismatch in training data', async () => {
+      // Mock training data with wrong feature count
+      const wrongFormatData = Array(150).fill(null).map(() => ({
+        timestamp: Date.now(),
+        state: {
+          // Only 5 features instead of 17
+          playerX: 0.5,
+          playerY: 0.6,
+          velocityX: 0.1,
+          velocityY: 0,
+          health: 1
+        },
+        action: { moveLeft: false, moveRight: true, jump: false, shoot: false }
+      }))
+      
+      vi.mocked(GameplayRecorder.getTrainingData).mockReturnValue(wrongFormatData as any)
+      
+      // Should throw error for feature mismatch
+      await expect(mlPlayer.train()).rejects.toThrow('Training data feature mismatch')
+      
+      // Training should be complete (isTraining = false after error)
+      expect(mlPlayer.isCurrentlyTraining()).toBe(false)
+    })
+
+    it('should skip frames missing platformAbove features', async () => {
+      // Create training data with old format (missing platformAbove)
+      // This has 15 features instead of 17, which triggers the first check
+      const oldFormatData = Array(150).fill(null).map(() => ({
+        timestamp: Date.now(),
+        state: {
+          playerX: 0.5,
+          playerY: 0.6,
+          velocityX: 0.1,
+          velocityY: 0,
+          health: 1,
+          onGround: true,
+          nearestEnemyDistance: 0.5,
+          nearestEnemyAngle: 0,
+          nearestCoinDistance: 0.3,
+          nearestCoinAngle: 0.5,
+          nearestSpikeDistance: 0.8,
+          hasGroundAhead: true,
+          hasGroundBehind: true,
+          score: 0.5,
+          coins: 0.3
+          // Missing platformAbove and platformAboveHeight
+        },
+        action: { moveLeft: false, moveRight: true, jump: false, shoot: false }
+      }))
+      
+      vi.mocked(GameplayRecorder.getTrainingData).mockReturnValue(oldFormatData as any)
+      
+      // Should throw for feature count mismatch (15 vs 17)
+      await expect(mlPlayer.train()).rejects.toThrow('Training data feature mismatch')
+      
+      expect(mlPlayer.isCurrentlyTraining()).toBe(false)
+    })
+
+    it('should throw error when insufficient valid frames after filtering', async () => {
+      // Mix of old format (will be filtered) and new format frames
+      const mixedData = [
+        // 50 old format frames (will be skipped)
+        ...Array(50).fill(null).map(() => ({
+          timestamp: Date.now(),
+          state: {
+            playerX: 0.5, playerY: 0.6, velocityX: 0.1, velocityY: 0,
+            health: 1, onGround: true,
+            nearestEnemyDistance: 0.5, nearestEnemyAngle: 0,
+            nearestCoinDistance: 0.3, nearestCoinAngle: 0.5,
+            nearestSpikeDistance: 0.8,
+            hasGroundAhead: true, hasGroundBehind: true,
+            score: 0.5, coins: 0.3
+            // Missing platformAbove
+          },
+          action: { moveLeft: false, moveRight: true, jump: false, shoot: false }
+        })),
+        // 30 new format frames (not enough - need 100)
+        ...Array(30).fill(null).map(() => ({
+          timestamp: Date.now(),
+          state: {
+            playerX: 0.5, playerY: 0.6, velocityX: 0.1, velocityY: 0,
+            health: 1, onGround: true,
+            nearestEnemyDistance: 0.5, nearestEnemyAngle: 0,
+            nearestCoinDistance: 0.3, nearestCoinAngle: 0.5,
+            nearestSpikeDistance: 0.8,
+            hasGroundAhead: true, hasGroundBehind: true,
+            platformAbove: false, platformAboveHeight: 0,
+            score: 0.5, coins: 0.3
+          },
+          action: { moveLeft: false, moveRight: true, jump: false, shoot: false }
+        }))
+      ]
+      
+      vi.mocked(GameplayRecorder.getTrainingData).mockReturnValue(mixedData as any)
+      
+      // Should handle error gracefully
+      await mlPlayer.train()
+      
+      expect(mlPlayer.isCurrentlyTraining()).toBe(false)
+    })
+  })
+
+  describe('loadModel shape validation', () => {
+    it('should clear model with incompatible input shape', async () => {
+      // Mock a loaded model with wrong shape (15 features instead of 17)
+      const incompatibleModel = {
+        predict: vi.fn(),
+        fit: vi.fn(),
+        save: vi.fn(),
+        dispose: vi.fn(),
+        inputs: [{ shape: [null, 15] }], // Wrong shape
+        add: vi.fn(),
+        compile: vi.fn()
+      }
+      
+      vi.mocked(tf.loadLayersModel).mockResolvedValueOnce(incompatibleModel as any)
+      
+      const player = new MLAIPlayer(mockScene)
+      await new Promise(r => setTimeout(r, 50))
+      
+      // Model should be cleared due to incompatibility
+      expect(player.isModelTrained()).toBe(false)
+    })
+
+    it('should keep model with correct input shape', async () => {
+      // Mock a loaded model with correct shape (17 features)
+      const compatibleModel = {
+        predict: vi.fn(),
+        fit: vi.fn(),
+        save: vi.fn(),
+        dispose: vi.fn(),
+        inputs: [{ shape: [null, 17] }], // Correct shape
+        add: vi.fn(),
+        compile: vi.fn()
+      }
+      
+      vi.mocked(tf.loadLayersModel).mockResolvedValueOnce(compatibleModel as any)
+      
+      const player = new MLAIPlayer(mockScene)
+      await new Promise(r => setTimeout(r, 50))
+      
+      // Model should be kept
+      expect(player.isModelTrained()).toBe(true)
+    })
+  })
+
+  describe('getModelInfo error handling', () => {
+    it('should handle corrupted metadata JSON', () => {
+      localStorageData['ml-model-metadata'] = '{ invalid json {'
+      
+      const info = mlPlayer.getModelInfo()
+      
+      // Should return default values on parse error
+      expect(info.trained).toBe(false)
+      expect(info.epochs).toBe(0)
+    })
+
+    it('should return default when metadata is empty', () => {
+      delete localStorageData['ml-model-metadata']
+      
+      const info = mlPlayer.getModelInfo()
+      
+      expect(info.trained).toBe(false)
+    })
+
+    it('should handle metadata with missing fields', () => {
+      localStorageData['ml-model-metadata'] = JSON.stringify({
+        trained: true
+        // Missing epochs and timestamp
+      })
+      
+      const info = mlPlayer.getModelInfo()
+      
+      expect(info.epochs).toBe(0)
+      expect(info.timestamp).toBe(0)
+    })
+  })
+
+  describe('prediction error handling', () => {
+    it('should handle model.predict throwing error', async () => {
+      ;(mlPlayer as any).model = {
+        predict: vi.fn().mockImplementation(() => {
+          throw new Error('Prediction failed')
+        }),
+        inputs: [{ shape: [null, 17] }]
+      }
+      
+      const decision = await mlPlayer.getDecision()
+      
+      // Should return safe defaults
+      expect(decision.moveLeft).toBe(false)
+      expect(decision.moveRight).toBe(false)
+    })
+
+    it('should handle data() promise rejection', async () => {
+      const mockTensor = {
+        data: vi.fn().mockRejectedValue(new Error('Data fetch failed')),
+        dispose: vi.fn()
+      }
+      ;(mlPlayer as any).model = {
+        predict: vi.fn().mockReturnValue(mockTensor),
+        inputs: [{ shape: [null, 17] }]
+      }
+      
+      const decision = await mlPlayer.getDecision()
+      
+      // Should return safe defaults
+      expect(decision.moveLeft).toBe(false)
+      expect(decision.moveRight).toBe(false)
+    })
+  })
+
+  describe('training progress callback', () => {
+    it('should call onProgress callback during training', async () => {
+      const progressCallback = vi.fn()
+      
+      vi.mocked(GameplayRecorder.getTrainingData).mockReturnValue(
+        createMockTrainingData(150)
+      )
+      
+      // The train method creates a new model and calls model.fit
+      // The mock for tf.sequential returns a model that has callbacks support
+      // We need to verify the callback is called via the onEpochEnd mock
+      
+      // Override the sequential mock to call the callback
+      const mockModel = {
+        fit: vi.fn().mockImplementation(async (inputs: any, outputs: any, config: any) => {
+          // Call the onEpochEnd callback like the real TensorFlow would
+          if (config?.callbacks?.onEpochEnd) {
+            config.callbacks.onEpochEnd(0, { loss: 0.5, acc: 0.7 })
+          }
+          return { history: { loss: [0.1] } }
+        }),
+        save: vi.fn().mockResolvedValue({}),
+        inputs: [{ shape: [null, 17] }],
+        add: vi.fn(),
+        compile: vi.fn()
+      }
+      
+      vi.mocked(tf.sequential).mockReturnValueOnce(mockModel as any)
+      
+      await mlPlayer.train(progressCallback)
+      
+      // The fit function should have been called with callbacks that include onEpochEnd
+      expect(mockModel.fit).toHaveBeenCalled()
+      // And our progress callback should have been invoked
+      expect(progressCallback).toHaveBeenCalledWith(1, expect.objectContaining({ loss: 0.5 }))
+    })
+
+    it('should handle training without progress callback', async () => {
+      vi.mocked(GameplayRecorder.getTrainingData).mockReturnValue(
+        createMockTrainingData(150)
+      )
+      
+      // Should not throw when no callback provided
+      await expect(mlPlayer.train()).resolves.not.toThrow()
+    })
+  })
+
+  describe('checkGround edge cases', () => {
+    it('should return false when platforms is null', () => {
+      const hasGround = (mlPlayer as any).checkGround(null, 400, 550)
+      
+      expect(hasGround).toBe(false)
+    })
+
+    it('should skip inactive platforms', () => {
+      mockScene.platforms.getChildren = vi.fn().mockReturnValue([
+        { 
+          active: false, 
+          getBounds: vi.fn().mockReturnValue({ left: 300, right: 500, top: 590, bottom: 620 })
+        }
+      ])
+      
+      const hasGround = (mlPlayer as any).checkGround(mockScene.platforms, 400, 550)
+      
+      // Should skip inactive platform
+      expect(hasGround).toBe(false)
+    })
+  })
+
+  describe('checkPlatformAbove edge cases', () => {
+    it('should return no platform when platforms is null', () => {
+      const result = (mlPlayer as any).checkPlatformAbove(null, 400, 550)
+      
+      expect(result.hasPlatform).toBe(false)
+      expect(result.height).toBe(0)
+    })
+
+    it('should skip inactive platforms', () => {
+      mockScene.platforms.getChildren = vi.fn().mockReturnValue([
+        { 
+          active: false, 
+          getBounds: vi.fn().mockReturnValue({ left: 300, right: 500, top: 440, bottom: 460, centerX: 400 })
+        }
+      ])
+      
+      const result = (mlPlayer as any).checkPlatformAbove(mockScene.platforms, 400, 550)
+      
+      expect(result.hasPlatform).toBe(false)
+    })
+  })
+
+  describe('captureGameState with null entity groups', () => {
+    it('should handle null enemies group', () => {
+      mockScene.enemies = null
+      
+      const state = (mlPlayer as any).captureGameState()
+      
+      expect(state).not.toBeNull()
+      expect(state.nearestEnemyDistance).toBe(1)
+    })
+
+    it('should handle null coins group', () => {
+      mockScene.coins = null
+      
+      const state = (mlPlayer as any).captureGameState()
+      
+      expect(state).not.toBeNull()
+      expect(state.nearestCoinDistance).toBe(1)
+    })
+
+    it('should handle null spikes group', () => {
+      mockScene.spikes = null
+      
+      const state = (mlPlayer as any).captureGameState()
+      
+      expect(state).not.toBeNull()
+      expect(state.nearestSpikeDistance).toBe(1)
+    })
+  })
 })

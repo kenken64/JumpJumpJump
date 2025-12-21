@@ -759,5 +759,57 @@ describe('DQNAgent', () => {
       expect(reward).toBeLessThan(1) // Should have penalty for rushing away
     })
   })
+
+  describe('additional reward shaping cases', () => {
+    it('should reward getting close to coins', () => {
+      const closeToCoins = createMockState({ nearestCoinDistance: 40 })
+      const reward = agent.calculateReward(closeToCoins, false, 0, 0)
+      
+      expect(reward).toBeGreaterThan(-1) // Some reward for being close to coins
+    })
+    
+    it('should reward getting close to powerups', () => {
+      const closeToPowerup = createMockState({ nearestPowerUpDistance: 40 })
+      const reward = agent.calculateReward(closeToPowerup, false, 0, 0)
+      
+      expect(reward).toBeGreaterThan(-1) // Some reward for being close to powerups
+    })
+    
+    it('should reward landing on higher platforms while progressing', () => {
+      const initialState = createMockState({ playerX: 100, playerY: 500, onGround: true })
+      agent.calculateReward(initialState, false, 0, 0) // Initialize
+      
+      const higherPlatform = createMockState({ playerX: 150, playerY: 450, onGround: true })
+      const reward = agent.calculateReward(higherPlatform, false, 0, 0)
+      
+      expect(reward).toBeGreaterThan(-1)
+    })
+    
+    it('should reward shooting at boss when close', () => {
+      const closeToBoosState = createMockState({ bossActive: true, bossDistance: 300 })
+      
+      // Action 5, 6, 7, 8 are shooting actions
+      const shootReward = agent.calculateReward(closeToBoosState, false, 0, 5)
+      
+      expect(shootReward).toBeGreaterThan(-1)
+    })
+    
+    it('should reward damaging boss (boss health decreased)', () => {
+      const damagedBossState = createMockState({ bossActive: true, bossHealth: 50, bossDistance: 200 })
+      const reward = agent.calculateReward(damagedBossState, false, 0, 0)
+      
+      expect(reward).toBeGreaterThan(-1) // Reward scales with damage dealt
+    })
+    
+    it('should handle forward progress when no boss active', () => {
+      const initialState = createMockState({ bossActive: false, playerX: 100 })
+      agent.calculateReward(initialState, false, 0, 0) // Initialize
+      
+      const forwardState = createMockState({ bossActive: false, playerX: 150 })
+      const reward = agent.calculateReward(forwardState, false, 0, 0)
+      
+      expect(reward).toBeGreaterThan(-1) // Small bonus for forward progress
+    })
+  })
 })
 

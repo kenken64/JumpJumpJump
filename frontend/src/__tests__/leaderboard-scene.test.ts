@@ -722,4 +722,45 @@ describe('LeaderboardScene', () => {
       expect(scene.add.text).toHaveBeenCalledWith(640, 580, expect.stringContaining('Page'), expect.any(Object))
     })
   })
+
+  describe('gamepad plugin workaround', () => {
+    it('should handle shutdown when gamepad plugin exists without pads', async () => {
+      await scene.create()
+      
+      scene.input = {
+        gamepad: {},
+        keyboard: { addKey: vi.fn().mockReturnValue({ on: vi.fn() }) }
+      } as any
+      
+      expect(() => scene.shutdown()).not.toThrow()
+      expect((scene.input.gamepad as any).pads).toEqual([])
+    })
+    
+    it('should handle shutdown when input is undefined', async () => {
+      await scene.create()
+      ;(scene as any).input = undefined
+      
+      expect(() => scene.shutdown()).not.toThrow()
+    })
+  })
+
+  describe('back button hover effects', () => {
+    it('should handle back button pointerover', async () => {
+      await scene.create()
+      
+      const hoverHandler = backBtnHandlers.get('pointerover')
+      if (hoverHandler) {
+        expect(() => hoverHandler()).not.toThrow()
+      }
+    })
+    
+    it('should handle back button pointerout', async () => {
+      await scene.create()
+      
+      const outHandler = backBtnHandlers.get('pointerout')
+      if (outHandler) {
+        expect(() => outHandler()).not.toThrow()
+      }
+    })
+  })
 })

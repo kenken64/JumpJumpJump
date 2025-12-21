@@ -11,6 +11,10 @@ permissions:
   pull-requests: write
   issues: write
 
+env:
+  # Increase Node.js memory limit for large test suites
+  NODE_OPTIONS: '--max-old-space-size=6144'
+
 jobs:
   test:
     runs-on: ubuntu-latest
@@ -18,6 +22,11 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+
+      - name: Setup swap space
+        uses: pierotofy/set-swap-space@master
+        with:
+          swap-size-gb: 10
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -50,9 +59,14 @@ jobs:
         working-directory: frontend
         run: pnpm run type-check
 
-      - name: Run tests with coverage
+      - name: Run tests with coverage (with memory optimization)
         working-directory: frontend
-        run: pnpm run test:coverage
+        env:
+          # Force garbage collection more frequently
+          NODE_OPTIONS: '--max-old-space-size=6144 --expose-gc'
+        run: |
+          # Run tests with reduced parallelism to avoid OOM
+          pnpm run test:coverage -- --maxWorkers=2 --logHeapUsage
 
       - name: Upload coverage report
         uses: actions/upload-artifact@v4

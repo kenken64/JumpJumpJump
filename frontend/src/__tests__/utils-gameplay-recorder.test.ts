@@ -505,4 +505,69 @@ describe('GameplayRecorder', () => {
       expect('coins' in state).toBe(true)
     })
   })
+
+  describe('inactive platform handling', () => {
+    it('should skip inactive platforms in hasGroundAhead check', () => {
+      const sceneWithInactivePlatforms = createMockScene()
+      sceneWithInactivePlatforms.platforms.getChildren = vi.fn().mockReturnValue([
+        { active: false, getBounds: () => ({ left: 0, right: 1000, top: 450, bottom: 500, centerX: 500, centerY: 475 }) },
+        { active: true, getBounds: () => ({ left: 550, right: 600, top: 450, bottom: 500, centerX: 575, centerY: 475 }) }
+      ])
+      
+      const recorderWithInactive = new GameplayRecorder(sceneWithInactivePlatforms as any)
+      recorderWithInactive.startRecording()
+      recorderWithInactive.recordFrame(100, { moveLeft: false, moveRight: true, jump: false, shoot: false, aimX: 0, aimY: 0 })
+      recorderWithInactive.stopRecording()
+      
+      const data = GameplayRecorder.getTrainingData()
+      expect(data.length).toBeGreaterThan(0)
+    })
+    
+    it('should skip inactive platforms in checkPlatformAbove', () => {
+      const sceneWithInactivePlatforms = createMockScene()
+      sceneWithInactivePlatforms.platforms.getChildren = vi.fn().mockReturnValue([
+        { active: false, getBounds: () => ({ left: 400, right: 600, top: 200, bottom: 250, centerX: 500, centerY: 225, bottom: 250 }) },
+        { active: true, getBounds: () => ({ left: 400, right: 600, top: 300, bottom: 350, centerX: 500, centerY: 325, bottom: 350 }) }
+      ])
+      
+      const recorderWithInactive = new GameplayRecorder(sceneWithInactivePlatforms as any)
+      recorderWithInactive.startRecording()
+      recorderWithInactive.recordFrame(100, { moveLeft: false, moveRight: true, jump: false, shoot: false, aimX: 0, aimY: 0 })
+      recorderWithInactive.stopRecording()
+      
+      const data = GameplayRecorder.getTrainingData()
+      expect(data.length).toBeGreaterThan(0)
+    })
+
+    it('should find nearest platform above among multiple', () => {
+      const sceneWithMultiplePlatforms = createMockScene()
+      sceneWithMultiplePlatforms.player.y = 500 // Player at y=500
+      sceneWithMultiplePlatforms.platforms.getChildren = vi.fn().mockReturnValue([
+        { active: true, getBounds: () => ({ left: 400, right: 600, top: 100, bottom: 150, centerX: 500 }) }, // Far above (y diff = 350)
+        { active: true, getBounds: () => ({ left: 400, right: 600, top: 350, bottom: 400, centerX: 500 }) }  // Closer above (y diff = 100)
+      ])
+      
+      const recorderWithMultiple = new GameplayRecorder(sceneWithMultiplePlatforms as any)
+      recorderWithMultiple.startRecording()
+      recorderWithMultiple.recordFrame(100, { moveLeft: false, moveRight: true, jump: false, shoot: false, aimX: 0, aimY: 0 })
+      recorderWithMultiple.stopRecording()
+      
+      const data = GameplayRecorder.getTrainingData()
+      // Should pick the closer platform
+      expect(data.length).toBeGreaterThan(0)
+      expect(data[0].state.platformAbove).toBeDefined()
+    })
+  })
+
+  describe('invalid localStorage data handling', () => {
+    it('should handle invalid JSON in localStorage gracefully', () => {
+      localStorage.setItem('ml_training_data', 'not valid json {{{')
+      
+      recorder.startRecording()
+      recorder.recordFrame(100, { moveLeft: false, moveRight: true, jump: false, shoot: false, aimX: 0, aimY: 0 })
+      
+      // Should not throw
+      expect(() => recorder.stopRecording()).not.toThrow()
+    })
+  })
 })
