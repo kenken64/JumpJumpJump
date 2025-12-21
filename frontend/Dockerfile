@@ -42,7 +42,7 @@ RUN mkdir -p /app/dist/assets && \
 FROM nginx:1.27-alpine3.20
 
 # Upgrade system packages to fix vulnerabilities
-RUN apk update && apk upgrade --no-cache
+RUN apk update && apk add --no-cache libxml2 && apk upgrade --no-cache
 
 # Remove default nginx user and create non-root user
 RUN addgroup -g 1001 -S appgroup && \
