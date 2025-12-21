@@ -20,7 +20,7 @@ export default defineConfig({
       forks: {
         // Use less memory in CI to avoid OOM
         execArgv: isCI 
-          ? ['--max-old-space-size=6144']
+          ? ['--max-old-space-size=8192']
           : ['--max-old-space-size=8192'],
         // Single worker in CI to minimize memory pressure
         maxForks: isCI ? 1 : undefined,

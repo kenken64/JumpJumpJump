@@ -101,6 +101,15 @@ jobs:
           category: 'trivy-backend-dockerfile'
         if: always()
 
+      - name: Upload Trivy Scan Results as Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: trivy-dockerfile-scan-results
+          path: |
+            frontend-trivy-results.sarif
+            backend-trivy-results.sarif
+        if: always()
+
       - name: Fail if Critical/High issues found
         if: env.FRONTEND_ISSUES == 'true' || env.BACKEND_ISSUES == 'true'
         run: |
@@ -195,6 +204,15 @@ jobs:
         with:
           sarif_file: 'backend-image-trivy.sarif'
           category: 'trivy-backend-image'
+        if: always()
+
+      - name: Upload Trivy Image Scan Results as Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: trivy-image-scan-results
+          path: |
+            frontend-image-trivy.sarif
+            backend-image-trivy.sarif
         if: always()
 
       - name: Check image scan results
