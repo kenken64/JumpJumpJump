@@ -62,11 +62,12 @@ jobs:
       - name: Run tests with coverage (with memory optimization)
         working-directory: frontend
         env:
-          # Force garbage collection more frequently
-          NODE_OPTIONS: '--max-old-space-size=6144 --expose-gc'
+          # Reduce memory limit to leave room for coverage processing
+          NODE_OPTIONS: '--max-old-space-size=4096 --expose-gc'
+          CI: 'true'
         run: |
-          # Run tests with reduced parallelism to avoid OOM
-          pnpm run test:coverage -- --maxWorkers=2 --logHeapUsage
+          # Run tests sequentially with single worker to minimize memory
+          pnpm run test:coverage -- --no-file-parallelism --reporter=basic
 
       - name: Upload coverage report
         uses: actions/upload-artifact@v4
