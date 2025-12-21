@@ -8,7 +8,7 @@ RUN groupadd -r -g 1001 appgroup && \
 
 # Update system packages to fix vulnerabilities (including zlib1g and libsqlite3-0)
 RUN apt-get update && \
-    apt-get install -y libsqlite3-0 && \
+    apt-get install -y --no-install-recommends libsqlite3-0 && \
     apt-get upgrade -y && \
     rm -rf /var/lib/apt/lists/*
 
