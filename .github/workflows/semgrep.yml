@@ -12,15 +12,28 @@ jobs:
   semgrep:
     name: Semgrep Scan
     runs-on: ubuntu-latest
-    container:
-      image: returntocorp/semgrep
     if: (github.actor != 'dependabot[bot]')
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+
+      - name: Install Semgrep
+        run: pip install semgrep
+
       - name: Run Semgrep
         # Scan the entire repository (frontend and backend)
         # --config=auto will automatically detect Python (backend) and TypeScript/React (frontend)
-        # and apply relevant security rules.
-        run: semgrep scan --config=auto
+        # --sarif --output=semgrep.sarif generates a standard security report
+        run: semgrep scan --config=auto --sarif --output=semgrep.sarif
+
+      - name: Upload Semgrep Report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: semgrep-report
+          path: semgrep.sarif
