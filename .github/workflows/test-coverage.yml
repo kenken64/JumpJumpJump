@@ -5,6 +5,7 @@ on:
     branches: [main, multiplayer]
   pull_request:
     branches: [main, multiplayer]
+  workflow_dispatch:
 
 permissions:
   contents: read

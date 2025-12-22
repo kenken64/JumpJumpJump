@@ -5,6 +5,7 @@ on:
     branches: [ main, master, multiplayer ]
   pull_request:
     branches: [ main, master, multiplayer ]
+  workflow_dispatch:
 
 jobs:
   test:
