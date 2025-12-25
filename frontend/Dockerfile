@@ -13,6 +13,9 @@ WORKDIR /app
 # Copy package files
 COPY package.json pnpm-lock.yaml ./
 
+# Copy mocks directory (required for local file: dependency in pnpm-lock.yaml)
+COPY mocks ./mocks
+
 # Install dependencies (remove --frozen-lockfile to allow Railway builds)
 RUN pnpm install
 
