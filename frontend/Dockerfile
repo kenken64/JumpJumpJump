@@ -49,7 +49,7 @@ RUN mkdir -p /app/dist/assets && \
 # - Using minimal Alpine base to reduce attack surface
 # - Running as non-root user (appuser)
 # - Regular security updates via apk upgrade
-FROM nginx:1.28.1-alpine3.21
+FROM nginx:1.28.0-alpine3.21
 
 # Upgrade system packages to fix vulnerabilities
 RUN apk update && apk add --no-cache libxml2 && apk upgrade --no-cache
