@@ -1,4 +1,4 @@
-from fastapi import FastAPI, HTTPException, Security, Header, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, HTTPException, Security, Header, WebSocket, WebSocketDisconnect, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import APIKeyHeader
 from fastapi.responses import FileResponse
@@ -9,6 +9,7 @@ import sqlite3
 from datetime import datetime
 import os
 import secrets
+from starlette.middleware.base import BaseHTTPMiddleware
 
 from rooms import room_manager, GameRoom
 from utils import round_floats
@@ -38,6 +39,89 @@ except (PermissionError, OSError):
 
 app = FastAPI(title="JumpJumpJump API")
 
+# Security Headers Middleware
+class SecurityHeadersMiddleware(BaseHTTPMiddleware):
+    """
+    Middleware to add security headers to all responses and validate Fetch Metadata headers.
+
+    Fetch Metadata Request Headers provide information about the context of the request:
+    - Sec-Fetch-Site: Indicates the relationship between request initiator and target origin
+    - Sec-Fetch-Mode: Indicates the mode of the request (cors, navigate, no-cors, same-origin, websocket)
+    - Sec-Fetch-Dest: Indicates the destination of the request (document, script, style, etc.)
+    - Sec-Fetch-User: Indicates if navigation was triggered by user activation
+
+    This validation helps protect against:
+    - Cross-Site Request Forgery (CSRF) attacks
+    - Cross-origin information leakage
+    - Unauthorized cross-origin requests
+    """
+    async def dispatch(self, request: Request, call_next):
+        # Validate Fetch Metadata headers for cross-origin protection
+        # Only validate for state-changing methods and sensitive endpoints
+        if request.method in ["POST", "PUT", "DELETE", "PATCH"]:
+            sec_fetch_site = request.headers.get("sec-fetch-site")
+            sec_fetch_mode = request.headers.get("sec-fetch-mode")
+
+            # If browser supports Fetch Metadata, validate it
+            if sec_fetch_site is not None:
+                # Reject cross-site requests for state-changing operations
+                # Allow same-origin, same-site, and none (direct navigation)
+                if sec_fetch_site not in ["same-origin", "same-site", "none"]:
+                    logging.warning(
+                        f"Blocked cross-origin request: {request.method} {request.url.path} "
+                        f"from sec-fetch-site={sec_fetch_site}, sec-fetch-mode={sec_fetch_mode}"
+                    )
+                    raise HTTPException(
+                        status_code=403,
+                        detail="Cross-origin requests not allowed for this endpoint"
+                    )
+
+                # Additional validation: reject navigate mode for API endpoints
+                # (navigate should only be used for page loads, not API calls)
+                if request.url.path.startswith("/api/") and sec_fetch_mode == "navigate":
+                    logging.warning(
+                        f"Blocked navigate mode for API endpoint: {request.method} {request.url.path}"
+                    )
+                    raise HTTPException(
+                        status_code=403,
+                        detail="Invalid request mode for API endpoint"
+                    )
+
+        response = await call_next(request)
+
+        # Add security headers
+        # Strict-Transport-Security (HSTS) - enforce HTTPS
+        response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains; preload"
+
+        # X-Content-Type-Options - prevent MIME-sniffing
+        response.headers["X-Content-Type-Options"] = "nosniff"
+
+        # Permissions-Policy - restrict browser features
+        response.headers["Permissions-Policy"] = "camera=(), microphone=(), geolocation=(), interest-cohort=()"
+
+        # Cache-Control headers based on content type
+        path = request.url.path
+
+        # Static assets (images) should be cached
+        if path.startswith("/api/bosses/images/"):
+            response.headers["Cache-Control"] = "public, max-age=31536000, immutable"
+        # API endpoints with dynamic/sensitive content should not be cached
+        elif path.startswith("/api/"):
+            response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+            response.headers["Pragma"] = "no-cache"
+            response.headers["Expires"] = "0"
+        # WebSocket endpoints don't need cache headers (they're not cached)
+        elif path.startswith("/ws/"):
+            pass
+        # Default: no caching for dynamic content
+        else:
+            response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+
+        return response
+
+# Add security headers middleware
+app.add_middleware(SecurityHeadersMiddleware)
+
 # API Key configuration
 API_KEY = os.getenv("API_KEY", "your-secret-api-key-here")
 api_key_header = APIKeyHeader(name="X-API-Key", auto_error=False)
@@ -53,21 +137,40 @@ async def verify_api_key(api_key: str = Security(api_key_header)):
 
 # CORS middleware to allow frontend requests
 # Get allowed origins from environment variable or use defaults
+# For production, ALLOWED_ORIGINS should be set to specific domains (e.g., "https://yourapp.railway.app,https://www.yourapp.com")
 ALLOWED_ORIGINS = os.getenv("ALLOWED_ORIGINS", "http://localhost:3000,http://localhost:5173").split(",")
 
-# Check if we're in production (Railway) - allow all origins for Railway deployments
-# The wildcard pattern doesn't work with CORS, so we use "*" for Railway
+# Check if we're in production (Railway)
 IS_RAILWAY = os.getenv("RAILWAY_ENVIRONMENT") is not None or os.getenv("RAILWAY_PUBLIC_DOMAIN") is not None
 
-# For Railway deployments, allow all origins since frontend domain can vary
-if IS_RAILWAY or os.getenv("ALLOW_ALL_ORIGINS") == "true":
-    CORS_ORIGINS = ["*"]
+# For Railway deployments, use environment-specified origins or construct from Railway domain
+if IS_RAILWAY:
+    railway_domain = os.getenv("RAILWAY_PUBLIC_DOMAIN")
+    if railway_domain:
+        # Construct allowed origins from Railway domain if not explicitly set
+        default_railway_origins = [
+            f"https://{railway_domain}",
+            f"http://{railway_domain}"
+        ]
+        # Use ALLOWED_ORIGINS if set, otherwise use Railway domain
+        if os.getenv("ALLOWED_ORIGINS"):
+            CORS_ORIGINS = ALLOWED_ORIGINS
+        else:
+            CORS_ORIGINS = default_railway_origins
+    else:
+        CORS_ORIGINS = ALLOWED_ORIGINS
 else:
     CORS_ORIGINS = ALLOWED_ORIGINS
 
+# Override with wildcard only if explicitly requested (not recommended for production)
+if os.getenv("ALLOW_ALL_ORIGINS") == "true":
+    CORS_ORIGINS = ["*"]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=CORS_ORIGINS,
+    # CORS_ORIGINS is only ["*"] when ALLOW_ALL_ORIGINS=true is explicitly set (not recommended for production)
+    # Default behavior uses specific allowed origins. Credentials are properly disabled when using wildcard.
+    allow_origins=CORS_ORIGINS,  # nosemgrep: python.fastapi.security.wildcard-cors.wildcard-cors
     allow_credentials=True if CORS_ORIGINS != ["*"] else False,  # credentials not allowed with "*"
     allow_methods=["*"],
     allow_headers=["*"],

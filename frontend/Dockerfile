@@ -1,7 +1,9 @@
 # Multi-stage build for optimized production image
+# Base images updated: 2025-12-25
 
 # Stage 1: Build the application
-FROM node:20-alpine3.20 AS builder
+# Using Node 20 LTS with Alpine 3.21 (latest stable)
+FROM node:20-alpine3.21 AS builder
 
 # Install pnpm
 RUN npm install -g pnpm
@@ -39,7 +41,15 @@ RUN mkdir -p /app/dist/assets && \
     ls -la "/app/dist/assets/kenney_platformer-art-extended-enemies/Alien sprites/alienBeige_stand.png"
 
 # Stage 2: Production server with nginx
-FROM nginx:1.27-alpine3.20
+# Using nginx 1.28.1 (latest stable) with Alpine 3.21
+# Note: nginx 1.28 is the latest stable branch (released April 2025)
+# nginx 1.29.x is mainline/development branch
+#
+# Known security considerations:
+# - Using minimal Alpine base to reduce attack surface
+# - Running as non-root user (appuser)
+# - Regular security updates via apk upgrade
+FROM nginx:1.28.1-alpine3.21
 
 # Upgrade system packages to fix vulnerabilities
 RUN apk update && apk add --no-cache libxml2 && apk upgrade --no-cache
@@ -70,6 +80,11 @@ EXPOSE 8080
 
 # Set default PORT to 8080 if not provided by Railway
 ENV PORT=8080
+
+# Health check for nginx
+# Note: Using wget instead of curl as it's available in Alpine by default
+HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
+    CMD wget --quiet --tries=1 --spider http://localhost:${PORT}/ || exit 1
 
 # Switch to non-root user
 USER appuser

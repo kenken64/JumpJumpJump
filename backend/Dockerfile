@@ -1,3 +1,17 @@
+# Multi-stage build for optimized production image
+# Using Python 3.11-slim-bookworm (Debian 12) - Latest stable version
+# Base image updated: 2025-12-25
+#
+# Known CVEs without fixes (accepted risk):
+# - CVE-2025-14104 (util-linux packages: bsdutils, libblkid1, libmount1) - MEDIUM severity
+# - CVE-2025-30258 (gnupg packages: gpgv) - MEDIUM severity
+# - Multiple LOW severity CVEs in base packages (apt, bash, coreutils, libc6, gcc)
+#
+# Mitigation strategy:
+# - Using minimal slim-bookworm variant to reduce attack surface
+# - Running as non-root user (appuser)
+# - Regular security updates via apt-get upgrade
+# - Monitoring for security patches and rebuilding images regularly
 FROM python:3.11-slim-bookworm
 
 WORKDIR /app
@@ -34,8 +48,10 @@ ENV PORT=8000
 EXPOSE 8000
 
 # Health check (use PORT env var)
+# Note: Using Python's urllib instead of curl to avoid additional dependencies
+# This checks the root endpoint which should return a 200 OK response
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
-    CMD python -c "import urllib.request, os; urllib.request.urlopen(f'http://localhost:{os.getenv(\"PORT\", \"8000\")}/').read()"
+    CMD python -c "import urllib.request, os, sys; urllib.request.urlopen(f'http://localhost:{os.getenv(\"PORT\", \"8000\")}/').read()" || exit 1
 # Switch to non-root user
 USER appuser
 # Run with uvicorn using PORT env var (use sh -c for proper variable expansion)

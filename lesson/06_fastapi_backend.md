@@ -299,12 +299,31 @@ The FastAPI Backend plays two distinct, but equally important, roles:
 | **Purpose**       | Request/send data that isn't real-time, one-time actions | Real-time, continuous communication for dynamic events  |
 | **Example Use**   | Submit high scores, fetch leaderboard, get boss info     | Online multiplayer (player movement, enemy sync, chat)  |
 | **Communication** | Request-response model (like ordering food)            | Persistent, two-way connection (like a phone call)      |
-| **Protocol**      | HTTP/HTTPS                                             | WebSocket (ws:// or wss://)                             |
+| **Protocol**      | HTTP/HTTPS                                             | WebSocket Secure (wss://)                               |
 | **Latency**       | Tolerant of small delays                               | Critical for low latency (smooth multiplayer)           |
 | **Key Methods**   | `GET`, `POST`, `PUT`, `DELETE`                         | `send()`, `receive()`, `broadcast()`                    |
 | **Frontend Side** | `GameAPI` (using `fetch` or `axios`)                   | `OnlineCoopService` (using `WebSocket` API)             |
 
 This separation allows the backend to efficiently handle both static data storage and dynamic, real-time multiplayer interactions.
+
+### WebSocket Security Best Practices
+
+When deploying the backend to production, it's crucial to ensure secure WebSocket connections:
+
+**Production Requirements:**
+- Always use **WebSocket Secure (wss://)** protocol in production environments
+<!-- nosemgrep: javascript.lang.security.detect-insecure-websocket.detect-insecure-websocket -->
+- Never use insecure `ws://` protocol for production deployments (this is a security warning, not actual insecure code)
+- The `wss://` protocol encrypts all data transmitted between client and server, preventing eavesdropping and man-in-the-middle attacks
+
+**Development vs Production:**
+- **Development (localhost):** `ws://localhost:8000` is acceptable for local testing
+- **Production:** Must use `wss://your-domain.com` with valid SSL/TLS certificates
+
+**Implementation Notes:**
+- Frontend WebSocket connections should automatically use `wss://` when the site is served over HTTPS
+- Backend servers should be configured behind a reverse proxy (like nginx or Railway's built-in proxy) that handles SSL/TLS termination
+- Ensure your CSP (Content Security Policy) includes the appropriate `connect-src` directive for WebSocket connections
 
 ## Conclusion
 

@@ -1006,4 +1006,5 @@ describe('OnlineLobbyScene', () => {
       expect(mockChatInput.remove).toHaveBeenCalled()
     })
   })
+
 })

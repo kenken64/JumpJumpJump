@@ -264,7 +264,7 @@ export class OnlinePlayerManager {
     for (const [playerId, playerState] of Object.entries(gameState.players)) {
       const isLocal = playerId === localPlayerId
       
-      console.log(`Creating ${isLocal ? 'LOCAL' : 'REMOTE'} player:`, playerId, playerState.player_name, playerState.skin)
+      console.log(`Creating ${isLocal ? 'LOCAL' : 'REMOTE'} player: %s %s %s`, playerId, playerState.player_name, playerState.skin)
       
       const player = this.createPlayer(
         playerId,
@@ -323,7 +323,8 @@ export class OnlinePlayerManager {
     sprite.setData('playerId', playerId)
     sprite.setDepth(10) // Ensure player renders above background
     
-    console.log(`Created player sprite for ${isLocal ? 'local' : 'remote'} player:`, {
+    const playerType = isLocal ? 'local' : 'remote'
+    console.log('Created player sprite for %s player:', playerType, {
       playerId,
       playerNumber,
       skin,

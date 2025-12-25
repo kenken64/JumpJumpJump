@@ -7,7 +7,15 @@ export default defineConfig({
   publicDir: 'public',
   server: {
     port: 3000,
-    open: true
+    open: true,
+    headers: {
+      // Cross-Origin headers for enhanced security
+      'Cross-Origin-Resource-Policy': 'same-origin',
+      'Cross-Origin-Opener-Policy': 'same-origin',
+      // Note: COEP is commented out as it may break Phaser/TensorFlow functionality
+      // Uncomment and test thoroughly before enabling in production
+      // 'Cross-Origin-Embedder-Policy': 'require-corp'
+    }
   },
   build: {
     outDir: 'dist',

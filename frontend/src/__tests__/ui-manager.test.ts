@@ -1267,18 +1267,176 @@ describe('UIManager', () => {
       // that the code handles the scenario gracefully
       scene.gameMode = 'levels'
       uiManager.showLevelComplete(5, 1000, 50)
-      
+
       // Should not throw and should create UI elements
       expect(scene.add.text).toHaveBeenCalled()
     })
-    
+
     it('should handle gamepads array with null entries', () => {
       // Test that showLevelComplete works with various gamepad states
       scene.gameMode = 'levels'
       uiManager.showLevelComplete(5, 1000, 50)
-      
+
       // The code should handle null gamepad entries gracefully
       expect(scene.add.text).toHaveBeenCalled()
     })
   })
+
+  describe('updateBossIndicator', () => {
+    beforeEach(() => {
+      // Create mock boss indicator elements
+      const mockArrow = {
+        setRotation: vi.fn().mockReturnThis(),
+      }
+
+      const mockIndicator = {
+        setVisible: vi.fn().mockReturnThis(),
+        setPosition: vi.fn().mockReturnThis(),
+        setScale: vi.fn().mockReturnThis(),
+      }
+
+      ;(uiManager as any).bossIndicator = mockIndicator
+      ;(uiManager as any).bossIndicatorArrow = mockArrow
+    })
+
+    it('should hide indicator when boss is null', () => {
+      uiManager.updateBossIndicator(null)
+      expect((uiManager as any).bossIndicator.setVisible).toHaveBeenCalledWith(false)
+    })
+
+    it('should hide indicator when boss is inactive', () => {
+      const mockBoss = {
+        active: false,
+        visible: true,
+        x: 100,
+        y: 100,
+      } as any
+
+      uiManager.updateBossIndicator(mockBoss)
+      expect((uiManager as any).bossIndicator.setVisible).toHaveBeenCalledWith(false)
+    })
+
+    it('should hide indicator when boss is invisible', () => {
+      const mockBoss = {
+        active: true,
+        visible: false,
+        x: 100,
+        y: 100,
+      } as any
+
+      uiManager.updateBossIndicator(mockBoss)
+      expect((uiManager as any).bossIndicator.setVisible).toHaveBeenCalledWith(false)
+    })
+
+    it('should show indicator when boss is off-screen (left)', () => {
+      const mockBoss = {
+        active: true,
+        visible: true,
+        x: -100, // Off-screen to the left
+        y: 300,
+      } as any
+
+      scene.cameras.main.scrollX = 0
+      scene.cameras.main.width = 800
+      scene.cameras.main.scrollY = 0
+      scene.cameras.main.height = 600
+
+      uiManager.updateBossIndicator(mockBoss)
+
+      expect((uiManager as any).bossIndicator.setVisible).toHaveBeenCalledWith(true)
+      expect((uiManager as any).bossIndicator.setPosition).toHaveBeenCalled()
+      expect((uiManager as any).bossIndicatorArrow.setRotation).toHaveBeenCalled()
+      expect((uiManager as any).bossIndicator.setScale).toHaveBeenCalled()
+    })
+
+    it('should show indicator when boss is off-screen (right)', () => {
+      const mockBoss = {
+        active: true,
+        visible: true,
+        x: 1000, // Off-screen to the right
+        y: 300,
+      } as any
+
+      scene.cameras.main.scrollX = 0
+      scene.cameras.main.width = 800
+      scene.cameras.main.scrollY = 0
+      scene.cameras.main.height = 600
+
+      uiManager.updateBossIndicator(mockBoss)
+
+      expect((uiManager as any).bossIndicator.setVisible).toHaveBeenCalledWith(true)
+      expect((uiManager as any).bossIndicator.setPosition).toHaveBeenCalled()
+    })
+
+    it('should show indicator when boss is off-screen (above)', () => {
+      const mockBoss = {
+        active: true,
+        visible: true,
+        x: 400,
+        y: -100, // Off-screen above
+      } as any
+
+      scene.cameras.main.scrollX = 0
+      scene.cameras.main.width = 800
+      scene.cameras.main.scrollY = 0
+      scene.cameras.main.height = 600
+
+      uiManager.updateBossIndicator(mockBoss)
+
+      expect((uiManager as any).bossIndicator.setVisible).toHaveBeenCalledWith(true)
+      expect((uiManager as any).bossIndicator.setPosition).toHaveBeenCalled()
+    })
+
+    it('should show indicator when boss is off-screen (below)', () => {
+      const mockBoss = {
+        active: true,
+        visible: true,
+        x: 400,
+        y: 800, // Off-screen below
+      } as any
+
+      scene.cameras.main.scrollX = 0
+      scene.cameras.main.width = 800
+      scene.cameras.main.scrollY = 0
+      scene.cameras.main.height = 600
+
+      uiManager.updateBossIndicator(mockBoss)
+
+      expect((uiManager as any).bossIndicator.setVisible).toHaveBeenCalledWith(true)
+      expect((uiManager as any).bossIndicator.setPosition).toHaveBeenCalled()
+    })
+
+    it('should hide indicator when boss is on-screen', () => {
+      const mockBoss = {
+        active: true,
+        visible: true,
+        x: 400, // On-screen
+        y: 300, // On-screen
+      } as any
+
+      scene.cameras.main.scrollX = 0
+      scene.cameras.main.width = 800
+      scene.cameras.main.scrollY = 0
+      scene.cameras.main.height = 600
+
+      uiManager.updateBossIndicator(mockBoss)
+
+      expect((uiManager as any).bossIndicator.setVisible).toHaveBeenCalledWith(false)
+    })
+
+    it('should not throw when boss indicator elements are null', () => {
+      ;(uiManager as any).bossIndicator = null
+      ;(uiManager as any).bossIndicatorArrow = null
+
+      const mockBoss = {
+        active: true,
+        visible: true,
+        x: 400,
+        y: 300,
+      } as any
+
+      expect(() => uiManager.updateBossIndicator(mockBoss)).not.toThrow()
+    })
+  })
+
 })
