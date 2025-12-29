@@ -308,6 +308,101 @@ Missing HEALTHCHECK instruction in Dockerfile.
 
 ---
 
+### 2.4 Complete Trivy CVE Inventory
+**Tool:** Trivy
+**Scan Date:** 2025-12-25
+**Status:** ✅ Documented (105 findings, 45 unique CVEs)
+
+#### Summary
+| Severity | Count | Status |
+|----------|-------|--------|
+| CRITICAL/HIGH | 3 | ⚠️ Monitored - No fixes available |
+| MEDIUM | 7 | ⚠️ Monitored - No fixes available |
+| LOW | 35 | ℹ️ Accepted risk |
+| **Total Unique** | **45** | Documented |
+
+#### CRITICAL/HIGH Severity CVEs (3)
+
+| CVE ID | Package | Version | Description |
+|--------|---------|---------|-------------|
+| CVE-2025-6020 | libpam-modules | 1.5.2-6+deb12u1 | Linux-PAM directory traversal vulnerability |
+| CVE-2025-7458 | libsqlite3-0 | 3.40.1-2+deb12u2 | SQLite integer overflow |
+| CVE-2023-45853 | zlib1g | 1:1.2.13.dfsg-1 | Integer overflow and heap-based buffer overflow |
+
+#### MEDIUM Severity CVEs (7)
+
+| CVE ID | Package | Version | Description |
+|--------|---------|---------|-------------|
+| CVE-2025-14104 | bsdutils, libblkid1, libmount1, libsmartcols1, libuuid1, mount, util-linux | 1:2.38.1-5+deb12u3 | util-linux vulnerability |
+| CVE-2025-30258 | gpgv | 2.2.40-1.1+deb12u1 | GnuPG vulnerability |
+| CVE-2023-50495 | libncursesw6, libtinfo6, ncurses-base, ncurses-bin | 6.4-4 | ncurses vulnerability |
+| CVE-2024-10041 | libpam-modules, libpam-modules-bin, libpam-runtime, libpam0g | 1.5.2-6+deb12u1 | PAM vulnerability |
+| CVE-2024-22365 | libpam-modules, libpam-modules-bin, libpam-runtime, libpam0g | 1.5.2-6+deb12u1 | PAM vulnerability |
+| CVE-2025-7709 | libsqlite3-0 | 3.40.1-2+deb12u2 | SQLite vulnerability |
+| CVE-2025-8869 | pip | 24.0 | pip vulnerability |
+
+#### LOW Severity CVEs (35)
+
+<details>
+<summary>Click to expand LOW severity CVEs</summary>
+
+| CVE ID | Package | Description |
+|--------|---------|-------------|
+| CVE-2011-3374 | apt, libapt-pkg6.0 | APT vulnerability |
+| CVE-2022-0563 | bsdutils, libblkid1, libmount1, libsmartcols1, libuuid1, mount, util-linux | util-linux vulnerability |
+| CVE-2016-2781 | coreutils | chroot vulnerability |
+| CVE-2017-18018 | coreutils | chown vulnerability |
+| CVE-2025-5278 | coreutils | coreutils vulnerability |
+| CVE-2025-6297 | dpkg | dpkg vulnerability |
+| CVE-2022-27943 | gcc-12-base, libgcc-s1, libstdc++6 | GCC vulnerability |
+| CVE-2022-3219 | gpgv | GnuPG vulnerability |
+| CVE-2010-4756 | libc-bin, libc6 | glibc glob vulnerability |
+| CVE-2018-20796 | libc-bin, libc6 | glibc recursion vulnerability |
+| CVE-2019-1010022 | libc-bin, libc6 | glibc vulnerability |
+| CVE-2019-1010023 | libc-bin, libc6 | glibc vulnerability |
+| CVE-2019-1010024 | libc-bin, libc6 | glibc vulnerability |
+| CVE-2019-1010025 | libc-bin, libc6 | glibc vulnerability |
+| CVE-2019-9192 | libc-bin, libc6 | glibc vulnerability |
+| CVE-2018-6829 | libgcrypt20 | libgcrypt vulnerability |
+| CVE-2024-2236 | libgcrypt20 | libgcrypt vulnerability |
+| CVE-2011-3389 | libgnutls30 | BEAST attack vulnerability |
+| CVE-2025-9820 | libgnutls30 | GnuTLS vulnerability |
+| CVE-2018-5709 | libgssapi-krb5-2, libk5crypto3, libkrb5-3, libkrb5support0 | Kerberos vulnerability |
+| CVE-2024-26458 | libgssapi-krb5-2, libk5crypto3, libkrb5-3, libkrb5support0 | Kerberos vulnerability |
+| CVE-2024-26461 | libgssapi-krb5-2, libk5crypto3, libkrb5-3, libkrb5support0 | Kerberos vulnerability |
+| CVE-2025-6141 | libncursesw6, libtinfo6, ncurses-base, ncurses-bin | ncurses vulnerability |
+| CVE-2007-5686 | login, passwd | shadow vulnerability |
+| CVE-2013-4392 | libsystemd0 | systemd vulnerability |
+| CVE-2023-31437 | libsystemd0 | systemd vulnerability |
+| CVE-2023-31438 | libsystemd0 | systemd vulnerability |
+| CVE-2023-31439 | libsystemd0 | systemd vulnerability |
+| CVE-2005-2541 | tar | tar vulnerability |
+| CVE-2021-45346 | libsqlite3-0 | SQLite vulnerability |
+| CVE-2011-4116 | perl-base | Perl vulnerability |
+| CVE-2023-31486 | perl-base | Perl vulnerability |
+| CVE-2025-27587 | pip | pip vulnerability |
+| CVE-2025-29088 | pip | pip vulnerability |
+| CVE-2024-56433 | shadow | shadow vulnerability |
+
+</details>
+
+#### Mitigation Strategy
+
+1. **No Fix Available**: Most CVEs have no fixed version in Debian 12 (Bookworm)
+2. **Accepted Risk**: LOW severity CVEs are documented as accepted risk
+3. **Monitoring**: CRITICAL/HIGH/MEDIUM CVEs are monitored for upstream fixes
+4. **Regular Updates**: Docker images rebuilt regularly with `apk upgrade --no-cache`
+5. **Base Image Strategy**: Using official minimal images (Alpine for frontend, Python-slim for backend)
+
+#### Verification Command
+```bash
+# Scan Docker images for vulnerabilities
+trivy image jumpjumpjump-backend:latest --severity CRITICAL,HIGH,MEDIUM
+trivy image jumpjumpjump-frontend:latest --severity CRITICAL,HIGH,MEDIUM
+```
+
+---
+
 ## Phase 3: Code Quality & Best Practices (Priority: LOW)
 
 **Progress: 3/3 tasks completed (100%)**
@@ -851,9 +946,9 @@ ERROR: failed to solve: nginx:1.28.1-alpine3.21: failed to resolve source metada
 
 ---
 
-**Last Updated:** 2025-12-25
-**Document Version:** 1.4
-**Status:** 98% Complete - All Semgrep Issues Resolved, CI/CD Workflows Fixed, Code Coverage Partially Improved
+**Last Updated:** 2025-12-29
+**Document Version:** 1.5
+**Status:** 98% Complete - All Semgrep Issues Resolved, CI/CD Workflows Fixed, Trivy CVEs Documented, Code Coverage Partially Improved
 
 ## Completion Summary
 
